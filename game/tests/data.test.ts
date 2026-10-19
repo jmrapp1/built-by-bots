@@ -35,3 +35,15 @@ describe("migration safety", () => {
     expect(sql).not.toMatch(/grant\s+(insert|update|delete)/i);
   });
 });
+
+describe("accounts only", () => {
+  const sql2 = readFileSync(new URL("../supabase/migrations/20261019000002_accounts_only.sql", import.meta.url), "utf8");
+  it("every game function refuses anonymous sessions", () => {
+    const fns = sql2.match(/create or replace function public\.\w+/g) ?? [];
+    expect(fns.length).toBe(3);
+    expect(sql2.match(/is_anonymous/g)!.length).toBeGreaterThanOrEqual(5);
+  });
+  it("adds no write grants", () => {
+    expect(sql2).not.toMatch(/grant\s+(insert|update|delete)/i);
+  });
+});
