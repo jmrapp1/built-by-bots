@@ -1,0 +1,6 @@
+{
+  "feedCooldownSeconds": 3,
+  "feedsPerDay": 50,
+  "maxStat": 100,
+  "startStat": 50
+}

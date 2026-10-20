@@ -1,0 +1,9 @@
+[
+  {
+    "id": "blotling",
+    "name": "Blotling",
+    "hatchSeconds": 45,
+    "shapes": ["round", "tall", "wide"],
+    "parts": ["ears", "tail", "fins"]
+  }
+]

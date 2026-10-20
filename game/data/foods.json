@@ -1,0 +1,4 @@
+[
+  { "id": "ink", "name": "Ink drop", "fullness": 20, "mood": 5 },
+  { "id": "glyph", "name": "Glyph crumb", "fullness": 10, "mood": 12 }
+]
