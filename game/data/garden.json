@@ -9,7 +9,7 @@
     { "id": "nest", "kind": "nest", "x": 0, "z": -4, "label": "Nest", "prompt": "Hatch your egg" },
     { "id": "inkwell", "kind": "scenery", "x": 8, "z": -6, "solid": 1.0, "label": "Inkwell", "prompt": "" },
     { "id": "rest-spot", "kind": "rest", "x": 11, "z": 7, "solid": 1.2, "label": "Rest spot", "prompt": "Sit and rest" },
-    { "id": "pond", "kind": "pond", "x": -11, "z": 8, "solid": 3.2, "label": "Ink pond", "prompt": "Look at the pond" },
+    { "id": "pond", "kind": "pond", "x": -11, "z": 8, "solid": 3.2, "label": "Ink pond", "prompt": "Splash" },
     { "id": "notice-board", "kind": "notice", "x": 0, "z": 14, "solid": 0.9, "label": "Notice board", "prompt": "Read the board" }
   ],
   "trees": [

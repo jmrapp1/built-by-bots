@@ -11,6 +11,11 @@ import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePu
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
 import { STANDING, canWalk, lerpPos, sitAdvance, sitFrame, sitToggle, sitWalkKey, SIT, type SitState } from "@/lib/sit";
+import {
+  POND, PONDIDLE, answerTo, arrived, bigSplashLanded, canStartVisit, dropsAt, edgeNear, firstVisitDelay, maxDrops, nextVisitDelay, overrideState,
+  phaseSeconds, playerGestureSeconds, playerLean, playerSplashLanded, pondAdvance, pondBusy, pondOverride, pondPose, pondStart, retryDelay,
+  ringAt, ringCount, ringDelay, shorePoint, splashLife, splashSpot, tapsBetween, towardPond, type PondState, type Splash,
+} from "@/lib/pond";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -116,7 +121,8 @@ function buildPlace(p: Place): THREE.Object3D {
       bank.position.y = 0.015;
       const pond = new THREE.Mesh(
         new THREE.CircleGeometry(r, 40),
-        new THREE.MeshStandardMaterial({ color: 0x2a3a66, roughness: 0.15, metalness: 0.4 }),
+        // The pond writes the stencil so splash rings are cut off at the water's edge.
+        new THREE.MeshStandardMaterial({ color: 0x2a3a66, roughness: 0.15, metalness: 0.4, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp }),
       );
       pond.rotation.x = -Math.PI / 2;
       pond.position.y = 0.02;
@@ -195,7 +201,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     scene.background = new THREE.Color(L0.sky);
     scene.fog = new THREE.Fog(L0.fog, 30, 70);
     const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);
     el.appendChild(renderer.domElement);
@@ -314,6 +320,37 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     scene.add(flies);
     const flyMat = new THREE.Object3D();
     const flyCol = new THREE.Color();
+    // Pond play: the Print visits the bank by day, pats the water; the player can splash too (lib/pond.ts).
+    let pondS: PondState = PONDIDLE;
+    let pondRoute: Vec[] = [];
+    let pondLeg = 0;
+    let pondNextAt = firstVisitDelay(Math.random());
+    let pondPreview = pondOverride(window.location.search, process.env.NODE_ENV === "production");
+    let pgStart = -1, pgLanded = false;
+    const splashes: Splash[] = [];
+    const ringPool: THREE.Mesh[] = [];
+    for (let i = 0; i < POND.maxSplashes * 2; i++) {
+      const m = new THREE.Mesh(
+        new THREE.RingGeometry(0.93, 1, 56),
+        new THREE.MeshBasicMaterial({ color: 0xcfd9f2, transparent: true, opacity: 0, depthWrite: false, stencilWrite: true, stencilRef: 1, stencilFunc: THREE.EqualStencilFunc }),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.renderOrder = 3;
+      m.visible = false;
+      scene.add(m);
+      ringPool.push(m);
+    }
+    const splashDrops: THREE.Mesh[] = [];
+    for (let i = 0; i < maxDrops(); i++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xcfd9f2, transparent: true, depthWrite: false }));
+      m.visible = false;
+      scene.add(m);
+      splashDrops.push(m);
+    }
+    const addSplash = (x: number, z: number, big: boolean, at: number) => {
+      splashes.push({ start: at, x, z, big });
+      while (splashes.length > POND.maxSplashes) splashes.shift();
+    };
     let holdStart = -1;
     let strokeStart = -1;
     let strokeEnd = -1;
@@ -375,6 +412,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           const was = sit.phase;
           sit = sitToggle(sit, reducedMotion);
           if (was === "standing" && sit.phase === "going") sitFrom = pos;
+        } else if (nearby?.kind === "pond") {
+          if (pgStart < 0) { pgStart = performance.now(); pgLanded = false; } // lean over and splash
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -443,7 +482,24 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       // While going to the seat the player glides there; while seated or rising they stay put.
       if (sit.phase === "going") pos = lerpPos(sitFrom, NIGHT.sit, sf.move);
       else if (sit.phase === "seated") pos = { x: NIGHT.sit.x, z: NIGHT.sit.z };
-      const res = !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : movePlayer(
+            // The player's splash: a smooth lean over the water (down, hold, up); the splash lands once, mid-lean.
+      let pgLean = 0;
+      if (pgStart >= 0) {
+        const pt = (t - pgStart) / 1000;
+        if (pt >= playerGestureSeconds()) pgStart = -1;
+        else {
+          pgLean = playerLean(pt) * (reducedMotion ? POND.calmFactor + 0.3 : 1);
+          if (!pgLanded && pt >= POND.player.splashAt) {
+            pgLanded = true;
+            const at = edgeNear(pos);
+            addSplash(at.x, at.z, false, t / 1000);
+            const ph0 = sleepPhase(hourNow);
+            const next = answerTo(pondS, wander ?? pos, hourNow, ph0 === "awake" && bed === "none");
+            if (next !== pondS) { pondS = next; pondRoute = []; pondLeg = 0; }
+          }
+        }
+      }
+      const res = !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : pgStart >= 0 ? { pos, heading: towardPond(pos) } : movePlayer(
         pos,
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
@@ -459,8 +515,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       // The hover bob fades out as the body lowers onto the seat; the pose is a fold, a tilt and a slow sway.
       player.rotation.order = "YXZ";
       player.position.set(pos.x, hoverY(t) + (SIT.y - hoverY(t)) * sf.lower, pos.z);
-      player.scale.y = 1 - SIT.lower * sf.lower;
-      player.rotation.x = sf.tilt;
+      player.scale.y = (1 - SIT.lower * sf.lower) * (1 - 0.12 * pgLean);
+      player.rotation.x = sf.tilt + pgLean * POND.player.lean;
       player.rotation.z = sf.sway;
 
       const sinceFeed = reactAt.current < 0 ? -1 : (t - reactAt.current) / 1000;
@@ -535,19 +591,56 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             if (wakeMove) wander = { ...wander, x: NIGHT.approach.x, z: NIGHT.approach.z, tx: NIGHT.approach.x, tz: NIGHT.approach.z, wait: 1.5 };
           }
         }
-        if (!engaged && !owned && !holdStill) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        // Pond play. A feed or stroke, or bedtime, always cancels a visit; it can start again later.
+        const awakeNow = ph === "awake" && bed === "none";
+        if (pondPreview) {
+          const shore = shorePoint();
+          wander = { ...wander, x: shore.x, z: shore.z, tx: shore.x, tz: shore.z, wait: 1, heading: towardPond(shore) };
+          pondS = overrideState(pondPreview); pondPreview = null;
+        }
+        if (pondBusy(pondS) && (engaged || !awakeNow)) { pondS = PONDIDLE; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
+        if (!pondBusy(pondS) && awakeNow && !engaged && ts >= pondNextAt) {
+          if (canStartVisit(hourNow, true, wander)) pondS = pondStart();
+          else pondNextAt = ts + retryDelay(Math.random());
+        }
+        let pondOwned = false;
+        let pondPoseV: ReturnType<typeof pondPose> | null = null;
+        if (pondBusy(pondS)) {
+          pondOwned = true;
+          const shore = shorePoint(), spot = splashSpot(shore);
+          const before = pondS, phaseEnd = Math.min(before.t + dt, phaseSeconds(before));
+          if (before.phase === "patting") for (let i = tapsBetween(before.t, phaseEnd); i > 0; i--) addSplash(spot.x, spot.z, false, ts);
+          if (before.phase === "splashing" && bigSplashLanded(before.t, phaseEnd)) addSplash(spot.x, spot.z, true, ts);
+          if (before.phase === "going") {
+            const r = walkRoute(wander, pondRoute, pondLeg, dt, GARDEN.print.radius, cols, POND.walkSpeed);
+            wander = { ...wander, x: r.pos.x, z: r.pos.z, heading: r.heading ?? wander.heading };
+            pondLeg = r.leg;
+            pondS = r.done ? arrived(before) : { ...before, t: before.t + dt };
+          } else pondS = pondAdvance(before, dt);
+          if (before.phase === "watching" && pondS.phase === "going") { pondRoute = routeTo(wander, shore, cols, GARDEN.print.radius); pondLeg = 0; }
+          if (pondS.phase === "watching") wander = { ...wander, heading: towardPond(wander) };
+          else if (pondS.phase === "flinch" || pondS.phase === "patting" || pondS.phase === "splashing" || pondS.phase === "leaving") {
+            // Settle onto the shore point and face the water.
+            const k = Math.min(1, dt * 6);
+            wander = { ...wander, x: wander.x + (shore.x - wander.x) * k, z: wander.z + (shore.z - wander.z) * k, heading: pondS.phase === "leaving" ? wander.heading : towardPond(shore) };
+          }
+          if (!pondBusy(pondS)) { pondOwned = false; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
+          else pondPoseV = pondPose(pondS, reducedMotion);
+        }
+        if (!engaged && !owned && !holdStill && !pondOwned) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
         // Pose: the reaction wins, then stroking, otherwise rest.
         const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
         const reactPose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
-        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? reactPose;
+        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? reactPose;
         const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
         let dy = faceTarget - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
         printMesh.rotation.x = pose.lean;
-        printMesh.position.set(wander.x, (owned || holdStill ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z);
+        printMesh.rotation.z = pondPoseV && !engaged ? pondPoseV.shake : 0;
+        printMesh.position.set(wander.x, (owned || holdStill || pondOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
@@ -578,6 +671,36 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           (m.material as THREE.MeshToonMaterial).opacity = pf.opacity;
         });
       } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); }
+
+      // Splash rings and drops (cut off at the water's edge by the stencil).
+      {
+        const nowS = t / 1000;
+        while (splashes.length && nowS - splashes[0].start > splashLife(splashes[0].big, reducedMotion) + 0.5) splashes.shift();
+        let ri = 0, di = 0;
+        for (const sp of splashes) {
+          const age = nowS - sp.start;
+          for (let i = 0; i < ringCount(sp.big, reducedMotion) && ri < ringPool.length; i++, ri++) {
+            const r = ringAt(age, sp.big, reducedMotion, ringDelay(i), sp);
+            const m = ringPool[ri];
+            m.visible = r.opacity > 0.002;
+            m.position.set(sp.x, 0.035 + ri * 0.0005, sp.z);
+            m.scale.setScalar(Math.max(0.01, r.radius));
+            (m.material as THREE.MeshBasicMaterial).opacity = r.opacity;
+          }
+          for (const d of dropsAt(age, sp.big, reducedMotion)) {
+            if (di >= splashDrops.length) break;
+            const m = splashDrops[di++];
+            m.visible = true;
+            m.position.set(sp.x + d.x, 0.05 + d.y, sp.z + d.z);
+            m.scale.setScalar(d.scale);
+            const mt = m.material as THREE.MeshBasicMaterial;
+            mt.opacity = d.opacity;
+            mt.color.set(d.dark ? 0x3b4a8c : 0xcfd9f2);
+          }
+        }
+        for (; ri < ringPool.length; ri++) ringPool[ri].visible = false;
+        for (; di < splashDrops.length; di++) splashDrops[di].visible = false;
+      }
 
       // Fireflies glow from dusk to dawn.
       const fl = fireflyLevel(hourNow);
@@ -651,6 +774,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
       ring.remove();
+      for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       scene.remove(flies);
       flies.geometry.dispose();
       (flies.material as THREE.Material).dispose();

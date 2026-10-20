@@ -112,10 +112,10 @@ export function routeTo(from: Vec, to: Vec, cols: Colliders, radius: number, siz
 }
 
 // One step along a route. Returns the new position, heading and whether the route is finished.
-export function walkRoute(at: Vec, route: Vec[], leg: number, dt: number, radius: number, cols: Colliders): { pos: Vec; heading: number | null; leg: number; done: boolean } {
+export function walkRoute(at: Vec, route: Vec[], leg: number, dt: number, radius: number, cols: Colliders, speed: number = NIGHT.walkSpeed): { pos: Vec; heading: number | null; leg: number; done: boolean } {
   if (leg >= route.length) return { pos: at, heading: null, leg, done: true };
   const tg = route[leg], dx = tg.x - at.x, dz = tg.z - at.z, d = Math.hypot(dx, dz);
   if (d < 0.15) return { pos: at, heading: null, leg: leg + 1, done: leg + 1 >= route.length };
-  const s = Math.min(d, NIGHT.walkSpeed * dt);
+  const s = Math.min(d, speed * dt);
   return { pos: pushOut({ x: at.x + (dx / d) * s, z: at.z + (dz / d) * s }, radius, cols), heading: Math.atan2(dx, dz), leg, done: false };
 }
