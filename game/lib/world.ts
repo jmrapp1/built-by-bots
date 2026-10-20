@@ -10,6 +10,13 @@ export type Place = { id: string; kind: string; x: number; z: number; solid?: nu
 export type GardenData = typeof garden & { places: Place[] };
 export const GARDEN = garden as unknown as GardenData;
 
+// W3: Home is the named part of the Home Meadow where the Print lives: today's garden, a square of `size` metres round the origin.
+// The Print's wander, routes, bedtime, pond, sit and hide and seek, the foraging spots and the garden props are all scoped to it
+// through this one place. The player can walk the whole World; the Print never targets a point outside Home.
+export const HOME = { size: GARDEN.size, half: GARDEN.size / 2 } as const;
+/** Is the point inside Home, with `margin` metres to spare from its edge? */
+export const inHome = (p: { x: number; z: number }, margin = 0): boolean => Math.abs(p.x) <= HOME.half - margin && Math.abs(p.z) <= HOME.half - margin;
+
 export type Colliders = { circles: Circle[]; boxes: Box[] };
 
 export function colliders(g: GardenData = GARDEN): Colliders {
@@ -22,7 +29,7 @@ export function colliders(g: GardenData = GARDEN): Colliders {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
-export function clampToBounds(p: Vec, radius: number, size: number = GARDEN.size): Vec {
+export function clampToBounds(p: Vec, radius: number, size: number = HOME.size): Vec {
   const lim = size / 2 - radius;
   return { x: clamp(p.x, -lim, lim), z: clamp(p.z, -lim, lim) };
 }
@@ -72,7 +79,7 @@ export function insideAny(p: Vec, margin: number, cols: Colliders): boolean {
 // forward/right in -1..1. yaw is the camera heading; at yaw 0 the camera looks along -z.
 export function movePlayer(
   pos: Vec, input: { forward: number; right: number }, yaw: number, speed: number, dt: number,
-  radius: number, cols: Colliders, size: number = GARDEN.size,
+  radius: number, cols: Colliders, size: number = HOME.size,
 ): { pos: Vec; moving: boolean; heading: number | null } {
   let f = input.forward, r = input.right;
   const len = Math.hypot(f, r);
@@ -109,7 +116,7 @@ export function newWander(at: Vec): Wander {
 }
 
 // Free wandering: walk to a random spot, pause, repeat. Never follows the player.
-export function stepWander(w: Wander, dt: number, rng: () => number, radius: number, speed: number, cols: Colliders, size: number = GARDEN.size): Wander {
+export function stepWander(w: Wander, dt: number, rng: () => number, radius: number, speed: number, cols: Colliders, size: number = HOME.size): Wander {
   if (w.wait > 0) return { ...w, wait: w.wait - dt };
   const dx = w.tx - w.x, dz = w.tz - w.z;
   const d = Math.hypot(dx, dz);

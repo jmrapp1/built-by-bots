@@ -79,8 +79,8 @@ describe("world chunks", () => {
     expect(atOverride("?at=9999,-9999", false)).toEqual({ x: HALF - GARDEN.player.radius, z: -(HALF - GARDEN.player.radius) });
   });
   it("the Print and the other garden systems still use the 40 m garden, not the World", () => {
-    for (const f of ["../lib/forage.ts", "../lib/hide.ts"]) expect(src(f)).toMatch(/GARDEN\.size/);
-    expect(src("../lib/world.ts")).toMatch(/size: number = GARDEN\.size/); // wander, route and move defaults are unchanged
+    for (const f of ["../lib/forage.ts", "../lib/hide.ts"]) expect(src(f)).toMatch(/HOME\.half/);
+    expect(src("../lib/world.ts")).toMatch(/size: number = HOME\.size/); // wander, route and move defaults now read the named Home scope (W3)
     expect(src("../lib/worldMap.ts")).not.toMatch(/from "three"/);
   });
 });
@@ -114,5 +114,51 @@ describe("the shell and the garden wiring", () => {
   it("the dev spawn is gated for production and nothing in the World reads the network", () => {
     expect(world).toMatch(/atOverride\(window\.location\.search, process\.env\.NODE_ENV === "production"\)/);
     expect(shell).not.toMatch(/fetch\(|supabase|XMLHttpRequest/);
+  });
+});
+
+describe("W3: the Print is scoped to Home", async () => {
+  const { HOME, GARDEN: G, inHome, colliders: cols0, stepWander, newWander, movePlayer: mv } = await import("@/lib/world");
+  const { routeTo, NIGHT } = await import("@/lib/night");
+  const { FORAGE, spotsAreClear } = await import("@/lib/forage");
+  const { pickSpot, previewSpot, HIDE } = await import("@/lib/hide");
+  const { mulberry32 } = await import("@/lib/margins");
+  it("Home is the 40 m garden, named in one place, inside the Meadow", () => {
+    expect(HOME.size).toBe(G.size); expect(HOME.half * 2).toBe(HOME.size);
+    expect(inHome({ x: 0, z: 0 })).toBe(true); expect(inHome({ x: 20, z: -20 })).toBe(true); expect(inHome({ x: 20.1, z: 0 })).toBe(false); expect(inHome({ x: 19, z: 0 }, 2)).toBe(false);
+    expect(HOME.half).toBeLessThan(HALF);
+  });
+  it("no file outside world.ts reads the garden size directly any more", () => {
+    for (const f of ["../lib/forage.ts", "../lib/hide.ts", "../lib/night.ts", "../lib/worldMap.ts", "../components/World.tsx"]) expect(src(f)).not.toMatch(/GARDEN\.size/);
+  });
+  it("a wandering Print never leaves Home, even when started at the edge and walked for a long time", () => {
+    const cols = cols0(), rng = mulberry32(5);
+    for (const start of [{ x: 0, z: 0 }, { x: 19.4, z: 19.4 }, { x: -19.4, z: -19.4 }, { x: 19.4, z: -19.4 }]) {
+      let w = newWander(start);
+      for (let i = 0; i < 6000; i++) { w = stepWander(w, 0.05, rng, G.print.radius, G.print.speed * 4, cols); expect(inHome(w, G.print.radius - 0.001)).toBe(true); }
+    }
+  });
+  it("routes the Print takes (to bed, to the pond) stay inside Home", () => {
+    const cols = cols0(), R = G.print.radius, rng = mulberry32(9);
+    for (let i = 0; i < 40; i++) {
+      const from = { x: (rng() - 0.5) * 36, z: (rng() - 0.5) * 36 };
+      for (const r of routeTo(from, NIGHT.approach, cols, R)) expect(inHome(r)).toBe(true);
+    }
+    expect(inHome(NIGHT.approach)).toBe(true); expect(inHome(NIGHT.bed)).toBe(true);
+  });
+  it("hide and seek picks only spots inside Home, and the foraging spots are inside it", () => {
+    const cols = cols0(), rng = mulberry32(3);
+    for (let i = 0; i < 200; i++) {
+      const player = { x: (rng() - 0.5) * 36, z: (rng() - 0.5) * 36 }, print = { x: (rng() - 0.5) * 30, z: (rng() - 0.5) * 30 };
+      const pick = pickSpot(player, print, -1, cols, rng(), rng(), rng());
+      if (pick) expect(inHome(pick.spot, G.print.radius + HIDE.mapMargin - 0.001)).toBe(true);
+    }
+    for (let yaw = 0; yaw < 6.3; yaw += 0.7) expect(previewSpot({ x: 18, z: 18 }, yaw, cols).spot).toBeDefined();
+    expect(spotsAreClear()).toBe(true); for (const s of FORAGE.spots) expect(inHome(s, 1)).toBe(true);
+  });
+  it("the player, unlike the Print, can walk beyond Home when given the World's size", () => {
+    const cols = cols0(); let p = { x: 18, z: 0 };
+    for (let i = 0; i < 100; i++) p = mv(p, { forward: 0, right: 1 }, 0, 7, 0.1, G.player.radius, cols, WORLD.size).pos;
+    expect(p.x).toBeGreaterThan(HOME.half);
   });
 });

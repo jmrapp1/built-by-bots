@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
-  GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
+  GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
@@ -72,7 +72,7 @@ function paperTexture() {
   g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 512); g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(GARDEN.size / 8, GARDEN.size / 8);
+  t.repeat.set(HOME.size / 8, HOME.size / 8);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
@@ -241,14 +241,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     scene.add(sun);
 
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(GARDEN.size, GARDEN.size),
+      new THREE.PlaneGeometry(HOME.size, HOME.size),
       new THREE.MeshStandardMaterial({ map: paperTexture(), roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
     // soft page edge
     const edge = new THREE.Mesh(
-      new THREE.RingGeometry(GARDEN.size * 0.5, GARDEN.size * 2, 4, 1, Math.PI / 4, Math.PI * 2),
+      new THREE.RingGeometry(HOME.size * 0.5, HOME.size * 2, 4, 1, Math.PI / 4, Math.PI * 2),
       new THREE.MeshBasicMaterial({ color: L0.sky }),
     );
     edge.rotation.x = -Math.PI / 2;

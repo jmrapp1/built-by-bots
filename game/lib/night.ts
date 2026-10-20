@@ -2,7 +2,7 @@
 // Everything depends only on the local hour (the same clock as the light, including ?hour=).
 // No three.js, server or clock access here, so it is all unit-tested. Tuning is in data/night.json.
 import night from "@/data/night.json";
-import { GARDEN, insideAny, pushOut, type Colliders, type Vec } from "@/lib/world";
+import { GARDEN, HOME, insideAny, pushOut, type Colliders, type Vec } from "@/lib/world";
 import type { Pose, Puff } from "@/lib/play";
 
 export const NIGHT = night;
@@ -79,7 +79,7 @@ const segmentClear = (a: Vec, b: Vec, margin: number, cols: Colliders) => {
 };
 // Waypoints (not including the start) from `from` to `to` that keep a body of `radius` clear of
 // trees, hedges and places. A grid of clear points is searched, then the path is straightened.
-export function routeTo(from: Vec, to: Vec, cols: Colliders, radius: number, size: number = GARDEN.size): Vec[] {
+export function routeTo(from: Vec, to: Vec, cols: Colliders, radius: number, size: number = HOME.size): Vec[] {
   const m = radius + 0.15;
   if (segmentClear(from, to, m, cols)) return [to];
   const lim = size / 2 - radius - 1, step = 2, pts: Vec[] = [from, to];

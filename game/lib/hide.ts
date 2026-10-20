@@ -2,7 +2,7 @@
 // puffs of each step, and being found. No three.js, clock or server. Numbers live in data/hide.json.
 // Easing matches the sit, the feed and the pond (smoothstep).
 import hide from "@/data/hide.json";
-import { GARDEN, insideAny, type Colliders, type Vec } from "@/lib/world";
+import { GARDEN, HOME, insideAny, type Colliders, type Vec } from "@/lib/world";
 import { puffAt, type Pose, type Puff } from "@/lib/play";
 import { isDay } from "@/lib/pond";
 
@@ -38,7 +38,7 @@ export function previewSpot(player: Vec, yaw: number, cols: Colliders, radius: n
   for (const deg of [0, 30, -30, 60, -60, 90, -90, 135, -135, 180]) {
     const a = (deg * Math.PI) / 180, dx = fx * Math.cos(a) - fz * Math.sin(a), dz = fx * Math.sin(a) + fz * Math.cos(a);
     const spot = { x: player.x + dx * dist, z: player.z + dz * dist };
-    const lim = GARDEN.size / 2 - radius - HIDE.mapMargin;
+    const lim = HOME.half - radius - HIDE.mapMargin;
     if (Math.abs(spot.x) > lim || Math.abs(spot.z) > lim || insideAny(spot, radius + 0.1, cols)) continue;
     const sp: Spot = { tree: -1, spot, perp: { x: -dz, z: dx } };
     // it should also have room to step out to its side
@@ -99,7 +99,7 @@ export function spotBehind(tree: number, player: Vec, behindRoll = 0.5): Spot | 
   return { tree, spot: { x: t.x + ux * away, z: t.z + uz * away }, perp: { x: -uz, z: ux } };
 }
 export function spotValid(sp: Spot, player: Vec, print: Vec, cols: Colliders, radius: number = GARDEN.print.radius): boolean {
-  const lim = GARDEN.size / 2 - radius - HIDE.mapMargin, p = sp.spot;
+  const lim = HOME.half - radius - HIDE.mapMargin, p = sp.spot;
   if (Math.abs(p.x) > lim || Math.abs(p.z) > lim) return false;
   if (insideAny(p, radius + 0.1, cols)) return false;
   if (Math.hypot(sp.perp.x * HIDE.stepOut + p.x, sp.perp.z * HIDE.stepOut + p.z) > lim * 2) return false;
