@@ -29,6 +29,8 @@ import {
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
+import { WORLD, atOverride } from "@/lib/worldMap";
+import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -225,8 +227,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const override = hourOverride(window.location.search);
     const L0 = lightingAt(override ?? hourOfDay(new Date()));
     scene.background = new THREE.Color(L0.sky);
-    scene.fog = new THREE.Fog(L0.fog, 30, 70);
-    const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, 100);
+    scene.fog = new THREE.Fog(L0.fog, WORLD.fog[0], WORLD.fog[1]);
+    const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, WORLD.cameraFar);
     const renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);
@@ -333,10 +335,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
     };
-    const enterGardenZone = () => { (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70; lightClock = 0; report(); };
+    // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
+    let shell: WorldShell | null = null;
+    const showShell = () => { if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } };
+    const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
+    const leaveGardenZone = () => { shell?.dispose(); shell = null; };
     // The one enter/leave path (W1): the garden is the home zone; each other zone builds and frees its own scene objects.
     const zones = createZoneController([
-      { id: "garden", enter: enterGardenZone, leave: () => {} },
+      { id: "garden", enter: enterGardenZone, leave: leaveGardenZone },
       { id: "margins", enter: enterMarginsZone, leave: leaveMarginsZone },
     ]);
     const startTravel = (into: "margins" | "garden", from: { x: number; z: number }) => {
@@ -595,6 +601,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       (scene.fog as THREE.Fog).color.set(L.fog);
       (edge.material as THREE.MeshBasicMaterial).color.set(L.sky);
       mg?.setSky(L.sky);
+      shell?.setSky(L.sky);
       hemi.color.set(L.hemisphereSky);
       hemi.groundColor.set(L.hemisphereGround);
       hemi.intensity = L.hemisphereIntensity;
@@ -622,9 +629,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       pos = { x: g.x - d.x * 1.8, z: g.z - d.z * 1.8 };
       yaw = arrivalYaw("margins");
     }
+    const atWorld = atOverride(window.location.search, process.env.NODE_ENV === "production"); // dev-only: ?at=x,z looks at the far parts of the World
+    if (atWorld && zones.is("garden")) { pos = atWorld; }
+    if (zones.is("garden")) showShell(); // the garden zone starts entered, so its World is built here (and again on every return)
     let last = performance.now();
     let raf = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // The player walks the whole World; collision data for the streamed chunks comes from the pure map, never from what is drawn.
+    const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: cols.boxes } : cols);
     const tick = (t: number) => {
       for (const rp of ripples) {
         const r = ripple((t / 6000) % 1, rp.offset, reducedMotion);
@@ -686,9 +698,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
         keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed,
-        dt, GARDEN.player.radius, cols,
+        dt, GARDEN.player.radius, gardenCols(), WORLD.size,
       );
       pos = res.pos;
+      if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;
         d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -1095,7 +1108,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const walkDist = zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      const walkDist = zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
       target.set(pos.x, ground + GARDEN.camera.height * 0.7, pos.z);

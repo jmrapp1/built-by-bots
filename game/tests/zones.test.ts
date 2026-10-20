@@ -72,7 +72,7 @@ describe("the Margins wiring is unchanged (pins)", () => {
   });
   it("the fog distances and the claims-read gate are the same as before", () => {
     expect(world).toMatch(/\.near = MARGINS\.fog\[0\]; \(scene\.fog as THREE\.Fog\)\.far = MARGINS\.fog\[1\]/);
-    expect(world).toMatch(/\.near = 30; \(scene\.fog as THREE\.Fog\)\.far = 70/);
+    expect(world).toMatch(/\.near = WORLD\.fog\[0\]; \(scene\.fog as THREE\.Fog\)\.far = WORLD\.fog\[1\]/); // W2: the garden zone now has the World's fog
     expect(world).toMatch(/serverReady = local; readFailed = false; downNoted = false;/);
     expect(world).toMatch(/if \(myVisit !== visit \|\| !zones\.is\("margins"\)\) return;/);
   });
