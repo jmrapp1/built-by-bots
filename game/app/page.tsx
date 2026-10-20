@@ -10,7 +10,7 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
-import { FOUND_EGG, openedFromClaims, outcomeFrom, type Outcome } from "@/lib/margins-server";
+import { FOUND_EGG, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -193,14 +193,8 @@ export default function Page() {
     setMsg("Your egg is in the nest.");
   };
   // The Margins: the server decides what is inside a page. The client sends the page number and shows the answer.
-  const unfoldPage = async (spot: number): Promise<Outcome> => {
-    try {
-      const { data, error } = await supabase().rpc("margins_unfold", { p_spot: spot });
-      return outcomeFrom(data, error, spot, utcDay(new Date()), false);
-    } catch {
-      return { ok: false, reason: "network" };
-    }
-  };
+  const unfoldPage = (spot: number, layoutDay: string): Promise<Outcome> =>
+    runUnfold(async (n) => supabase().rpc("margins_unfold", { p_spot: n }), spot, layoutDay); // checked against the day the pages were laid out for
   // The pages this player already opened on this day, from their own rows. Null when the server can't say.
   const loadOpened = async (day: string): Promise<number[] | null> => {
     try {
