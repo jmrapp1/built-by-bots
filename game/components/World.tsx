@@ -10,6 +10,7 @@ import { growthPulse, stageById } from "@/lib/growth";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
+import { STANDING, canWalk, lerpPos, sitAdvance, sitFrame, sitToggle, sitWalkKey, SIT, type SitState } from "@/lib/sit";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -298,7 +299,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let bedAt = 0, leg = 0, restartAt = 0, wakeMove = false;
     let route: Vec[] = [];
     let curlFrom: Vec = { x: 0, z: 0 }, wakeFrom: Vec = { x: 0, z: 0 };
-    let sitting = false;
+    // Sitting: a short walk to the seat, a settle, a held pose, and a clear stand-up (lib/sit.ts).
+    let sit: SitState = STANDING;
+    let sitFrom: Vec = { x: 0, z: 0 };
     let hourNow = override ?? hourOfDay(new Date());
     const anchors = fireflyAnchors();
     const flies = new THREE.InstancedMesh(
@@ -368,8 +371,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           const reactingNow = reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000;
           if (!live.current.locked && live.current.canOffer && !reactingNow && holdStart < 0) holdStart = performance.now();
         } else if (nearby?.kind === "rest") {
-          sitting = !sitting; // sit beside the bed (or get up again); any walking key also stands up
-          if (sitting) pos = { x: NIGHT.sit.x, z: NIGHT.sit.z };
+          // Sit beside the bed, or get up again; any walking key also stands up.
+          const was = sit.phase;
+          sit = sitToggle(sit, reducedMotion);
+          if (was === "standing" && sit.phase === "going") sitFrom = pos;
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -432,8 +437,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (t - lightClock > 1000) { lightClock = t; applyLight(); }
       last = t;
       const k = (a: string, b: string) => (keys.has(a) || keys.has(b) ? 1 : 0);
-      if (sitting && ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c))) sitting = false;
-      const res = sitting ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : movePlayer(
+      if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c))) sit = sitWalkKey(sit, reducedMotion);
+      sit = sitAdvance(sit, dt, reducedMotion);
+      const sf = sitFrame(sit, reducedMotion);
+      // While going to the seat the player glides there; while seated or rising they stay put.
+      if (sit.phase === "going") pos = lerpPos(sitFrom, NIGHT.sit, sf.move);
+      else if (sit.phase === "seated") pos = { x: NIGHT.sit.x, z: NIGHT.sit.z };
+      const res = !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : movePlayer(
         pos,
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
@@ -446,7 +456,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         d = Math.atan2(Math.sin(d), Math.cos(d));
         player.rotation.y += d * Math.min(1, dt * 12);
       }
-      player.position.set(pos.x, sitting ? NIGHT.sit.y : hoverY(t), pos.z);
+      // The hover bob fades out as the body lowers onto the seat; the pose is a fold, a tilt and a slow sway.
+      player.rotation.order = "YXZ";
+      player.position.set(pos.x, hoverY(t) + (SIT.y - hoverY(t)) * sf.lower, pos.z);
+      player.scale.y = 1 - SIT.lower * sf.lower;
+      player.rotation.x = sf.tilt;
+      player.rotation.z = sf.sway;
 
       const sinceFeed = reactAt.current < 0 ? -1 : (t - reactAt.current) / 1000;
       const reacting = sinceFeed >= 0 && sinceFeed < PLAY.reactionSeconds;
@@ -606,7 +621,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const dist = sitting ? GARDEN.camera.distance * (1 - NIGHT.sit.cameraIn) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      const walkDist = cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      // Blend with how far seated you are, so the camera eases in and out instead of jumping.
+      const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
       target.set(pos.x, GARDEN.camera.height * 0.7, pos.z);
       const want = new THREE.Vector3(
         pos.x + (dir.x / flat) * dist * Math.cos(pitch),
