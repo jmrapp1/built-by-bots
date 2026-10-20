@@ -12,10 +12,14 @@ import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/l
 import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
 import { STANDING, canWalk, lerpPos, sitAdvance, sitFrame, sitToggle, sitWalkKey, SIT, type SitState } from "@/lib/sit";
 import {
-  POND, PONDIDLE, answerTo, arrived, bigSplashLanded, canStartVisit, dropsAt, edgeNear, firstVisitDelay, maxDrops, nextVisitDelay, overrideState,
+  POND, PONDIDLE, answerTo, arrived, bigSplashLanded, canPlayerSplash, canStartVisit, dropsAt, edgeNear, firstVisitDelay, maxDrops, nextVisitDelay, overrideState,
   phaseSeconds, playerGestureSeconds, playerLean, playerSplashLanded, pondAdvance, pondBusy, pondOverride, pondPose, pondStart, retryDelay,
   ringAt, ringCount, ringDelay, shorePoint, splashLife, splashSpot, tapsBetween, towardPond, type PondState, type Splash,
 } from "@/lib/pond";
+import {
+  HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
+  hideStart, nextGameDelay, pickSpot, previewSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
+} from "@/lib/hide";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -27,6 +31,8 @@ type Props = {
   onNearby: (place: Place | null) => void;
   onInteract: (place: Place) => void;
   onPrintNear: (near: boolean) => void;
+  onFindable?: (found: boolean) => void; // the Print is hiding and within reach: E means "found"
+  onCanSplash?: (ok: boolean) => void; // the pond can be splashed (day only)
   onFeedPrint: () => void; // the hold finished: ask the server to feed
   fedTick?: number; // goes up each time a feed succeeded, to start the Print's reaction
   onGather?: (kind: string) => "ok" | "full"; // the page owns the pouch; the world only reports a walk-over
@@ -175,10 +181,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, fedTick = 0, locked = false, onGather, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer });
   live.current = { genes, eggPhase, stage, species, locked, canOffer };
@@ -351,6 +357,18 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       splashes.push({ start: at, x, z, big });
       while (splashes.length > POND.maxSplashes) splashes.shift();
     };
+    // Hide and seek: the Print stops, dashes behind a tree and peeks out until the player finds it (lib/hide.ts).
+    let hideS: HideState = HIDEIDLE;
+    let hideRoute: Vec[] = [];
+    let hideLeg = 0, hideLast = -1, hideSide = 0, hideFindable = false, canSplashShown: boolean | null = null;
+    let hideNextAt = firstGameDelay(Math.random());
+    let hidePreview = hideOverride(window.location.search, process.env.NODE_ENV === "production");
+    const hideDrops = Array.from({ length: 8 }, () => {
+      const m = new THREE.Mesh(dropGeo, new THREE.MeshBasicMaterial({ color: 0xcfd9f2, transparent: true, depthWrite: false }));
+      m.visible = false;
+      scene.add(m);
+      return m;
+    });
     let holdStart = -1;
     let strokeStart = -1;
     let strokeEnd = -1;
@@ -403,7 +421,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
       if (e.code === PLAY.keys.hold && !e.repeat) {
-        if (printNear) {
+        if (hideFindable) {
+          hideS = hideFound(hideS); // while the game runs, E near the hiding Print means "found"
+        } else if (printNear) {
           // Hold to feed. Not while a feed is in flight, a panel is open, or the last reaction is still playing.
           const reactingNow = reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000;
           if (!live.current.locked && live.current.canOffer && !reactingNow && holdStart < 0) holdStart = performance.now();
@@ -413,7 +433,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           sit = sitToggle(sit, reducedMotion);
           if (was === "standing" && sit.phase === "going") sitFrom = pos;
         } else if (nearby?.kind === "pond") {
-          if (pgStart < 0) { pgStart = performance.now(); pgLanded = false; } // lean over and splash
+          // No lean and no ring in the dark: the pond follows the Print's own day window.
+          if (pgStart < 0 && canPlayerSplash(hourNow)) { pgStart = performance.now(); pgLanded = false; } // lean over and splash
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -495,7 +516,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             addSplash(at.x, at.z, false, t / 1000);
             const ph0 = sleepPhase(hourNow);
             const next = answerTo(pondS, wander ?? pos, hourNow, ph0 === "awake" && bed === "none");
-            if (next !== pondS) { pondS = next; pondRoute = []; pondLeg = 0; }
+            if (next !== pondS && !hideBusy(hideS)) { pondS = next; pondRoute = []; pondLeg = 0; }
           }
         }
       }
@@ -599,7 +620,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           pondS = overrideState(pondPreview); pondPreview = null;
         }
         if (pondBusy(pondS) && (engaged || !awakeNow)) { pondS = PONDIDLE; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
-        if (!pondBusy(pondS) && awakeNow && !engaged && ts >= pondNextAt) {
+        if (!pondBusy(pondS) && !hideBusy(hideS) && awakeNow && !engaged && ts >= pondNextAt) {
           if (canStartVisit(hourNow, true, wander)) pondS = pondStart();
           else pondNextAt = ts + retryDelay(Math.random());
         }
@@ -627,20 +648,68 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if (!pondBusy(pondS)) { pondOwned = false; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
           else pondPoseV = pondPose(pondS, reducedMotion);
         }
-        if (!engaged && !owned && !holdStill && !pondOwned) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        // Hide and seek. A feed, stroke, bedtime or sit ends it gently; a player splash is ignored until it ends.
+        if (hidePreview) {
+          if (hidePreview === "found") {
+            // Hiding just ahead of the player, within reach: one E press plays the found burst.
+            const pick = previewSpot(pos, yaw, cols);
+            pondS = PONDIDLE;
+            wander = { ...wander, x: pick.spot.x, z: pick.spot.z, tx: pick.spot.x, tz: pick.spot.z, wait: 1 };
+            hideS = { ...withSpot(hideStart(), pick), phase: "hiding", t: 0 };
+          } else if (hidePreview === "1") { pondS = PONDIDLE; hideS = hideStart(); }
+          hidePreview = null;
+        }
+        const pondWasBusy = pondBusy(pondS);
+        if (hideBusy(hideS) && (engaged || !awakeNow || sit.phase !== "standing" || pondBusy(pondS))) {
+          hideS = hideCancel(); hideRoute = []; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; hideNextAt = ts + nextGameDelay(Math.random());
+        }
+        if (!hideBusy(hideS) && awakeNow && !engaged && !pondBusy(pondS) && sit.phase === "standing" && ts >= hideNextAt) {
+          if (canStartGame(hourNow, true, true, wander, pos)) hideS = hideStart();
+          else hideNextAt = ts + hideRetry(Math.random());
+        }
+        if (pondWasBusy && !pondBusy(pondS)) hideNextAt = Math.max(hideNextAt, ts + HIDE.afterPond);
+        let hideOwned = false;
+        let hidePoseV: ReturnType<typeof hidePose> | null = null;
+        if (hideBusy(hideS)) {
+          hideOwned = true;
+          const before = hideS;
+          if (before.phase === "dashing") {
+            const r = walkRoute(wander, hideRoute, hideLeg, dt, GARDEN.print.radius, cols, HIDE.dashSpeed);
+            wander = { ...wander, x: r.pos.x, z: r.pos.z, heading: r.heading ?? wander.heading };
+            hideLeg = r.leg;
+            hideS = r.done ? hideArrived(before) : { ...before, t: before.t + dt };
+            if (hideS.phase === "hiding") wander = { ...wander, heading: Math.atan2(pos.x - wander.x, pos.z - wander.z) };
+          } else hideS = hideAdvance(before, dt);
+          if (before.phase === "inviting" && hideS.phase === "dashing") {
+            const pick = pickSpot(pos, wander, hideLast, cols, Math.random(), Math.random(), Math.random());
+            if (!pick) hideS = HIDEIDLE; // nowhere good to hide: no game
+            else { hideS = withSpot(hideS, pick); hideLast = pick.tree; hideRoute = routeTo(wander, pick.spot, cols, GARDEN.print.radius); hideLeg = 0; }
+          }
+          if (hideS.phase === "inviting") wander = { ...wander, heading: Math.atan2(pos.x - wander.x, pos.z - wander.z) };
+          const anchor = hideAnchor(hideS);
+          if (anchor && hideS.phase !== "hiding") wander = { ...wander, x: anchor.x, z: anchor.z, tx: anchor.x, tz: anchor.z };
+          if (!hideBusy(hideS)) { hideOwned = false; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; hideNextAt = ts + nextGameDelay(Math.random()); }
+          else hidePoseV = hidePose(hideS, reducedMotion);
+        }
+        // The peek leans out sideways; it is eased so an interrupt never snaps the Print back.
+        const sideWant = hidePoseV && hideS.perp ? hidePoseV.side : 0;
+        hideSide += (sideWant - hideSide) * Math.min(1, dt * 8);
+        if (Math.abs(hideSide) < 0.001) hideSide = 0;
+        const hideDir = hideS.perp ?? { x: 0, z: 0 };
+        if (!engaged && !owned && !holdStill && !pondOwned && !hideOwned) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
         // Pose: the reaction wins, then stroking, otherwise rest.
         const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
         const reactPose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
-        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? reactPose;
+        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? hidePoseV ?? reactPose;
         const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
-        let dy = faceTarget - printMesh.rotation.y;
+        let dy = faceTarget + (hidePoseV && !engaged ? hidePoseV.spin : 0) - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
         printMesh.rotation.x = pose.lean;
-        printMesh.rotation.z = pondPoseV && !engaged ? pondPoseV.shake : 0;
-        printMesh.position.set(wander.x, (owned || holdStill || pondOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z);
+        printMesh.rotation.z = !engaged ? (pondPoseV?.shake ?? hidePoseV?.shake ?? 0) : 0;
+        printMesh.position.set(wander.x + hideDir.x * HIDE.peekOut * hideSide, (owned || holdStill || pondOwned || hideOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z + hideDir.z * HIDE.peekOut * hideSide);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
@@ -662,6 +731,17 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           ...(stroked >= 0 && released === 0 ? strokePuffs(stroked, reducedMotion) : []),
           ...(bed === "sleep" && !engaged ? swirlPuffs(ts, reducedMotion) : []),
         ];
+        const hp = !engaged && hideBusy(hideS) ? hidePuffs(hideS, reducedMotion) : [];
+        hideDrops.forEach((m, i) => {
+          const pf = hp[i];
+          m.visible = !!pf;
+          if (!pf) return;
+          m.position.set(printMesh!.position.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase, printMesh!.position.z + Math.sin(pf.angle) * pf.dx);
+          m.scale.setScalar(pf.scale);
+          const mt = m.material as THREE.MeshBasicMaterial;
+          mt.opacity = pf.opacity;
+          mt.color.set(pf.tone === "gold" ? 0xf2b632 : i % 2 ? 0xffffff : 0x3b4a8c);
+        });
         drops.forEach((m, i) => {
           const pf = puffs[i];
           m.visible = !!pf;
@@ -670,7 +750,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           m.scale.setScalar(pf.scale);
           (m.material as THREE.MeshToonMaterial).opacity = pf.opacity;
         });
-      } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); }
+      } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); hideDrops.forEach((m) => { m.visible = false; }); }
 
       // Splash rings and drops (cut off at the water's edge by the stencil).
       {
@@ -761,6 +841,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const pn = !!printMesh && !!wander && printInReach(pos, wander);
       if (pn !== printNear) { printNear = pn; cb.current.onPrintNear(pn); }
 
+      const hf = !!wander && canFind(hideS, pos, wander);
+      if (hf !== hideFindable) { hideFindable = hf; cb.current.onFindable?.(hf); }
+      const cs = canPlayerSplash(hourNow);
+      if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
+
       const n = nearestPlace(pos);
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       renderer.render(scene, camera);
@@ -775,6 +860,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("resize", onResize);
       ring.remove();
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
+      for (const m of hideDrops) { scene.remove(m); (m.material as THREE.Material).dispose(); }
       scene.remove(flies);
       flies.geometry.dispose();
       (flies.material as THREE.Material).dispose();

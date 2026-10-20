@@ -23,6 +23,7 @@ type PromptState = {
   hasWaiting?: boolean; // an egg is waiting to hatch (defaults to the old single-egg rule)
   dailyReady?: boolean; // today's egg can be collected
   dailyKnown?: boolean; // the server told us about today's claim
+  canSplash?: boolean; // it is day, so the pond can be splashed (defaults to yes)
 };
 
 export function promptFor(place: Place, s: PromptState): string | null {
@@ -39,9 +40,13 @@ export function promptFor(place: Place, s: PromptState): string | null {
     case "rest": return place.prompt || "Sit and rest";
     case "scenery": return null; // the inkwell is decoration only
     case "notice": return "Read the board";
+    case "pond": return s.canSplash === false ? null : place.label; // calmer to say nothing in the dark
     default: return place.label;
   }
 }
+
+// Shown while the Print hides and the player is within reach. No numbers.
+export const FOUND_PROMPT = "Found you?";
 
 // Short human sentences instead of raw auth errors.
 export function friendlyAuthError(message: string): string {
