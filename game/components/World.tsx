@@ -9,7 +9,7 @@ import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
-export type EggPhase = "unclaimed" | "in-nest";
+export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
 type Props = {
   genes: Genes | null;
   species?: string;
@@ -248,12 +248,25 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         shownStage = st;
         dynamic.add(printMesh);
         wander = wander ?? newWander({ x: nest.x, z: nest.z + 2 });
-      } else {
+      }
+      if (phase !== "none") {
         const egg = buildEgg();
         const at = phase === "in-nest" ? nest : eggSpot;
         egg.position.set(at.x, (phase === "in-nest" ? 0.2 : 0.55) + 0.57 * 0.6, at.z);
         egg.scale.multiplyScalar(0.6);
         dynamic.add(egg);
+        if (phase === "daily") {
+          // A gentle glow so today's egg is easy to spot: a soft golden halo and light, no animation needed.
+          const glow = new THREE.Mesh(
+            new THREE.SphereGeometry(0.62, 20, 14),
+            new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.28, depthWrite: false }),
+          );
+          glow.position.copy(egg.position);
+          dynamic.add(glow);
+          const light = new THREE.PointLight(0xffe2a0, 1.2, 4);
+          light.position.set(at.x, 1.1, at.z);
+          dynamic.add(light);
+        }
       }
     };
     rebuild.current();

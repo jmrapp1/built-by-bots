@@ -1,0 +1,13 @@
+{
+  "pool": [
+    { "species": "blotling", "weight": 1 },
+    { "species": "leaflet", "weight": 1 }
+  ],
+  "messages": {
+    "collected": "Today's egg is in the nest.",
+    "already": "Today's egg is already collected. Come back tomorrow.",
+    "busy": "Hatch the egg in your nest first. Today's egg will wait for you.",
+    "error": "That didn't work. Please try again."
+  },
+  "prompt": "Collect today's egg"
+}

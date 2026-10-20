@@ -25,6 +25,17 @@ describe("prompts", () => {
     expect(promptFor(place("nest"), { hasEgg: true, hasCreature: false, hatchWait: 12 })).toBe("Hatching in 12s");
     expect(promptFor(place("nest"), { hasEgg: true, hasCreature: false, hatchWait: 0 })).toBe("Hatch");
   });
+  it("offers the daily egg only when nothing is waiting and today's is free", () => {
+    const base = { hasEgg: true, hasCreature: true, hatchWait: 0 };
+    expect(promptFor(place("egg"), { ...base, hasWaiting: false, dailyReady: true, dailyKnown: true })).toBe("Collect today's egg");
+    expect(promptFor(place("egg"), { ...base, hasWaiting: true, dailyReady: false, dailyKnown: true })).toBeNull();
+    expect(promptFor(place("egg"), { ...base, hasWaiting: false, dailyReady: false, dailyKnown: true })).toBe("Come back tomorrow");
+    expect(promptFor(place("egg"), { ...base, hasWaiting: false, dailyReady: false, dailyKnown: false })).toBeNull();
+  });
+  it("the nest prompt follows the waiting egg, not the first Print", () => {
+    expect(promptFor(place("nest"), { hasEgg: true, hasCreature: true, hatchWait: 0, hasWaiting: true })).toBe("Hatch");
+    expect(promptFor(place("nest"), { hasEgg: true, hasCreature: true, hatchWait: 0, hasWaiting: false })).toBeNull();
+  });
   it("gives the inkwell no prompt", () => {
     expect(promptFor(place("scenery"), { hasEgg: true, hasCreature: true, hatchWait: 0 })).toBeNull();
   });
