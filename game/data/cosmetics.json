@@ -1,0 +1,41 @@
+{
+  "note": "Keepsakes worn on the Print (slice 6d-1). Anchors are in the body's local space for a round Print at base size; they are stretched by the Print's shape. Placement picks an anchor by name, so a new species adds one anchors block and a new keepsake adds one placement.",
+  "cosmetics": [
+    { "id": "leaf_sprig", "name": "Leaf sprig" },
+    { "id": "ribbon", "name": "Ribbon" },
+    { "id": "ink_cheeks", "name": "Ink cheeks" },
+    { "id": "paper_crown", "name": "Paper crown" },
+    { "id": "scarf", "name": "Scarf" },
+    { "id": "lantern", "name": "Lantern" }
+  ],
+  "anchors": {
+    "blotling": {
+      "headTop": { "x": 0.1, "y": 1.18, "z": 0, "rotY": 0, "scale": 1 },
+      "headCrown": { "x": 0, "y": 1.1, "z": 0, "rotY": 0, "scale": 1 },
+      "headSide": { "x": -0.4, "y": 0.98, "z": 0.22, "rotY": -0.5, "scale": 1 },
+      "face": { "x": 0, "y": 0.66, "z": 0.5, "rotY": 0, "scale": 1, "spread": 1 },
+      "neck": { "x": 0, "y": 0.38, "z": 0, "rotY": 0, "scale": 1 },
+      "hang": { "x": 0.5, "y": 0.62, "z": 0.12, "rotY": 0, "scale": 1 }
+    },
+    "leaflet": {
+      "headTop": { "x": 0, "y": 1.26, "z": 0, "rotY": 0, "scale": 0.85 },
+      "headCrown": { "x": 0, "y": 1.2, "z": 0, "rotY": 0, "scale": 0.8, "flat": 0.45 },
+      "headSide": { "x": -0.3, "y": 1.02, "z": 0.1, "rotY": -0.5, "scale": 0.85 },
+      "face": { "x": 0, "y": 0.72, "z": 0.2, "rotY": 0, "scale": 0.9, "spread": 0.8 },
+      "neck": { "x": 0, "y": 0.42, "z": 0, "rotY": 0, "scale": 0.8, "flat": 0.4 },
+      "hang": { "x": 0.38, "y": 0.62, "z": 0.1, "rotY": 0, "scale": 0.9 }
+    }
+  },
+  "placement": {
+    "leaf_sprig": { "anchor": "headTop", "scale": 1 },
+    "ribbon": { "anchor": "headSide", "scale": 1 },
+    "ink_cheeks": { "anchor": "face", "scale": 1 },
+    "paper_crown": { "anchor": "headCrown", "scale": 1 },
+    "scarf": { "anchor": "neck", "scale": 1 },
+    "lantern": { "anchor": "hang", "scale": 1 }
+  },
+  "shapeScale": { "round": 1, "tall": 0.9, "wide": 1.1 },
+  "putOn": { "hopSeconds": 0.35, "settleSeconds": 0.35, "squashSeconds": 0.4, "hopHeight": 0.18, "overshoot": 1.08, "squashY": 0.08, "squashXZ": 0.05, "restingSettleSeconds": 0.5, "fadeSeconds": 0.3 },
+  "glow": { "pulse": 0.08, "pulseSeconds": 2.6, "nightOnly": true },
+  "preview": { "cycleSeconds": 5 }
+}

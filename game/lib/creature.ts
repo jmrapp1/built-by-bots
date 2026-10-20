@@ -3,7 +3,7 @@ import { partsFor, speciesById } from "@/lib/species";
 
 export type Genes = { hue: number; shape: "round" | "tall" | "wide"; parts: string[] };
 
-const SCALE: Record<Genes["shape"], [number, number, number]> = {
+export const SCALE: Record<Genes["shape"], [number, number, number]> = {
   round: [1, 1, 1],
   tall: [0.85, 1.3, 0.85],
   wide: [1.25, 0.85, 1.1],
