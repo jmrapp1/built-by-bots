@@ -1,5 +1,6 @@
 // Small pure helpers for UI text, so they can be tested.
 import type { Place } from "@/lib/world";
+import { DAILY } from "@/lib/daily";
 
 export type Face = "happy" | "content" | "sleepy";
 
@@ -15,11 +16,25 @@ export function dropFill(value: number, max = 100): number {
   return Math.min(1, Math.max(0, value / max));
 }
 
-export function promptFor(place: Place, s: { hasEgg: boolean; hasCreature: boolean; hatchWait: number }): string | null {
+type PromptState = {
+  hasEgg: boolean; // the starter egg has been collected
+  hasCreature: boolean;
+  hatchWait: number;
+  hasWaiting?: boolean; // an egg is waiting to hatch (defaults to the old single-egg rule)
+  dailyReady?: boolean; // today's egg can be collected
+  dailyKnown?: boolean; // the server told us about today's claim
+};
+
+export function promptFor(place: Place, s: PromptState): string | null {
+  const waiting = s.hasWaiting ?? (s.hasEgg && !s.hasCreature);
   switch (place.kind) {
-    case "egg": return s.hasEgg ? null : "Take egg";
+    case "egg":
+      if (!s.hasEgg) return "Take egg";
+      if (waiting) return null;
+      if (s.dailyReady) return DAILY.prompt;
+      return s.dailyKnown ? "Come back tomorrow" : null;
     case "nest":
-      if (!s.hasEgg || s.hasCreature) return null;
+      if (!waiting) return null;
       return s.hatchWait > 0 ? `Hatching in ${s.hatchWait}s` : "Hatch";
     case "scenery": return null; // the inkwell is decoration only
     case "notice": return "Read the board";

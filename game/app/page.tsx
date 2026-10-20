@@ -7,6 +7,7 @@ import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
 import { BOARD_PAGES, BOARD_TITLE, nextPage, pageAt, pageLabel, prevPage } from "@/lib/board";
 import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/species";
+import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -14,12 +15,18 @@ import type { Genes } from "@/lib/creature";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
-type Egg = { id: string; hatch_at: string; hatched_at: string | null };
+type Egg = { id: string; kind?: string; hatch_at: string; hatched_at: string | null };
 type Creature = { id: string; species?: string; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
 
 export default function Page() {
-  const [egg, setEgg] = useState<Egg | null>(null);
-  const [creature, setCreature] = useState<Creature | null>(null);
+  const [eggs, setEggs] = useState<Egg[]>([]);
+  const [creatures, setCreatures] = useState<Creature[]>([]);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [claimedOn, setClaimedOn] = useState<string | null | undefined>(undefined); // undefined = not known yet
+  const creature = creatures.length ? creatures[activeIndex(creatures.length, picked)] : null;
+  // The starter egg, and the one egg (if any) still waiting to hatch.
+  const starter = eggs.find((e) => e.kind === "starter") ?? null;
+  const egg = eggs.find((e) => !e.hatched_at) ?? null;
   const [now, setNow] = useState(() => new Date());
   const [msg, setMsg] = useState("");
 
@@ -45,23 +52,27 @@ export default function Page() {
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
 
   // Every creature update goes through here so a stage change is announced once.
-  const lastStage = useRef<string | null>(null);
+  const lastStage = useRef<Record<string, string>>({}); // last stage seen per Print
   const applyCreature = (c: Creature) => {
     const st = c.stage ?? "blot";
-    if (stageChanged(lastStage.current, st)) setMsg(`Your Print grew into a ${stageById(st).name}!`);
-    lastStage.current = st;
-    setCreature(c);
+    if (stageChanged(lastStage.current[c.id] ?? null, st)) setMsg(`Your Print grew into a ${stageById(st).name}!`);
+    lastStage.current[c.id] = st;
+    setCreatures((all) => (all.some((x) => x.id === c.id) ? all.map((x) => (x.id === c.id ? c : x)) : [...all, c]));
   };
 
   // Load whatever the player already owns. Claiming the egg is a world action.
   const load = useCallback(async () => {
     const sb = supabase();
-    const { data: e, error } = await sb.from("eggs").select("*").eq("kind", "starter").maybeSingle();
+    const { data: es, error } = await sb.from("eggs").select("*").order("awarded_at", { ascending: true });
     if (error) return setMsg(error.message);
-    if (!e) return setMsg("");
-    setEgg(e as Egg);
-    const { data: c } = await sb.from("creatures").select("*").eq("egg_id", (e as Egg).id).maybeSingle();
-    if (c) applyCreature(c as Creature);
+    setEggs((es ?? []) as Egg[]);
+    const { data: cs } = await sb.from("creatures").select("*").order("created_at", { ascending: true });
+    const list = (cs ?? []) as Creature[];
+    setCreatures(list);
+    for (const c of list) lastStage.current[c.id] = c.stage ?? "blot";
+    // When did this player last collect a daily egg? If the server can't say, we just don't offer one.
+    const { data: dc, error: dErr } = await sb.from("daily_egg_claims").select("claimed_on").maybeSingle();
+    setClaimedOn(dErr ? undefined : ((dc as { claimed_on: string } | null)?.claimed_on ?? null));
     setMsg("");
   }, []);
 
@@ -91,7 +102,7 @@ export default function Page() {
   }, []);
   useEffect(() => {
     if (session) load().catch((x) => setMsg(String(x.message ?? x)));
-    else { setEgg(null); setCreature(null); lastStage.current = null; setMsg(""); }
+    else { setEggs([]); setCreatures([]); setPicked(null); setClaimedOn(undefined); lastStage.current = {}; setMsg(""); }
   }, [session, load]);
 
   const auth = async () => {
@@ -111,6 +122,8 @@ export default function Page() {
   const hatch = async () => {
     const { data, error } = await supabase().rpc("hatch_egg", { p_egg_id: egg!.id });
     if (error) return setMsg(error.message);
+    setPicked(null); // show the new Print
+    setEggs((all) => all.map((e) => (e.id === egg!.id ? { ...e, hatched_at: new Date().toISOString() } : e)));
     applyCreature(data as Creature);
     setMsg("");
   };
@@ -121,7 +134,7 @@ export default function Page() {
     const { data, error } = await supabase().rpc("feed_creature", { p_creature_id: creature!.id, p_food_id: foodId });
     setFeeding(false);
     if (error) return setFeedError(friendlyFeedError(error.message));
-    const grew = stageChanged(lastStage.current, (data as Creature).stage ?? "blot");
+    const grew = stageChanged(lastStage.current[(data as Creature).id] ?? null, (data as Creature).stage ?? "blot");
     applyCreature(data as Creature);
     setMenu(null);
     if (!grew) setMsg(FED_MESSAGE);
@@ -142,25 +155,41 @@ export default function Page() {
   const claim = async () => {
     const { data, error } = await supabase().rpc("claim_starter_egg");
     if (error) return setMsg(error.message);
-    setEgg(data as Egg);
+    setEggs((all) => (all.some((e) => e.id === (data as Egg).id) ? all : [...all, data as Egg]));
     setMsg("Your egg is in the nest.");
+  };
+  // Daily egg: only asks the server. It decides the day, the species and whether the nest is free.
+  const claimDaily = async () => {
+    const { data, error } = await supabase().rpc("claim_daily_egg");
+    if (error) {
+      if (/already claimed/i.test(error.message)) setClaimedOn(utcDay(new Date()));
+      return setMsg(friendlyDailyError(error.message));
+    }
+    setEggs((all) => [...all, data as Egg]);
+    setClaimedOn(utcDay(new Date()));
+    setMsg(DAILY.messages.collected);
   };
 
   // Feeding: walk up to your hatched Print and press E. The server still decides the outcome.
   const feedAtPrint = () => { if (session && creature) { setMsg(""); setFeedError(""); setMenu("feed"); } };
 
   const wait = egg ? secondsUntilHatch(new Date(egg.hatch_at), now) : 0;
+  const dailyReady = claimedOn !== undefined && !!starter && dailyAvailable(claimedOn, utcDay(now), !!egg);
 
   // The server decides every outcome; these only ask and show the answer.
   const interact = (p: Place) => {
     if (!session) return;
     setMsg("");
-    if (p.kind === "egg") { if (!egg) claim(); else setMsg(creature ? "You already have your Print." : "Your egg is in the nest."); }
+    if (p.kind === "egg") {
+      if (!starter) claim();
+      else if (egg) setMsg("Your egg is in the nest.");
+      else if (dailyReady) claimDaily();
+      else setMsg(DAILY.messages.already);
+    }
     else if (p.kind === "nest") {
-      if (!egg) setMsg("Collect your egg at the egg spot first.");
+      if (egg) { if (wait > 0) setMsg(`Your egg hatches in ${wait}s.`); else hatch(); }
       else if (creature) setMsg("Your Print has hatched.");
-      else if (wait > 0) setMsg(`Your egg hatches in ${wait}s.`);
-      else hatch();
+      else setMsg("Collect your egg at the egg spot first.");
     }
     else if (p.kind === "notice") { setBoardPage(0); setMenu("board"); }
     else setMsg(p.label);
@@ -215,13 +244,13 @@ export default function Page() {
     );
   }
 
-  const state = { hasEgg: !!egg, hasCreature: !!creature, hatchWait: wait };
+  const state = { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined };
   const feedTag = feedPrompt(!!creature, printNear);
   const tag = feedTag ?? (nearby ? promptFor(nearby, state) : null);
   const bad = msg !== FED_MESSAGE && /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -250,6 +279,13 @@ export default function Page() {
       {creature && (
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
+          {creatures.length > 1 && (
+            <div className="board-nav">
+              <button className="btn quiet" aria-label="Previous Print" onClick={() => setPicked(Math.max(0, activeIndex(creatures.length, picked) - 1))} disabled={activeIndex(creatures.length, picked) <= 0}>Back</button>
+              <span className="note">Print {activeIndex(creatures.length, picked) + 1} of {creatures.length}</span>
+              <button className="btn quiet" aria-label="Next Print" onClick={() => setPicked(Math.min(creatures.length - 1, activeIndex(creatures.length, picked) + 1))} disabled={activeIndex(creatures.length, picked) >= creatures.length - 1}>Next</button>
+            </div>
+          )}
           <div className="growth" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
             <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(creature.stage ?? "blot").name}</span>
             <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
