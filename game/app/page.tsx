@@ -194,7 +194,16 @@ export default function Page() {
   };
   // The Margins: the server decides what is inside a page. The client sends the page number and shows the answer.
   const unfoldPage = (spot: number, layoutDay: string): Promise<Outcome> =>
-    runUnfold(async (n) => supabase().rpc("margins_unfold", { p_spot: n }), spot, layoutDay); // checked against the day the pages were laid out for
+    runUnfold(async (n) => supabase().rpc("margins_unfold", { p_spot: n }), spot, layoutDay, (n) => wasOpen(n, layoutDay)); // checked against the day the pages were laid out for
+  // Does the server already hold a claim row for this page and day? Null when it can't say.
+  const wasOpen = async (spot: number, day: string): Promise<boolean | null> => {
+    try {
+      const { data, error } = await supabase().from("margins_claims").select("spot").eq("spot", spot).eq("day", day);
+      return error || !Array.isArray(data) ? null : data.length > 0;
+    } catch {
+      return null;
+    }
+  };
   // The pages this player already opened on this day, from their own rows. Null when the server can't say.
   const loadOpened = async (day: string): Promise<number[] | null> => {
     try {

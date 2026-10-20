@@ -25,7 +25,7 @@ import {
   MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
 } from "@/lib/margins";
-import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, type Outcome } from "@/lib/margins-server";
+import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
@@ -273,6 +273,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let inMargins = false;
     let mg: MarginsScene | null = null, mLayout: Layout | null = null, mField: Field | null = null, mSpots: Spot[] = [];
     let mDay = "";
+    const heldByDay = new Map<string, Map<number, Shown>>(); // food the server gave while the pouch was full: kept until there is room (this visit only)
     const openedByDay = new Map<string, Set<number>>(); // this visit only: nothing is saved or sent
     let opened = new Set<number>();
     let scraps = 0;
@@ -1026,13 +1027,24 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
               const full = cb.current.canGather && !cb.current.canGather("ink"); // the server picks the find, so any full pouch stops it first
               if (local ? foodOf(cand.kind) && full : full) { cb.current.onGather?.("ink"); uBlocked = true; uHold = 0; } // a full pouch leaves the page folded, no call made
               else if (local) { mActive = { id: cand.id, since: t }; uHold = 0; }
+              else if (heldByDay.get(mDay)?.has(cand.id)) { // the server already gave this find: open it from the hold, no new call
+                cand.kind = heldByDay.get(mDay)!.get(cand.id)!; heldByDay.get(mDay)!.delete(cand.id);
+                mActive = { id: cand.id, since: t }; uHold = 0;
+              }
               else if (quietUntilNext) { cb.current.onMarginsNote?.(QUIET); uBlocked = true; uHold = 0; } // the server already said no; don't ask again this visit
               else if (cb.current.onUnfold) {
                 uPending = true; // the ring waits full for the answer; the page opens only once it is back
                 const spot = cand, myVisit = visit, askDay = mDay, dayOpened = opened;
                 cb.current.onUnfold(spot.id, askDay).catch((): Outcome => ({ ok: false, reason: "network" })).then((o) => {
                   const here = myVisit === visit && inMargins;
-                  const st = settleUnfold(o, here);
+                  const room = !cb.current.canGather || cb.current.canGather("ink");
+                  const st = settleUnfold(o, here, room);
+                  if (st.held) { // a full pouch: the page stays folded and the find is kept, with the gentle hint
+                    if (!heldByDay.has(askDay)) heldByDay.set(askDay, new Map());
+                    heldByDay.get(askDay)!.set(spot.id, st.held);
+                    if (here) { cb.current.onGather?.(st.held); uPending = false; uBlocked = true; uHold = 0; report(); }
+                    return;
+                  }
                   if (st.open) dayOpened.add(spot.id); // the server wrote it, so the page counts as open on any later visit that day
                   if (!here) {
                     // Left while the call was in flight: still hand over what the server gave, with no animation.
