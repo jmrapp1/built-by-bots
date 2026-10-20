@@ -3,9 +3,10 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
+import type { Place } from "@/lib/world";
 import type { Genes } from "@/lib/creature";
 
-const Garden = dynamic(() => import("@/components/Garden"), { ssr: false });
+const World = dynamic(() => import("@/components/World"), { ssr: false });
 
 type Egg = { id: string; hatch_at: string; hatched_at: string | null };
 type Creature = { id: string; genes: Genes; fullness: number; mood: number };
@@ -20,10 +21,15 @@ export default function Page() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [nearby, setNearby] = useState<Place | null>(null);
+  const [menu, setMenu] = useState<null | "feed" | "board">(null);
+
+  // Load whatever the player already owns. Claiming the egg is a world action.
   const load = useCallback(async () => {
     const sb = supabase();
-    const { data: e, error } = await sb.rpc("claim_starter_egg");
+    const { data: e, error } = await sb.from("eggs").select("*").eq("kind", "starter").maybeSingle();
     if (error) return setMsg(error.message);
+    if (!e) return setMsg("");
     setEgg(e as Egg);
     const { data: c } = await sb.from("creatures").select("*").eq("egg_id", (e as Egg).id).maybeSingle();
     if (c) setCreature(c as Creature);
@@ -68,33 +74,72 @@ export default function Page() {
     setMsg("");
   };
 
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.code === "Escape") setMenu(null); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
+
+  const claim = async () => {
+    const { data, error } = await supabase().rpc("claim_starter_egg");
+    if (error) return setMsg(error.message);
+    setEgg(data as Egg);
+    setMsg("Your egg is in the nest.");
+  };
+
   const wait = egg ? secondsUntilHatch(new Date(egg.hatch_at), now) : 0;
+
+  // The server decides every outcome; these only ask and show the answer.
+  const interact = (p: Place) => {
+    if (!session) return;
+    setMsg("");
+    if (p.kind === "egg") { if (!egg) claim(); else setMsg(creature ? "You already have your Print." : "Your egg is in the nest."); }
+    else if (p.kind === "nest") {
+      if (!egg) setMsg("Collect your egg at the egg spot first.");
+      else if (creature) setMsg("Your Print has hatched.");
+      else if (wait > 0) setMsg(`Your egg hatches in ${wait}s.`);
+      else hatch();
+    } else if (p.kind === "feeding") { if (creature) setMenu("feed"); else setMsg("Hatch an egg first."); }
+    else if (p.kind === "notice") setMenu("board");
+    else setMsg(p.label);
+  };
+
+  const hud: React.CSSProperties = { position: "absolute", left: 12, right: 12, padding: 8, background: "rgba(251,248,239,0.9)", borderRadius: 8 };
   return (
-    <main>
-      <h1>Blotty</h1>
-      {session === false && (
-        <form onSubmit={(e) => { e.preventDefault(); auth("in"); }} style={{ marginBottom: 16 }}>
-          <input type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />{" "}
-          <input type="password" required minLength={8} autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />{" "}
-          <button type="submit">Sign in</button>{" "}
-          <button type="button" onClick={() => auth("up")}>Sign up</button>
-        </form>
+    <main style={{ position: "fixed", inset: 0, margin: 0 }}>
+      <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} />
+      <div style={{ ...hud, top: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <strong>Blotty</strong>
+        {session === false && (
+          <form onSubmit={(e) => { e.preventDefault(); auth("in"); }}>
+            <input type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />{" "}
+            <input type="password" required minLength={8} autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />{" "}
+            <button type="submit">Sign in</button>{" "}
+            <button type="button" onClick={() => auth("up")}>Sign up</button>
+          </form>
+        )}
+        {session && <button onClick={signOut}>Sign out</button>}
+        <span style={{ opacity: 0.7 }}>WASD move · Shift jog · drag to look · E interact</span>
+      </div>
+      {(msg || (nearby && session)) && (
+        <div style={{ ...hud, bottom: 12, textAlign: "center" }}>
+          {msg && <div>{msg}</div>}
+          {nearby && session && <div>{nearby.label}: press E to {nearby.prompt.toLowerCase()}</div>}
+        </div>
       )}
-      {session && <p><button onClick={signOut}>Sign out</button></p>}
-      <Garden genes={creature?.genes ?? null} />
-      {msg && <p>{msg}</p>}
-      {egg && !creature && (
-        <p>
-          {wait > 0 ? `Your egg hatches in ${wait}s.` : "Your egg is ready."}{" "}
-          <button disabled={wait > 0} onClick={hatch}>Hatch</button>
-        </p>
-      )}
-      {creature && (
-        <div>
+      {menu === "feed" && creature && (
+        <div style={{ ...hud, top: "40%", left: "35%", right: "35%", textAlign: "center" }}>
           <p>Fullness {creature.fullness}/100 · Mood {creature.mood}/100</p>
           {FOODS.map((f) => (
             <button key={f.id} onClick={() => feed(f.id)} style={{ marginRight: 8 }}>{f.name}</button>
           ))}
+          <button onClick={() => setMenu(null)}>Close</button>
+        </div>
+      )}
+      {menu === "board" && (
+        <div style={{ ...hud, top: "40%", left: "35%", right: "35%", textAlign: "center" }}>
+          {creature ? <p>Fullness {creature.fullness}/100 · Mood {creature.mood}/100</p> : <p>No Print yet.</p>}
+          <button onClick={() => setMenu(null)}>Close</button>
         </div>
       )}
     </main>
