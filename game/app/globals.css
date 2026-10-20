@@ -1,0 +1,155 @@
+/* Blotty UI tokens and components. Fonts are self-hosted from /fonts (SIL OFL); no CDN. */
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/Fraunces-VF.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("/fonts/Nunito-VF.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-display: swap;
+}
+
+:root {
+  --paper: #fbf6ea;
+  --paper-shade: #f1e8d2;
+  --backdrop: #e9dfc6;
+  --ink: #2b2a33;
+  --ink-soft: #5e5b6b;
+  --blue: #3b4a8c;
+  --blue-hover: #4a5ba6;
+  --green: #5e9c76;
+  --gold: #e3a83b;
+  --berry: #c4566b;
+  --radius-card: 20px;
+  --radius-control: 14px;
+  --border: 2px solid rgba(43, 42, 51, 0.85);
+  --shadow-card: 0 6px 0 rgba(43, 42, 51, 0.12), 0 14px 28px rgba(43, 42, 51, 0.18);
+  --focus-ring: 0 0 0 3px rgba(59, 74, 140, 0.25);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-ui: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--backdrop);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
+
+.card {
+  background: var(--paper);
+  border: var(--border);
+  border-radius: 18px 22px 20px 24px / 22px 18px 24px 20px; /* slight hand-drawn wobble */
+  box-shadow: var(--shadow-card);
+  padding: 24px;
+  animation: rise 220ms var(--ease) both;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Sign-in screen: paper backdrop made from CSS gradients only. */
+.stage {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 39px, rgba(94, 91, 107, 0.12) 39px 40px),
+    radial-gradient(ellipse at 50% 30%, #f3ead2, var(--backdrop));
+}
+.signin { width: 100%; max-width: 400px; display: grid; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand h1 { font-size: 32px; }
+.tagline { margin: 0; color: var(--ink-soft); }
+
+.tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--paper-shade); border: var(--border); border-radius: 999px; padding: 4px; }
+.tabs::before {
+  content: ""; position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px);
+  background: var(--paper); border-radius: 999px; box-shadow: 0 2px 0 rgba(43, 42, 51, 0.15);
+  transition: transform 220ms var(--ease);
+}
+.tabs[data-mode="up"]::before { transform: translateX(100%); }
+.tab { position: relative; z-index: 1; background: none; border: 0; padding: 10px 8px; min-height: 44px; font: 700 15px var(--font-ui); color: var(--ink-soft); cursor: pointer; border-radius: 999px; }
+.tab[aria-selected="true"] { color: var(--ink); }
+
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; color: var(--ink-soft); }
+.input-wrap { position: relative; }
+.input {
+  width: 100%; height: 48px; padding: 0 14px; font: 400 16px var(--font-ui); color: var(--ink);
+  background: var(--paper-shade); border: 2px solid var(--ink-soft); border-radius: var(--radius-control); outline: none;
+  transition: border-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+.input:focus { border-color: var(--blue); box-shadow: var(--focus-ring); }
+.input[aria-invalid="true"] { animation: nudge 200ms var(--ease); border-color: var(--berry); }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.eye { position: absolute; right: 4px; top: 2px; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; cursor: pointer; border-radius: var(--radius-control); }
+.eye:focus-visible, .btn:focus-visible, .tab:focus-visible, .iconbtn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.error { margin: 0; color: var(--berry); font-size: 14px; font-weight: 600; animation: fade 160ms var(--ease); }
+.note { margin: 0; color: var(--ink-soft); font-size: 14px; }
+
+.btn {
+  min-height: 44px; padding: 0 18px; font: 700 16px var(--font-ui); border-radius: var(--radius-control);
+  border: var(--border); cursor: pointer; color: #fff; background: var(--blue);
+  box-shadow: 0 4px 0 rgba(43, 42, 51, 0.35);
+  transition: transform 80ms var(--ease), box-shadow 80ms var(--ease), background 120ms var(--ease);
+}
+.btn:hover { background: var(--blue-hover); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(43, 42, 51, 0.35); }
+.btn[disabled] { opacity: 0.6; cursor: wait; }
+.btn.primary { width: 100%; min-height: 52px; }
+.btn.quiet { color: var(--ink); background: var(--paper-shade); box-shadow: 0 4px 0 rgba(43, 42, 51, 0.15); }
+.btn.quiet:hover { background: var(--paper); }
+
+.loading { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.loading h2 { font-size: 22px; }
+
+/* In-world HUD. The garden is the screen; panels show only when needed. */
+.hud-root { position: fixed; inset: 0; }
+.iconbtn { position: absolute; top: 16px; right: 16px; width: 48px; height: 48px; display: grid; place-items: center; background: var(--paper); border: var(--border); border-radius: 16px 14px 18px 14px / 14px 18px 14px 16px; box-shadow: 0 4px 0 rgba(43, 42, 51, 0.2); cursor: pointer; }
+.menu { position: absolute; top: 72px; right: 16px; width: 280px; display: grid; gap: 12px; }
+.menu h3 { font-size: 22px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; margin: 0; font-size: 14px; }
+.keycap { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; font: 700 13px var(--font-ui); background: var(--paper-shade); border: 2px solid var(--ink); border-radius: 8px; }
+
+.tag { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 10px 16px; animation: fade 180ms var(--ease) both; }
+.tag strong { font-weight: 700; }
+.toast { position: absolute; left: 50%; bottom: 104px; transform: translateX(-50%); max-width: min(440px, 90vw); padding: 12px 18px; text-align: center; animation: rise 220ms var(--ease) both; }
+.toast.bad { border-color: var(--berry); }
+
+.mood { position: absolute; left: 16px; bottom: 16px; width: 260px; display: grid; gap: 10px; padding: 16px; }
+.mood-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mood-head h3 { font-size: 18px; }
+.drops { display: flex; gap: 20px; }
+.drop { display: grid; justify-items: center; gap: 4px; font-size: 13px; color: var(--ink-soft); }
+
+.tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, 90vw); display: grid; gap: 14px; text-align: center; }
+.tray h3 { font-size: 22px; }
+.foods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.food { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; min-height: 88px; font: 700 15px var(--font-ui); color: var(--ink); background: var(--paper-shade); border: var(--border); border-radius: var(--radius-control); cursor: pointer; transition: transform 120ms var(--ease), background 120ms var(--ease); }
+.food:hover { background: var(--paper); transform: translateY(-2px); }
+.food[disabled] { opacity: 0.6; cursor: wait; }
+.food:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hatch-line { margin: 0; font-variant-numeric: tabular-nums; }
+
+@keyframes fill { from { transform: scaleY(0.2); } to { transform: scaleY(1); } }
+.fill { transform-box: fill-box; transform-origin: bottom; animation: fill 600ms var(--ease) both; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+.bob { animation: bob 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  .card, .toast, .tray { animation-name: fade !important; }
+  .card, .tag, .toast, .tray { transform-origin: center; }
+  .btn:active, .food:hover { transform: none; }
+  .bob, .fill, .input[aria-invalid="true"] { animation: none !important; }
+}

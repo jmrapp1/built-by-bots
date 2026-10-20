@@ -14,6 +14,9 @@ Supabase dashboard (Jon does this): Authentication → Sign In / Providers → k
 
 Checks: `npm test`, `npm run typecheck`, `npm run build`.
 
+## Fonts
+Fraunces (headings) and Nunito (UI) are self-hosted in `public/fonts/` as variable WOFF2 files, converted from the official Google Fonts repository files (`github.com/google/fonts`, `ofl/fraunces` and `ofl/nunito`). Both are under the SIL Open Font License 1.1; the licence texts are `public/fonts/OFL-Fraunces.txt` and `OFL-Nunito.txt`. Nothing loads from a CDN, and the CSS falls back to system fonts if a file is missing.
+
 ## Layout
 - `data/` readable content (species, foods, rules). `supabase/migrations/` seeds the same values; a test checks they match.
 - `supabase/migrations/` schema, RLS and the three server functions: `claim_starter_egg`, `hatch_egg`, `feed_creature`.
