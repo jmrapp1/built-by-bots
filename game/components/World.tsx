@@ -1,4 +1,5 @@
 "use client";
+import { createZoneController } from "@/lib/zones";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
@@ -271,7 +272,6 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     // --- The Margins (slice 6a): a second area, far along x, shown by moving the player and camera there. ---
     const mo = marginsOverrides(window.location.search, process.env.NODE_ENV === "production");
-    let inMargins = false;
     let mg: MarginsScene | null = null, mLayout: Layout | null = null, mField: Field | null = null, mSpots: Spot[] = [];
     let mDay = "";
     const keepsakePages = new Set<number>(); // pages whose find is drawn as a scrap but is a keepsake: not counted as a scrap
@@ -290,16 +290,16 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let trailKey = "";
     let trailPath: { x: number; z: number }[] = [];
     const report = () => {
-      const k = `${inMargins}|${mSpots.length}|${opened.size}|${scraps}`;
+      const k = `${zones.is("margins")}|${mSpots.length}|${opened.size}|${scraps}`;
       if (k === reportKey) return;
       reportKey = k;
-      cb.current.onMargins?.({ inside: inMargins, left: spotsLeft(mSpots, opened), total: mSpots.length, scraps });
+      cb.current.onMargins?.({ inside: zones.is("margins"), left: spotsLeft(mSpots, opened), total: mSpots.length, scraps });
     };
     const wipe = document.createElement("div");
     wipe.className = "page-wipe";
     wipe.style.display = "none";
     el.appendChild(wipe);
-    const enterMargins = () => {
+    const enterMarginsZone = () => {
       if (!mLayout || !mField) { mLayout = generateLayout(); mField = buildField(mLayout.cols); mCols = mLayout.cols; }
       mg = buildMarginsScene(mLayout);
       scene.add(mg.group);
@@ -315,7 +315,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         // What this player already opened today comes from the server, so a reload cannot reroll a page.
         const askDay = mDay;
         Promise.resolve(cb.current.onLoadOpened ? cb.current.onLoadOpened(askDay) : null).catch(() => null).then((rows) => {
-          if (myVisit !== visit || !inMargins) return;
+          if (myVisit !== visit || !zones.is("margins")) return;
           const r = afterClaimsRead(rows); // a failed read keeps the ring from running; the next entry reads again
           for (const n of r.opened) opened.add(n);
           serverReady = r.ready; readFailed = !r.ready;
@@ -324,20 +324,21 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           report();
         });
       }
-      inMargins = true;
       (scene.fog as THREE.Fog).near = MARGINS.fog[0]; (scene.fog as THREE.Fog).far = MARGINS.fog[1];
       lightClock = 0;
       report();
     };
-    const leaveMargins = () => {
+    const leaveMarginsZone = () => {
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
-      inMargins = false;
-      (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70;
-      lightClock = 0;
-      report();
     };
+    const enterGardenZone = () => { (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70; lightClock = 0; report(); };
+    // The one enter/leave path (W1): the garden is the home zone; each other zone builds and frees its own scene objects.
+    const zones = createZoneController([
+      { id: "garden", enter: enterGardenZone, leave: () => {} },
+      { id: "margins", enter: enterMarginsZone, leave: leaveMarginsZone },
+    ]);
     const startTravel = (into: "margins" | "garden", from: { x: number; z: number }) => {
       if (travel) return;
       const local = into === "margins" ? from : { x: from.x - OFF, z: from.z };
@@ -534,8 +535,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (travel) {
           // walking through a gate: nothing else to do
         } else if (nearby?.kind === "gate") {
-          startTravel(inMargins ? "garden" : "margins", pos); // the gate in either direction
-        } else if (inMargins) {
+          startTravel(zones.is("margins") ? "garden" : "margins", pos); // the gate in either direction
+        } else if (zones.is("margins")) {
           // unfolding is a hold, handled each frame
         } else if (hideFindable) {
           hideS = hideFound(hideS); // while the game runs, E near the hiding Print means "found"
@@ -603,7 +604,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     };
     // Dev-only starts for the Margins (ignored in production): ?area=margins ?unfold=1 ?gate=1
     if (mo.area || mo.unfold) {
-      enterMargins();
+      zones.enterZone("margins");
       const a = arrivalPath("margins");
       pos = { x: a[1].x + OFF, z: a[1].z };
       yaw = arrivalYaw("margins");
@@ -658,13 +659,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
       }
       let ground = 0;
-      if (inMargins && mLayout) ground = heightAt(pos.x - OFF, pos.z, mLayout.hills);
+      if (zones.is("margins") && mLayout) ground = heightAt(pos.x - OFF, pos.z, mLayout.hills);
       let tRes: { pos: { x: number; z: number }; heading: number | null } | null = null;
       if (travel) {
         const tt = (t - travel.start) / 1000, f = travelFrame(tt, reducedMotion);
         if (f.swapped && !travel.swapped) {
           travel.swapped = true; // behind the full page, so nothing flashes
-          if (travel.into === "margins") enterMargins(); else leaveMargins();
+          if (travel.into === "margins") zones.enterZone("margins"); else zones.leaveZone();
           yaw = arrivalYaw(travel.into);
           camInit = false;
         }
@@ -675,7 +676,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
         if (f.done) { travel = null; wipe.style.display = "none"; }
       }
-      const res = tRes ? tRes : inMargins && canWalk(sit) ? (() => {
+      const res = tRes ? tRes : zones.is("margins") && canWalk(sit) ? (() => {
         const l = { x: pos.x - OFF, z: pos.z };
         const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
           keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, mCols, MARGINS.size);
@@ -879,8 +880,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         // Keepsakes: swap to what should be worn, then play the put-on motion (eased; never blocks input).
         const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
         const wantId = want && COSMETIC_IDS.includes(want) ? want : null;
-        if (wantId !== cosId && (cosPreview || (!inMargins && t >= cosHold))) { // away in the Margins the Print is not on screen: the swap waits until the player is back
-          const moving = (cosPreview ? cosInit : t < cosPlayUntil && !inMargins) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
+        if (wantId !== cosId && (cosPreview || (!zones.is("margins") && t >= cosHold))) { // away in the Margins the Print is not on screen: the swap waits until the player is back
+          const moving = (cosPreview ? cosInit : t < cosPlayUntil && !zones.is("margins")) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
           if (moving && printMesh && live.current.genes) {
             dropOld();
             cosOld = cosObj; cosObj = buildCosmetic(wantId, live.current.species, live.current.genes.shape);
@@ -1009,7 +1010,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
       // The Margins: the glints, the unfold hold, the finds and the way home.
       let mNear: Place | null = null;
-      if (inMargins && mg && mLayout && mField) {
+      if (zones.is("margins") && mg && mLayout && mField) {
         const l = { x: pos.x - OFF, z: pos.z };
         if (!travel) {
           if (mActive) {
@@ -1043,7 +1044,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
                 uPending = true; // the ring waits full for the answer; the page opens only once it is back
                 const spot = cand, myVisit = visit, askDay = mDay, dayOpened = opened;
                 cb.current.onUnfold(spot.id, askDay).catch((): Outcome => ({ ok: false, reason: "network" })).then((o) => {
-                  const here = myVisit === visit && inMargins;
+                  const here = myVisit === visit && zones.is("margins");
                   const room = !cb.current.canGather || cb.current.canGather("ink");
                   const st = settleUnfold(o, here, room);
                   if (st.held) { // a full pouch: the page stays folded and the find is kept, with the gentle hint
@@ -1094,7 +1095,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const walkDist = inMargins ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      const walkDist = zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
       target.set(pos.x, ground + GARDEN.camera.height * 0.7, pos.z);
@@ -1116,7 +1117,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const cs = canPlayerSplash(hourNow);
       if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
 
-      const n = travel ? null : inMargins ? mNear : nearestPlace(pos);
+      const n = travel ? null : zones.is("margins") ? mNear : nearestPlace(pos);
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
@@ -1130,6 +1131,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("resize", onResize);
       ring.remove();
       wipe.remove();
+      zones.dispose(); // frees the zone that is showing, through the same path as leaving
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; }
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       for (const m of hideDrops) { scene.remove(m); (m.material as THREE.Material).dispose(); }

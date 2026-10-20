@@ -87,13 +87,13 @@ describe("the wiring", () => {
   });
   it("the put-on plays only just after a find, never on load or when switching Prints; the preview still cycles", () => {
     expect(world).toMatch(/cosPlayUntil/);
-    expect(world).toMatch(/const moving = \(cosPreview \? cosInit : t < cosPlayUntil && !inMargins\)/);
+    expect(world).toMatch(/const moving = \(cosPreview \? cosInit : t < cosPlayUntil && !zones\.is\("margins"\)\)/);
     expect(world).toMatch(/cosPlayUntil = performance\.now\(\) \+ \d+; cb\.current\.onKeepsake/);
   });
   it("a find made away from the garden plays the put-on once, when the player is back", () => {
     expect(world).toMatch(/cosFoundAway = true; cb\.current\.onKeepsake/);
     expect(world).toMatch(/if \(cosFoundAway\) \{ cosFoundAway = false; cosHold = performance\.now\(\) \+ \d+; cosPlayUntil = performance\.now\(\) \+ \d+; \}/);
-    expect(world).toMatch(/wantId !== cosId && \(cosPreview \|\| \(!inMargins && t >= cosHold\)\)/);
+    expect(world).toMatch(/wantId !== cosId && \(cosPreview \|\| \(!zones\.is\("margins"\) && t >= cosHold\)\)/);
   });
   it("a keepsake is drawn as a scrap but never counted as one", () => {
     expect(world).toMatch(/const keepsakePages = new Set<number>\(\)/);
