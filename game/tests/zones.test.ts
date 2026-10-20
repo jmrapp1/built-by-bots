@@ -67,7 +67,7 @@ describe("the Margins wiring is unchanged (pins)", () => {
     expect(world).toMatch(/zones\.dispose\(\)/);
   });
   it("gate travel swaps zones behind the full wipe, in either direction, through one path", () => {
-    expect(world).toMatch(/if \(travel\.into === "margins"\) zones\.enterZone\("margins"\); else zones\.leaveZone\(\);/);
+    expect(world).toMatch(/if \(travel\.into === "garden"\) zones\.leaveZone\(\); else zones\.enterZone\(travel\.into\);/);
     expect(world).not.toMatch(/\benterMargins\b|\bleaveMargins\b/);
   });
   it("the fog distances and the claims-read gate are the same as before", () => {

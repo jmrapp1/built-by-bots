@@ -30,6 +30,8 @@ import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
+import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
+import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
@@ -222,6 +224,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
   useEffect(() => {
     const el = mount.current!;
     const cols = colliders();
+    cols.circles.push(...doorPosts("garden")); // the posts of the Home door (the Print goes round them like any prop)
     const scene = new THREE.Scene();
     // Light follows the player's local clock (data/daynight.json); ?hour=21 previews a time of day.
     const override = hourOverride(window.location.search);
@@ -285,7 +288,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let uHold = 0, uSpot: Spot | null = null;
     const local = isLocalPreview(mo); // dev previews of other days, all pages or the nearest page never touch the server
     let serverReady = local, readFailed = false, downNoted = false, uPending = false, quietUntilNext = false, visit = 0;
-    let travel: null | { into: "margins" | "garden"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
+    let travel: null | { into: "margins" | "garden" | "home"; from: "garden" | "margins" | "home"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
     let mCols = colliders();
     let reportKey = "";
     let uBlocked = false;
@@ -337,19 +340,36 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
-    const showShell = () => { if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } };
+    let gdoor: HomeScene | null = null;
+    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
-    const leaveGardenZone = () => { shell?.dispose(); shell = null; };
+    const leaveGardenZone = () => { shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
+    // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
+    let room: HomeScene | null = null;
+    const roomCols = roomColliders();
+    const enterHomeZone = () => {
+      room = buildHomeScene(); room.group.position.x = ROOM_OFF; scene.add(room.group);
+      (scene.fog as THREE.Fog).near = HOME_ROOM.light.fog[0]; (scene.fog as THREE.Fog).far = HOME_ROOM.light.fog[1];
+      lightClock = 0; report();
+    };
+    const leaveHomeZone = () => { room?.dispose(); room = null; };
     // The one enter/leave path (W1): the garden is the home zone; each other zone builds and frees its own scene objects.
     const zones = createZoneController([
       { id: "garden", enter: enterGardenZone, leave: leaveGardenZone },
       { id: "margins", enter: enterMarginsZone, leave: leaveMarginsZone },
+      { id: "home", enter: enterHomeZone, leave: leaveHomeZone },
     ]);
-    const startTravel = (into: "margins" | "garden", from: { x: number; z: number }) => {
+    const GARDEN_DOOR: Place = { id: "door-home", kind: "door", x: 0, z: 0, label: "Door", prompt: "Go through the door" };
+    const ROOM_DOOR: Place = { id: "door-garden", kind: "door", x: 0, z: 0, label: "Door", prompt: "Back to the garden" };
+    const offOf = (z: "garden" | "margins" | "home") => (z === "margins" ? OFF : z === "home" ? ROOM_OFF : 0);
+    const startTravel = (into: "margins" | "garden" | "home", from: { x: number; z: number }) => {
       if (travel) return;
-      const local = into === "margins" ? from : { x: from.x - OFF, z: from.z };
-      const walk = gatePath(local, into === "margins" ? "garden" : "home").map((q) => (into === "margins" ? q : { x: q.x + OFF, z: q.z }));
-      travel = { into, start: performance.now(), walk, arrive: arrivalPath(into).map((q) => (into === "margins" ? { x: q.x + OFF, z: q.z } : q)), swapped: false };
+      const fromZone = zones.current, fo = offOf(fromZone), io = offOf(into);
+      const local = { x: from.x - fo, z: from.z };
+      // the walk through the gate or door you are at, then the arrival on the far side (each in its own zone's coordinates)
+      const walk = (fromZone === "home" ? doorPath(local, "room") : into === "home" ? doorPath(local, "garden") : gatePath(local, into === "margins" ? "garden" : "home")).map((q) => ({ x: q.x + fo, z: q.z }));
+      const arrive = (into === "home" ? doorArrival("home") : fromZone === "home" ? doorArrival("garden") : arrivalPath(into)).map((q) => ({ x: q.x + io, z: q.z }));
+      travel = { into, from: fromZone, start: performance.now(), walk, arrive, swapped: false };
       sit = STANDING;
       holdStart = -1; uHold = 0;
     };
@@ -542,6 +562,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           // walking through a gate: nothing else to do
         } else if (nearby?.kind === "gate") {
           startTravel(zones.is("margins") ? "garden" : "margins", pos); // the gate in either direction
+        } else if (nearby?.kind === "door") {
+          startTravel(zones.is("home") ? "garden" : "home", pos); // the Home door in either direction
+        } else if (zones.is("home")) {
+          // the room is empty for now: nothing else to do
         } else if (zones.is("margins")) {
           // unfolding is a hold, handled each frame
         } else if (hideFindable) {
@@ -596,10 +620,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let lightClock = 0;
     const applyLight = () => {
       hourNow = override ?? hourOfDay(new Date());
-      const L = lightingAt(hourNow);
-      (scene.background as THREE.Color).set(L.sky);
-      (scene.fog as THREE.Fog).color.set(L.fog);
-      (edge.material as THREE.MeshBasicMaterial).color.set(L.sky);
+      const L = lightingAt(zones.is("home") ? HOME_ROOM.light.hour : hourNow); // the room has fixed soft daylight; no clock inside
+      (scene.background as THREE.Color).set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
+      (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.fog);
+      (edge.material as THREE.MeshBasicMaterial).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
       mg?.setSky(L.sky);
       shell?.setSky(L.sky);
       hemi.color.set(L.hemisphereSky);
@@ -610,7 +634,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       sun.position.set(...L.sunPosition);
     };
     // Dev-only starts for the Margins (ignored in production): ?area=margins ?unfold=1 ?gate=1
-    if (mo.area || mo.unfold) {
+    const homeStart = homeOverride(window.location.search, process.env.NODE_ENV === "production");
+    if (homeStart) {
+      zones.enterZone("home");
+      const a = doorArrival("home");
+      pos = { x: a[1].x + ROOM_OFF, z: a[1].z };
+      yaw = doorYaw("home");
+    } else if (mo.area || mo.unfold) {
       zones.enterZone("margins");
       const a = arrivalPath("margins");
       pos = { x: a[1].x + OFF, z: a[1].z };
@@ -677,8 +707,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const tt = (t - travel.start) / 1000, f = travelFrame(tt, reducedMotion);
         if (f.swapped && !travel.swapped) {
           travel.swapped = true; // behind the full page, so nothing flashes
-          if (travel.into === "margins") zones.enterZone("margins"); else zones.leaveZone();
-          yaw = arrivalYaw(travel.into);
+          if (travel.into === "garden") zones.leaveZone(); else zones.enterZone(travel.into);
+          yaw = travel.into === "home" ? doorYaw("home") : travel.from === "home" ? doorYaw("garden") : arrivalYaw(travel.into);
           camInit = false;
         }
         const pp = pointAlong(travel.swapped ? travel.arrive : travel.walk, travel.swapped ? f.arrive : f.walk);
@@ -688,7 +718,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
         if (f.done) { travel = null; wipe.style.display = "none"; }
       }
-      const res = tRes ? tRes : zones.is("margins") && canWalk(sit) ? (() => {
+      const res = tRes ? tRes : zones.is("home") && canWalk(sit) ? (() => {
+        const l = { x: pos.x - ROOM_OFF, z: pos.z };
+        const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
+          keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, roomCols, HOME_ROOM.room.width);
+        return { pos: { x: r.pos.x + ROOM_OFF, z: Math.min(r.pos.z, HOME_ROOM.room.depth / 2 + 0.6) }, heading: r.heading }; // the doorway is the way out; no further
+      })() : zones.is("margins") && canWalk(sit) ? (() => {
         const l = { x: pos.x - OFF, z: pos.z };
         const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
           keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, mCols, MARGINS.size);
@@ -893,8 +928,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         // Keepsakes: swap to what should be worn, then play the put-on motion (eased; never blocks input).
         const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
         const wantId = want && COSMETIC_IDS.includes(want) ? want : null;
-        if (wantId !== cosId && (cosPreview || (!zones.is("margins") && t >= cosHold))) { // away in the Margins the Print is not on screen: the swap waits until the player is back
-          const moving = (cosPreview ? cosInit : t < cosPlayUntil && !zones.is("margins")) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
+        if (wantId !== cosId && (cosPreview || (zones.is("garden") && t >= cosHold))) { // away in the Margins the Print is not on screen: the swap waits until the player is back
+          const moving = (cosPreview ? cosInit : t < cosPlayUntil && zones.is("garden")) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
           if (moving && printMesh && live.current.genes) {
             dropOld();
             cosOld = cosObj; cosObj = buildCosmetic(wantId, live.current.species, live.current.genes.shape);
@@ -1108,7 +1143,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const walkDist = zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
+      const walkDist = zones.is("home") ? cameraDistance({ x: pos.x - ROOM_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, roomCols) : zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
       target.set(pos.x, ground + GARDEN.camera.height * 0.7, pos.z);
@@ -1130,7 +1165,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const cs = canPlayerSplash(hourNow);
       if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
 
-      const n = travel ? null : zones.is("margins") ? mNear : nearestPlace(pos);
+      const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : null) : inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos);
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
