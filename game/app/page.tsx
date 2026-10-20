@@ -245,9 +245,9 @@ export default function Page() {
       {creature && (
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
-          <div className="stage" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
-            <span className="stage-name">{stageById(creature.stage ?? "blot").name}</span>
-            <span className="stage-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
+          <div className="growth" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
+            <span className="growth-name">{stageById(creature.stage ?? "blot").name}</span>
+            <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
               <span style={{ width: `${progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100}%` }} />
             </span>
           </div>

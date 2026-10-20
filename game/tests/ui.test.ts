@@ -55,3 +55,12 @@ describe("feed messages", () => {
     expect(friendlyFeedError("PGRST500 boom")).toBe("That didn't work. Please try again.");
   });
 });
+
+describe("css class names", () => {
+  it("keeps the growth card's classes apart from the sign-in .stage layout", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    expect(css.match(/^\.stage\s*\{/gm)?.length).toBe(1);
+    expect(css).toMatch(/^\.growth\s*\{/m);
+  });
+});
