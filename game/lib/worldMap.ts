@@ -1,7 +1,7 @@
 // W2: the World around the garden, as pure functions. No three.js and no clock: the same chunk always has the same
 // contents (a function of the seed and its coordinates), in any order, so nothing is stored. Rendering is in components/worldShell.ts.
 import world from "@/data/world.json";
-import { GARDEN, type Circle, type Colliders, type Vec } from "./world";
+import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
 
 export const WORLD = world;
@@ -45,7 +45,7 @@ export function distToPath(x: number, z: number): number {
 }
 
 // ---- chunk contents ----
-const KEEP_GARDEN = GARDEN.size / 2 + WORLD.gardenKeepOut;
+const KEEP_GARDEN = HOME.half + WORLD.gardenKeepOut;
 const LANDMARKS = WORLD.landmarks as Landmark[];
 export const blocked = (x: number, z: number): boolean =>
   (Math.abs(x) < KEEP_GARDEN && Math.abs(z) < KEEP_GARDEN) ||

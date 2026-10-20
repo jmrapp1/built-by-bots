@@ -1,0 +1,29 @@
+{
+  "note": "H2: the Home room, a small calm interior reached by a door on the garden's west edge. Room-local coordinates, metres, centred on (0,0). The room is placed far from everything else by 'offset' (x). Anchors are where decorations will go later; nothing is drawn at them yet.",
+  "offset": 800,
+  "room": { "width": 12, "depth": 9, "wallHeight": 3.2, "wallThickness": 0.5 },
+  "door": {
+    "garden": { "x": -19.2, "z": 3 },
+    "walkIn": [-1, 0],
+    "postOffset": 1.1,
+    "postR": 0.3,
+    "zoneLateral": 0.9,
+    "zoneBack": 2.4,
+    "zoneFront": 0.8,
+    "threshold": 1.8,
+    "approach": 1.2,
+    "emerge": 0.5,
+    "arrive": 2.4
+  },
+  "light": { "hour": 12, "fog": [16, 44] },
+  "anchors": [
+    { "id": "north-left",  "x": -3.6, "z": -3.6, "face": "south" },
+    { "id": "north-mid",   "x": 0,    "z": -3.9, "face": "south" },
+    { "id": "north-right", "x": 3.6,  "z": -3.6, "face": "south" },
+    { "id": "west-wall",   "x": -5.4, "z": 0,    "face": "east" },
+    { "id": "east-wall",   "x": 5.4,  "z": 0,    "face": "west" },
+    { "id": "floor-left",  "x": -2.4, "z": 0.6,  "face": "up" },
+    { "id": "floor-right", "x": 2.4,  "z": 0.6,  "face": "up" }
+  ],
+  "look": { "floor": "#f1e6c8", "rule": "#b9c4d6", "wall": "#fbf4e2", "base": "#2a2438", "frame": "#d8cba8", "door": "#e9dcc0", "window": "#fff3cf", "sky": "#efe6d0" }
+}

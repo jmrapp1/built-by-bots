@@ -1,7 +1,7 @@
 // Pure helpers for gathering snacks. Layout and timings live in data/forage.json.
 // Nothing here talks to the server, three.js or the clock; the page and world pass those in.
 import forage from "@/data/forage.json";
-import { colliders, GARDEN } from "@/lib/world";
+import { colliders, GARDEN, HOME } from "@/lib/world";
 
 export const FORAGE = forage;
 export type Spot = (typeof forage.spots)[number];
@@ -53,7 +53,7 @@ export function shimmer(t: number, phase: number, reduced = false): { scale: num
 // Spots must sit inside the garden, clear of anything solid, and never overlap each other.
 export function spotsAreClear(spots: Spot[] = FORAGE.spots, pad = 0.5): boolean {
   const { circles, boxes } = colliders();
-  const lim = GARDEN.size / 2 - 1;
+  const lim = HOME.half - 1;
   return spots.every((s, i) =>
     Math.abs(s.x) <= lim && Math.abs(s.z) <= lim &&
     circles.every((c) => Math.hypot(s.x - c.x, s.z - c.z) > c.r + pad) &&
