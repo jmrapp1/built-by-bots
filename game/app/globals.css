@@ -132,6 +132,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .drops { display: flex; gap: 20px; }
 .drop { display: grid; justify-items: center; gap: 4px; font-size: 13px; color: var(--ink-soft); }
 
+.fav { font: 600 12px var(--font-ui); color: var(--green); }
 .growth { display: grid; gap: 6px; }
 .growth-name { font: 600 15px var(--font-display); }
 .growth-bar { display: block; height: 10px; border: 2px solid var(--ink); border-radius: 999px; background: var(--paper-shade); overflow: hidden; }

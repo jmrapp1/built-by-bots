@@ -12,6 +12,7 @@ import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 export type EggPhase = "unclaimed" | "in-nest";
 type Props = {
   genes: Genes | null;
+  species?: string;
   stage?: string;
   eggPhase: EggPhase;
   onNearby: (place: Place | null) => void;
@@ -160,15 +161,15 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint });
   cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage });
-  live.current = { genes, eggPhase, stage };
+  const live = useRef({ genes, eggPhase, stage, species });
+  live.current = { genes, eggPhase, stage, species };
   const rebuild = useRef<() => void>(() => {});
-  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage]);
+  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species]);
 
   useEffect(() => {
     const el = mount.current!;
@@ -236,11 +237,11 @@ export default function World({ genes, stage = "blot", eggPhase, onNearby, onInt
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
     rebuild.current = () => {
       dynamic.clear();
-      const { genes: g, eggPhase: phase, stage: st } = live.current;
+      const { genes: g, eggPhase: phase, stage: st, species: spId } = live.current;
       printMesh = null;
       if (g) {
         const sd = stageById(st);
-        printMesh = buildCreature(g, { partsShown: sd.partsShown, mark: sd.mark });
+        printMesh = buildCreature(g, { partsShown: sd.partsShown, mark: sd.mark }, spId);
         baseScale = GARDEN.print.scale * sd.scale;
         printMesh.scale.setScalar(baseScale);
         if (shownStage !== null && shownStage !== st) pulseStart = performance.now();
