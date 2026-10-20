@@ -6,7 +6,7 @@ import { insideAny, type Box, type Circle, type Colliders, type Vec } from "@/li
 
 export const MARGINS = margins;
 export const HALF = margins.size / 2;
-export type Find = "ink" | "glyph" | "scrap";
+export type Find = "ink" | "glyph" | "scrap" | "egg"; // egg only ever comes from the server
 export type Zone = (typeof margins.zones)[number];
 export type Hill = Circle & { h: number };
 export type Layout = { trees: Circle[]; bushes: Circle[]; hills: Hill[]; stacks: Circle[]; shelves: Box[]; cols: Colliders; seed: number };

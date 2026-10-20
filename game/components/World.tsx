@@ -25,6 +25,7 @@ import {
   MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
 } from "@/lib/margins";
+import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, type Outcome } from "@/lib/margins-server";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -43,6 +44,9 @@ type Props = {
   onGather?: (kind: string) => "ok" | "full"; // the page owns the pouch; the world only reports a walk-over
   onMargins?: (s: { inside: boolean; left: number; total: number; scraps: number }) => void; // the Margins row and scrap count
   canGather?: (kind: string) => boolean; // there is room in the pouch for a find
+  onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
+  onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
+  onMarginsNote?: (text: string) => void; // a quiet line for a refusal or a found egg
   canOffer?: boolean; // something is in the pouch
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
@@ -192,10 +196,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer });
   live.current = { genes, eggPhase, stage, species, locked, canOffer };
@@ -271,6 +275,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let scraps = 0;
     let mActive: { id: number; since: number } | null = null; // the page that is opening, and when it began (ms)
     let uHold = 0, uSpot: Spot | null = null;
+    const local = isLocalPreview(mo); // dev previews of other days, all pages or the nearest page never touch the server
+    let serverReady = local, uPending = false, quietUntilNext = false, visit = 0;
     let travel: null | { into: "margins" | "garden"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
     let mCols = colliders();
     let reportKey = "";
@@ -296,7 +302,21 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       opened = openedByDay.get(mDay) ?? new Set<number>();
       openedByDay.set(mDay, opened);
       mg.setSpots(mSpots, opened);
-      mActive = null; uHold = 0; uSpot = null;
+      mActive = null; uHold = 0; uSpot = null; uPending = false; quietUntilNext = false;
+      const myVisit = ++visit;
+      serverReady = local;
+      if (!local) {
+        // What this player already opened today comes from the server, so a reload cannot reroll a page.
+        const askDay = mDay;
+        Promise.resolve(cb.current.onLoadOpened ? cb.current.onLoadOpened(askDay) : null).catch(() => null).then((rows) => {
+          if (myVisit !== visit || !inMargins) return;
+          const r = afterClaimsRead(rows); // a failed read keeps the ring from running; the next entry reads again
+          for (const n of r.opened) opened.add(n);
+          serverReady = r.ready;
+          if (r.note) cb.current.onMarginsNote?.(r.note);
+          report();
+        });
+      }
       inMargins = true;
       (scene.fog as THREE.Fog).near = MARGINS.fog[0]; (scene.fog as THREE.Fog).far = MARGINS.fog[1];
       lightClock = 0;
@@ -304,7 +324,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     };
     const leaveMargins = () => {
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
-      mSpots = []; mActive = null; uHold = 0; uSpot = null;
+      mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
       inMargins = false;
       (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70;
       lightClock = 0;
@@ -948,18 +968,42 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             if ((t - mActive.since) / 1000 >= unfoldSeconds(reducedMotion)) {
               const sp = mSpots.find((q) => q.id === mActive!.id)!;
               opened.add(sp.id);
-              if (sp.kind === "scrap") scraps++; else cb.current.onGather?.(sp.kind); // food goes into the pouch, nothing else is saved
+              const food = foodOf(sp.kind);
+              if (sp.kind === "scrap") scraps++; else if (food) cb.current.onGather?.(food); // food goes into the pouch
+              else if (sp.kind === "egg") cb.current.onMarginsNote?.(FOUND_EGG); // the page reloads the nest
               mActive = null; report();
             }
           } else {
             const cand = nearestSpot(l, mSpots, opened);
             if (cand !== uSpot) { uSpot = cand; uHold = 0; uBlocked = false; }
-            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !uBlocked;
-            uHold = holdStep(uHold, holding, dt);
+            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !uBlocked && serverReady;
+            uHold = uPending ? 1 : holdStep(uHold, holding, dt);
             if (cand && !keys.has(PLAY.keys.hold)) uBlocked = false;
-            if (uHold >= 1 && cand) {
-              if (cand.kind !== "scrap" && cb.current.canGather && !cb.current.canGather(cand.kind)) { cb.current.onGather?.(cand.kind); uBlocked = true; uHold = 0; } // a full pouch leaves the page folded
-              else { mActive = { id: cand.id, since: t }; uHold = 0; }
+            if (uHold >= 1 && cand && !uPending) {
+              const full = cb.current.canGather && !cb.current.canGather("ink"); // the server picks the find, so any full pouch stops it first
+              if (local ? foodOf(cand.kind) && full : full) { cb.current.onGather?.("ink"); uBlocked = true; uHold = 0; } // a full pouch leaves the page folded, no call made
+              else if (local) { mActive = { id: cand.id, since: t }; uHold = 0; }
+              else if (quietUntilNext) { cb.current.onMarginsNote?.(QUIET); uBlocked = true; uHold = 0; } // the server already said no; don't ask again this visit
+              else if (cb.current.onUnfold) {
+                uPending = true; // the ring waits full for the answer; the page opens only once it is back
+                const spot = cand, myVisit = visit, askDay = mDay, dayOpened = opened;
+                cb.current.onUnfold(spot.id, askDay).catch((): Outcome => ({ ok: false, reason: "network" })).then((o) => {
+                  const here = myVisit === visit && inMargins;
+                  const st = settleUnfold(o, here);
+                  if (st.open) dayOpened.add(spot.id); // the server wrote it, so the page counts as open on any later visit that day
+                  if (!here) {
+                    // Left while the call was in flight: still hand over what the server gave, with no animation.
+                    if (st.food) cb.current.onGather?.(st.food); else if (st.scrap) scraps++;
+                    if (st.egg) cb.current.onMarginsNote?.(FOUND_EGG);
+                    return;
+                  }
+                  uPending = false;
+                  if (st.ceiling) quietUntilNext = true;
+                  if (st.note && !st.animate) cb.current.onMarginsNote?.(st.note);
+                  if (st.animate && st.kind) { spot.kind = st.kind; mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
+                  else { uBlocked = true; uHold = 0; report(); } // refused: stays folded, nothing spent. A repeat: shown open, nothing granted.
+                });
+              } else { uBlocked = true; uHold = 0; }
             }
           }
           if (mActive) mNear = null;

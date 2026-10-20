@@ -126,7 +126,7 @@ describe("the client stays out of the server for play", () => {
     expect((page.match(/\.rpc\("feed_creature"/g) ?? []).length).toBe(1);
     // Every server call the page makes, by name. Stroking is not among them.
     const calls = [...page.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold"]);
   });
   it("World.tsx never calls the server", () => {
     expect(src("../components/World.tsx")).not.toMatch(/supabase|\.rpc\(/);
