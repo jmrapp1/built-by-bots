@@ -94,10 +94,3 @@ describe("margins migration: the function", () => {
     for (const r of rows) if (r[0] !== "egg") expect(r[1]).toBeGreaterThan(egg);
   });
 });
-
-describe("margins migration: the client is untouched by it", () => {
-  const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-  it("nothing in the app calls the new function yet (client wiring is 6c)", () => {
-    expect(page).not.toMatch(/margins_unfold/);
-  });
-});

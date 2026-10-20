@@ -26,6 +26,8 @@ import {
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
 } from "@/lib/margins";
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, type Outcome } from "@/lib/margins-server";
+import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
+import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -47,6 +49,7 @@ type Props = {
   onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
   onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
   onMarginsNote?: (text: string) => void; // a quiet line for a refusal or a found egg
+  worn?: string | null; // the keepsake worn (6d-3 will pass the server's answer; nothing sends it yet)
   canOffer?: boolean; // something is in the pouch
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
@@ -196,13 +199,13 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, worn = null, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote });
   cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer });
-  live.current = { genes, eggPhase, stage, species, locked, canOffer };
+  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn });
+  live.current = { genes, eggPhase, stage, species, locked, canOffer, worn };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -466,6 +469,18 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let baseScale = 1;
     let shownStage: string | null = null;
     let pulseStart = -1;
+    // Keepsakes (slice 6d-1): one slot, the newest is worn. A new one plays the put-on motion; a reload or a rebuild just shows it.
+    const cosPreview = cosmeticOverride(window.location.search, process.env.NODE_ENV === "production");
+    let cosId: string | null = null, cosObj: THREE.Group | null = null, cosOld: THREE.Group | null = null, cosStart = -1, cosResting = false, cosInit = false;
+    const dropOld = () => { if (cosOld) { disposeCosmetic(cosOld); cosOld = null; } };
+    const attachCos = (id: string | null) => {
+      if (cosObj) { disposeCosmetic(cosObj); cosObj = null; }
+      dropOld();
+      cosId = id;
+      if (!printMesh || !live.current.genes) return;
+      cosObj = buildCosmetic(id, live.current.species, live.current.genes.shape);
+      if (cosObj) { printMesh.add(cosObj); poseCosmetic(cosObj, 1, 1, 0); }
+    };
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
@@ -481,6 +496,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (shownStage !== null && shownStage !== st) pulseStart = performance.now();
         shownStage = st;
         dynamic.add(printMesh);
+        attachCos(cosId); // a rebuild keeps what is worn, with no motion
         wander = wander ?? newWander({ x: nest.x, z: nest.z + 2 });
       }
       if (phase !== "none") {
@@ -854,6 +870,33 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const sc = baseScale * growthPulse(prog, reduced);
         const wide = 1 + (1 - pose.squash) * 0.5;
         printMesh.scale.set(sc * wide, sc * pose.squash, sc * wide);
+
+        // Keepsakes: swap to what should be worn, then play the put-on motion (eased; never blocks input).
+        const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
+        const wantId = want && COSMETIC_IDS.includes(want) ? want : null;
+        if (wantId !== cosId) {
+          const moving = cosInit && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
+          if (moving && printMesh && live.current.genes) {
+            dropOld();
+            cosOld = cosObj; cosObj = buildCosmetic(wantId, live.current.species, live.current.genes.shape);
+            if (cosObj) printMesh.add(cosObj);
+            cosId = wantId; cosStart = t; cosResting = bed === "sleep";
+            if (!cosObj && cosOld) { /* taking one off: it just shrinks away */ }
+          } else attachCos(wantId);
+        }
+        cosInit = true;
+        if (cosStart >= 0) {
+          const pf = putOnFrame((t - cosStart) / 1000, reducedMotion, cosResting);
+          if (cosObj) poseCosmetic(cosObj, reducedMotion ? 1 : pf.newScale, reducedMotion ? pf.newFade : 1, 0);
+          if (cosOld) poseCosmetic(cosOld, reducedMotion ? 1 : pf.oldScale, reducedMotion ? pf.oldFade : 1, 0);
+          printMesh.scale.set(printMesh.scale.x * pf.bodyXZ, printMesh.scale.y * pf.bodyY, printMesh.scale.z * pf.bodyXZ);
+          printMesh.position.y += pf.hop * 1.2 * baseScale;
+          if (pf.done || (t - cosStart) / 1000 > putOnSeconds(reducedMotion, cosResting)) { cosStart = -1; dropOld(); if (cosObj) poseCosmetic(cosObj, 1, 1, 0); }
+        }
+        if (cosObj && cosId === "lantern") {
+          const gl = cosObj.getObjectByName("glow") as THREE.Mesh | undefined;
+          if (gl) (gl.material as THREE.MeshBasicMaterial).opacity = lanternGlow(fireflyLevel(hourNow), t / 1000, reducedMotion) * 0.5 * (cosStart >= 0 ? putOnFrame((t - cosStart) / 1000, reducedMotion, cosResting).newScale : 1);
+        }
 
         // The ring follows the Print on screen.
         if (heldFor >= 0) {
