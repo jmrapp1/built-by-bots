@@ -4,16 +4,6 @@
   "camera": { "distance": 6, "minDistance": 1.5, "height": 1.6, "pitch": 0.45, "smoothing": 6, "turnSpeed": 0.005 },
   "interactRadius": 2.2,
   "print": { "speed": 0.8, "radius": 0.5, "scale": 0.7, "feedReach": 1.8 },
-  "lighting": {
-    "sky": "#f6f1e4",
-    "fog": "#f6f1e4",
-    "hemisphereSky": "#ffffff",
-    "hemisphereGround": "#b5c9a0",
-    "hemisphereIntensity": 1.6,
-    "sun": "#ffffff",
-    "sunIntensity": 1.2,
-    "sunPosition": [8, 14, 6]
-  },
   "places": [
     { "id": "egg-spot", "kind": "egg", "x": -8, "z": -7, "solid": 0.9, "label": "Egg spot", "prompt": "Collect your egg" },
     { "id": "nest", "kind": "nest", "x": 0, "z": -4, "label": "Nest", "prompt": "Hatch your egg" },
