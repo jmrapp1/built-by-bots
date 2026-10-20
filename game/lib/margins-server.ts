@@ -1,11 +1,15 @@
 // Mapping between the server's margins_unfold answer and the client (slice 6c). Pure: no network, no clock.
 // The server decides what is inside a page; the client only shows it. No numbers in any text here.
 import type { Overrides } from "@/lib/margins";
+import { isCosmetic } from "@/lib/cosmetics";
 
 export type Shown = "ink" | "glyph" | "scrap" | "egg";
-export type ClaimRow = { spot: number; result: string; day?: string };
+// A page can also hold a keepsake (slice 6d-3). It is not food and not stored in the pouch. When all six keepsakes are owned,
+// or there is no Print to wear it, the server answers with a food kind instead, so those answers need nothing new here.
+export type Found = Shown | "keepsake";
+export type ClaimRow = { spot: number; result: string; day?: string; cosmetic?: string | null };
 export type FailReason = "ceiling" | "signed-out" | "starter" | "bad-page" | "wrong-day" | "network" | "other";
-export type Outcome = { ok: true; kind: Shown; spot: number; duplicate: boolean } | { ok: false; reason: FailReason };
+export type Outcome = { ok: true; kind: Found; cosmetic?: string; spot: number; duplicate: boolean } | { ok: false; reason: FailReason };
 
 export const QUIET = "The pages are quiet for now.";
 export const FOUND_EGG = "A found egg is waiting in your nest.";
@@ -21,13 +25,15 @@ export const MARGINS_ERRORS: Record<FailReason, string> = {
 
 const KINDS: readonly string[] = ["ink", "glyph", "scrap", "egg"];
 export const isShown = (s: unknown): s is Shown => typeof s === "string" && KINDS.includes(s);
+export const isFound = (s: unknown): s is Found => s === "keepsake" || isShown(s);
 
 // A row from margins_unfold or margins_claims, or null when it is not a valid answer.
-export function mapClaim(row: unknown): { spot: number; kind: Shown; day: string | null } | null {
+export function mapClaim(row: unknown): { spot: number; kind: Found; day: string | null; cosmetic?: string } | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
-  if (typeof r.spot !== "number" || !Number.isInteger(r.spot) || !isShown(r.result)) return null;
-  return { spot: r.spot, kind: r.result, day: typeof r.day === "string" ? r.day : null };
+  if (typeof r.spot !== "number" || !Number.isInteger(r.spot) || !isFound(r.result)) return null;
+  // An unknown keepsake id still opens the page; it just changes nothing that is worn.
+  return { spot: r.spot, kind: r.result, day: typeof r.day === "string" ? r.day : null, ...(r.result === "keepsake" && isCosmetic(r.cosmetic) ? { cosmetic: r.cosmetic } : {}) }; // only a keepsake row carries one; today's four kinds are mapped exactly as before
 }
 
 // Why a call failed, from the server's own words. Never shown to the player directly.
@@ -50,7 +56,7 @@ export function outcomeFrom(data: unknown, error: { message?: string } | null, s
   if (c.day && c.day !== layoutDay) return { ok: false, reason: "wrong-day" };
   // The server returns the first answer for a repeat claim, so the answer alone cannot say whether it is new. `alreadyOpen` comes
   // from the server's own claim rows read just before the call. No browser clock is involved.
-  return { ok: true, kind: c.kind, spot: c.spot, duplicate: alreadyOpen };
+  return { ok: true, kind: c.kind, ...(c.cosmetic ? { cosmetic: c.cosmetic } : {}), spot: c.spot, duplicate: alreadyOpen };
 }
 
 // Pages the server already holds for this player and day. Anything malformed is skipped.
@@ -68,8 +74,8 @@ export function openedFromClaims(rows: unknown, layoutDay: string): Set<number> 
 export const isLocalPreview = (o: Overrides): boolean => o.day !== null || o.all || o.unfold;
 
 // A pouch with no room blocks every unfold before any call, since the server picks the find.
-export const needsRoom = (kind: Shown): boolean => kind === "ink" || kind === "glyph";
-export const foodOf = (kind: Shown): "ink" | "glyph" | null => (kind === "ink" || kind === "glyph" ? kind : null);
+export const needsRoom = (kind: Found): boolean => kind === "ink" || kind === "glyph";
+export const foodOf = (kind: Found): "ink" | "glyph" | null => (kind === "ink" || kind === "glyph" ? kind : null);
 
 // One unfold, start to finish: ask the server whether this page already has a claim row (`wasOpen`: true, false, or null when it
 // can't say), make the call, then check the answer against the day the pages were laid out for. A page that already had a row is
@@ -89,7 +95,7 @@ export async function runUnfold(
 }
 
 export const ALREADY_OPEN = "That page is already open.";
-export type Settle = { open: boolean; animate: boolean; kind: Shown | null; food: "ink" | "glyph" | null; scrap: boolean; egg: boolean; note: string | null; ceiling: boolean; held: Shown | null };
+export type Settle = { open: boolean; animate: boolean; kind: Found | null; food: "ink" | "glyph" | null; scrap: boolean; egg: boolean; note: string | null; ceiling: boolean; held: Shown | null; cosmetic?: string };
 // What to do when an answer arrives. `stillThere` is false when the player left the Margins while the call was in flight:
 // the find is then granted at once (the server already wrote it), with no animation, so it is never lost.
 // `room` is whether the pouch can take a food find right now. A new food find with no room is not lost: the server wrote it, so the
@@ -98,8 +104,9 @@ export function settleUnfold(o: Outcome, stillThere: boolean, room = true): Sett
   const none = { open: false, animate: false, kind: null, food: null, scrap: false, egg: false, note: null, ceiling: false, held: null };
   if (!o.ok) return { ...none, note: stillThere ? MARGINS_ERRORS[o.reason] : null, ceiling: o.reason === "ceiling" };
   if (o.duplicate) return { ...none, open: true, kind: o.kind, note: stillThere ? ALREADY_OPEN : null };
-  if (foodOf(o.kind) && !room) return { ...none, kind: o.kind, held: o.kind };
-  return { ...none, open: true, animate: stillThere, kind: o.kind, food: foodOf(o.kind), scrap: o.kind === "scrap", egg: o.kind === "egg", note: o.kind === "egg" ? FOUND_EGG : null };
+  const f = foodOf(o.kind);
+  if (f && !room) return { ...none, kind: o.kind, held: f };
+  return { ...none, open: true, animate: stillThere, kind: o.kind, food: foodOf(o.kind), scrap: o.kind === "scrap", egg: o.kind === "egg", note: o.kind === "egg" ? FOUND_EGG : null, ...(o.kind === "keepsake" && o.cosmetic ? { cosmetic: o.cosmetic } : {}) }; // a keepsake grants no food; a repeat never reaches here
 }
 
 // What the player sees at a folded page while the claims read is not good. Not ready (still reading, or the read failed):

@@ -19,7 +19,7 @@ import type { Genes } from "@/lib/creature";
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
 type Egg = { id: string; kind?: string; hatch_at: string; hatched_at: string | null };
-type Creature = { id: string; species?: string; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
+type Creature = { id: string; species?: string; worn_cosmetic?: string | null; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
 
 export default function Page() {
   const [eggs, setEggs] = useState<Egg[]>([]);
@@ -213,6 +213,8 @@ export default function Page() {
       return null;
     }
   };
+  // The server gave a keepsake and wore it on the player's first Print (the one the app lists first). Mirror that here; a reload reads the same from the server.
+  const keepsakeFound = (id: string) => setCreatures((cs) => cs.map((c, i) => (i === 0 ? { ...c, worn_cosmetic: id } : c)));
   const marginsNote = (text: string) => {
     if (text === FOUND_EGG) void load().then(() => setMsg(text)); // a found egg is in the nest now; load() clears the line, so say it after
     else setMsg(text);
@@ -307,7 +309,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={creature?.worn_cosmetic ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (

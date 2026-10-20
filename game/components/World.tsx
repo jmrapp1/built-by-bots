@@ -48,7 +48,8 @@ type Props = {
   canGather?: (kind: string) => boolean; // there is room in the pouch for a find
   onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
   onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
-  onMarginsNote?: (text: string) => void; // a quiet line for a refusal or a found egg
+  onMarginsNote?: (text: string) => void;
+  onKeepsake?: (id: string) => void; // the server gave a keepsake: the page sets it as worn // a quiet line for a refusal or a found egg
   worn?: string | null; // the keepsake worn (6d-3 will pass the server's answer; nothing sends it yet)
   canOffer?: boolean; // something is in the pouch
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
@@ -199,10 +200,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, worn = null, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, worn = null, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn });
   live.current = { genes, eggPhase, stage, species, locked, canOffer, worn };
@@ -473,7 +474,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let pulseStart = -1;
     // Keepsakes (slice 6d-1): one slot, the newest is worn. A new one plays the put-on motion; a reload or a rebuild just shows it.
     const cosPreview = cosmeticOverride(window.location.search, process.env.NODE_ENV === "production");
-    let cosId: string | null = null, cosObj: THREE.Group | null = null, cosOld: THREE.Group | null = null, cosStart = -1, cosResting = false, cosInit = false;
+    let cosId: string | null = null, cosObj: THREE.Group | null = null, cosOld: THREE.Group | null = null, cosStart = -1, cosResting = false, cosInit = false, cosPlayUntil = 0; // the put-on plays only just after a find, never on load or when switching Prints
     const dropOld = () => { if (cosOld) { disposeCosmetic(cosOld); cosOld = null; } };
     const attachCos = (id: string | null) => {
       if (cosObj) { disposeCosmetic(cosObj); cosObj = null; }
@@ -877,7 +878,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
         const wantId = want && COSMETIC_IDS.includes(want) ? want : null;
         if (wantId !== cosId) {
-          const moving = cosInit && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
+          const moving = (cosPreview ? cosInit : t < cosPlayUntil && !inMargins) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
           if (moving && printMesh && live.current.genes) {
             dropOld();
             cosOld = cosObj; cosObj = buildCosmetic(wantId, live.current.species, live.current.genes.shape);
@@ -1054,12 +1055,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
                     // Left while the call was in flight: still hand over what the server gave, with no animation.
                     if (st.food) cb.current.onGather?.(st.food); else if (st.scrap) scraps++;
                     if (st.egg) cb.current.onMarginsNote?.(FOUND_EGG);
+                    if (st.cosmetic) { cosPlayUntil = performance.now() + 3000; cb.current.onKeepsake?.(st.cosmetic); } // the Print is on screen now, so the put-on plays
                     return;
                   }
                   uPending = false;
                   if (st.ceiling) quietUntilNext = true;
                   if (st.note && !st.animate) cb.current.onMarginsNote?.(st.note);
-                  if (st.animate && st.kind) { spot.kind = st.kind; mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
+                  if (st.cosmetic) cb.current.onKeepsake?.(st.cosmetic); // in the Margins the Print is away, so it is set quietly
+                  if (st.animate && st.kind) { spot.kind = st.kind === "keepsake" ? "scrap" : st.kind; /* a keepsake rises as a paper scrap */ mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
                   else { uBlocked = true; uHold = 0; report(); } // refused: stays folded, nothing spent. A repeat: shown open, nothing granted.
                 });
               } else { uBlocked = true; uHold = 0; }
