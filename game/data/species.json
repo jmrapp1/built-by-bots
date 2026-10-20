@@ -3,7 +3,40 @@
     "id": "blotling",
     "name": "Blotling",
     "hatchSeconds": 45,
-    "shapes": ["round", "tall", "wide"],
-    "parts": ["ears", "tail", "fins"]
+    "shapes": [
+      "round",
+      "tall",
+      "wide"
+    ],
+    "parts": [
+      "ears",
+      "tail",
+      "fins"
+    ],
+    "hueMin": 0,
+    "hueMax": 359,
+    "body": "blob",
+    "favouriteFood": null,
+    "blurb": "A round splash of ink."
+  },
+  {
+    "id": "leaflet",
+    "name": "Leaflet",
+    "hatchSeconds": 45,
+    "shapes": [
+      "round",
+      "tall",
+      "wide"
+    ],
+    "parts": [
+      "tabs",
+      "fold",
+      "spine"
+    ],
+    "hueMin": 80,
+    "hueMax": 170,
+    "body": "page",
+    "favouriteFood": "glyph",
+    "blurb": "A folded page that loves glyph crumbs."
   }
 ]

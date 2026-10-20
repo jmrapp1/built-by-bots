@@ -6,6 +6,7 @@ import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
 import { BOARD_PAGES, BOARD_TITLE, nextPage, pageAt, pageLabel, prevPage } from "@/lib/board";
+import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/species";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -14,7 +15,7 @@ import type { Genes } from "@/lib/creature";
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
 type Egg = { id: string; hatch_at: string; hatched_at: string | null };
-type Creature = { id: string; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
+type Creature = { id: string; species?: string; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
 
 export default function Page() {
   const [egg, setEgg] = useState<Egg | null>(null);
@@ -36,6 +37,10 @@ export default function Page() {
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
+  // Dev-only look at another species (?species=leaflet). Display only; ignored in production builds.
+  const previewSpecies = typeof window === "undefined" ? null : speciesOverride(window.location.search, process.env.NODE_ENV === "production");
+  const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
+  const shownGenes = creature ? (previewSpecies ? { ...creature.genes, hue: clampHue(creature.genes.hue, speciesById(previewSpecies)) } : creature.genes) : null;
   const [boardPage, setBoardPage] = useState(0);
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
 
@@ -216,7 +221,7 @@ export default function Page() {
   const bad = msg !== FED_MESSAGE && /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={creature?.genes ?? null} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -246,7 +251,7 @@ export default function Page() {
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
           <div className="growth" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
-            <span className="growth-name">{stageById(creature.stage ?? "blot").name}</span>
+            <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(creature.stage ?? "blot").name}</span>
             <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
               <span style={{ width: `${progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100}%` }} />
             </span>
@@ -266,6 +271,7 @@ export default function Page() {
               <button key={f.id} className="food" disabled={feeding} onClick={() => feed(f.id)}>
                 {f.id === "glyph" ? <GlyphIcon /> : <Blot size={32} />}
                 {f.name}
+                {isFavourite(f.id, shownSpecies) && <span className="fav">Favourite</span>}
               </button>
             ))}
           </div>
