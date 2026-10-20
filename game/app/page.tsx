@@ -10,7 +10,7 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
-import { FOUND_EGG, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
+import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -171,7 +171,7 @@ export default function Page() {
   }, [reacting, fedTick]);
   // The confirmation fades after a moment.
   useEffect(() => {
-    if (!isFeedMessage(msg) && msg !== POUCH_FULL) return;
+    if (!isFeedMessage(msg) && msg !== POUCH_FULL && msg !== MARGINS_ERRORS.network) return;
     const t = setTimeout(() => setMsg((m) => (m === msg ? "" : m)), 2600);
     return () => clearTimeout(t);
   }, [msg]);
@@ -194,7 +194,16 @@ export default function Page() {
   };
   // The Margins: the server decides what is inside a page. The client sends the page number and shows the answer.
   const unfoldPage = (spot: number, layoutDay: string): Promise<Outcome> =>
-    runUnfold(async (n) => supabase().rpc("margins_unfold", { p_spot: n }), spot, layoutDay); // checked against the day the pages were laid out for
+    runUnfold(async (n) => supabase().rpc("margins_unfold", { p_spot: n }), spot, layoutDay, (n) => wasOpen(n, layoutDay)); // checked against the day the pages were laid out for
+  // Does the server already hold a claim row for this page and day? Null when it can't say.
+  const wasOpen = async (spot: number, day: string): Promise<boolean | null> => {
+    try {
+      const { data, error } = await supabase().from("margins_claims").select("spot").eq("spot", spot).eq("day", day);
+      return error || !Array.isArray(data) ? null : data.length > 0;
+    } catch {
+      return null;
+    }
+  };
   // The pages this player already opened on this day, from their own rows. Null when the server can't say.
   const loadOpened = async (day: string): Promise<number[] | null> => {
     try {
