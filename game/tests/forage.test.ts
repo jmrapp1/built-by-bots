@@ -100,7 +100,7 @@ describe("the client", () => {
     expect(src("../lib/forage.ts")).not.toMatch(/supabase|rpc|three|Date\.now|performance/);
     expect(src("../components/World.tsx")).not.toMatch(/supabase|\.rpc\(/);
     const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold"]);
   });
   it("spends the item only after the server accepts the feed", () => {
     const page = src("../app/page.tsx");

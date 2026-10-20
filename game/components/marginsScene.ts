@@ -140,8 +140,8 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
   const glintMat = new THREE.MeshBasicMaterial({ color: 0xf2b632, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xf2b632, transparent: true, depthWrite: false, opacity: 0.35 });
   keep(glintMat); keep(glowMat);
-  const findGeo: Record<Find, THREE.BufferGeometry> = { ink: keep(new THREE.SphereGeometry(0.22, 12, 10)), glyph: keep(new THREE.BoxGeometry(0.3, 0.3, 0.3)), scrap: keep(new THREE.BoxGeometry(0.4, 0.04, 0.3)) };
-  const findMat: Record<Find, THREE.Material> = { ink: keep(mat("#2b2a33")), glyph: keep(mat("#3b4a8c")), scrap: keep(mat("#f2b632")) };
+  const findGeo: Record<Find, THREE.BufferGeometry> = { egg: keep(new THREE.SphereGeometry(0.2, 14, 12)), ink: keep(new THREE.SphereGeometry(0.22, 12, 10)), glyph: keep(new THREE.BoxGeometry(0.3, 0.3, 0.3)), scrap: keep(new THREE.BoxGeometry(0.4, 0.04, 0.3)) };
+  const findMat: Record<Find, THREE.Material> = { egg: keep(mat("#fffaf0")), ink: keep(mat("#2b2a33")), glyph: keep(mat("#3b4a8c")), scrap: keep(mat("#f2b632")) };
   const pageGeo = keep(new THREE.BoxGeometry(0.8, 0.035, 0.4)), glintGeo = keep(new THREE.OctahedronGeometry(0.14)), glowGeo = keep(new THREE.CircleGeometry(0.7, 18));
   const vis: SpotVis[] = Array.from({ length: MARGINS.spots.count }, () => {
     const g = new THREE.Group();
@@ -156,7 +156,7 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
     glow.rotation.x = -Math.PI / 2;
     glow.position.y = 0.025;
     const glint = new THREE.Mesh(glintGeo, glintMat);
-    const find = { ink: new THREE.Mesh(findGeo.ink, findMat.ink), glyph: new THREE.Mesh(findGeo.glyph, findMat.glyph), scrap: new THREE.Mesh(findGeo.scrap, findMat.scrap) };
+    const find = { egg: new THREE.Mesh(findGeo.egg, findMat.egg), ink: new THREE.Mesh(findGeo.ink, findMat.ink), glyph: new THREE.Mesh(findGeo.glyph, findMat.glyph), scrap: new THREE.Mesh(findGeo.scrap, findMat.scrap) };
     for (const m of Object.values(find)) { m.visible = false; g.add(m); }
     g.add(base, flap, glow, glint);
     g.visible = false;
@@ -229,7 +229,7 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
           if (op < 1) { v.glint.scale.multiplyScalar(op); v.glow.scale.multiplyScalar(op); }
         }
         // the find rising out of an opened page, spinning once, then arcing to the player
-        for (const k of ["ink", "glyph", "scrap"] as Find[]) v.find[k].visible = false;
+        for (const k of ["ink", "glyph", "scrap", "egg"] as Find[]) v.find[k].visible = false;
         if (isActive) {
           const f = unfoldFrame(active!.since, reduced), m = v.find[s.kind];
           if (f.rise > 0 && !f.done) {

@@ -10,6 +10,7 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
+import { FOUND_EGG, openedFromClaims, outcomeFrom, type Outcome } from "@/lib/margins-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -30,6 +31,7 @@ export default function Page() {
   const starter = eggs.find((e) => e.kind === "starter") ?? null;
   const egg = eggs.find((e) => !e.hatched_at) ?? null;
   const [now, setNow] = useState(() => new Date());
+
   const [msg, setMsg] = useState("");
 
   const [session, setSession] = useState<boolean | null>(null);
@@ -190,6 +192,28 @@ export default function Page() {
     setEggs((all) => (all.some((e) => e.id === (data as Egg).id) ? all : [...all, data as Egg]));
     setMsg("Your egg is in the nest.");
   };
+  // The Margins: the server decides what is inside a page. The client sends the page number and shows the answer.
+  const unfoldPage = async (spot: number): Promise<Outcome> => {
+    try {
+      const { data, error } = await supabase().rpc("margins_unfold", { p_spot: spot });
+      return outcomeFrom(data, error, spot, utcDay(new Date()), false);
+    } catch {
+      return { ok: false, reason: "network" };
+    }
+  };
+  // The pages this player already opened on this day, from their own rows. Null when the server can't say.
+  const loadOpened = async (day: string): Promise<number[] | null> => {
+    try {
+      const { data, error } = await supabase().from("margins_claims").select("spot,result,day").eq("day", day);
+      return error ? null : [...openedFromClaims(data, day)];
+    } catch {
+      return null;
+    }
+  };
+  const marginsNote = (text: string) => {
+    if (text === FOUND_EGG) void load().then(() => setMsg(text)); // a found egg is in the nest now; load() clears the line, so say it after
+    else setMsg(text);
+  };
   // Daily egg: only asks the server. It decides the day, the species and whether the nest is free.
   const claimDaily = async () => {
     const { data, error } = await supabase().rpc("claim_daily_egg");
@@ -280,7 +304,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
