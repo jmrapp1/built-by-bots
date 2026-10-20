@@ -25,7 +25,7 @@ import {
   MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
 } from "@/lib/margins";
-import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, type Outcome, type Shown } from "@/lib/margins-server";
+import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
@@ -280,7 +280,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let mActive: { id: number; since: number } | null = null; // the page that is opening, and when it began (ms)
     let uHold = 0, uSpot: Spot | null = null;
     const local = isLocalPreview(mo); // dev previews of other days, all pages or the nearest page never touch the server
-    let serverReady = local, uPending = false, quietUntilNext = false, visit = 0;
+    let serverReady = local, readFailed = false, downNoted = false, uPending = false, quietUntilNext = false, visit = 0;
     let travel: null | { into: "margins" | "garden"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
     let mCols = colliders();
     let reportKey = "";
@@ -308,7 +308,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       mg.setSpots(mSpots, opened);
       mActive = null; uHold = 0; uSpot = null; uPending = false; quietUntilNext = false;
       const myVisit = ++visit;
-      serverReady = local;
+      serverReady = local; readFailed = false; downNoted = false;
       if (!local) {
         // What this player already opened today comes from the server, so a reload cannot reroll a page.
         const askDay = mDay;
@@ -316,7 +316,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if (myVisit !== visit || !inMargins) return;
           const r = afterClaimsRead(rows); // a failed read keeps the ring from running; the next entry reads again
           for (const n of r.opened) opened.add(n);
-          serverReady = r.ready;
+          serverReady = r.ready; readFailed = !r.ready;
+          if (readFailed) downNoted = true; // the line is shown now; holding E at a page shows it again
           if (r.note) cb.current.onMarginsNote?.(r.note);
           report();
         });
@@ -604,7 +605,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       pos = { x: a[1].x + OFF, z: a[1].z };
       yaw = arrivalYaw("margins");
       const ml = mLayout as Layout | null;
-      if (mo.unfold && mSpots[0] && ml) {
+      if ((mo.unfold) && mSpots[0] && ml) {
         const s0 = mSpots[0];
         for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
           const q = { x: s0.x + dx * 0.9, z: s0.z + dz * 0.9 };
@@ -1020,7 +1021,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           } else {
             const cand = nearestSpot(l, mSpots, opened);
             if (cand !== uSpot) { uSpot = cand; uHold = 0; uBlocked = false; }
-            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !uBlocked && serverReady;
+            const view = unfoldView(local, serverReady, readFailed);
+            if (cand && !view.canAsk && view.noteOnHold && keys.has(PLAY.keys.hold)) { if (!downNoted) { cb.current.onMarginsNote?.(view.noteOnHold); downNoted = true; } }
+            else if (!keys.has(PLAY.keys.hold)) downNoted = false;
+            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !uBlocked && view.canAsk;
             uHold = uPending ? 1 : holdStep(uHold, holding, dt);
             if (cand && !keys.has(PLAY.keys.hold)) uBlocked = false;
             if (uHold >= 1 && cand && !uPending) {
@@ -1062,7 +1066,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             }
           }
           if (mActive) mNear = null;
-          else if (uSpot) mNear = { id: "unfold", kind: "unfold", x: uSpot.x + OFF, z: uSpot.z, label: "Folded page", prompt: "Hold to unfold" };
+          else if (uSpot) mNear = !unfoldView(local, serverReady, readFailed).prompt ? null : { id: "unfold", kind: "unfold", x: uSpot.x + OFF, z: uSpot.z, label: "Folded page", prompt: "Hold to unfold" };
           else if (inGateZone(l, "home")) mNear = { id: "gate-home", kind: "gate", x: 0, z: 0, label: "Gate", prompt: "Back to the garden" };
         }
         // the way home is recomputed only when the player moves to a new cell

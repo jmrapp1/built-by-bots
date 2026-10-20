@@ -102,6 +102,13 @@ export function settleUnfold(o: Outcome, stillThere: boolean, room = true): Sett
   return { ...none, open: true, animate: stillThere, kind: o.kind, food: foodOf(o.kind), scrap: o.kind === "scrap", egg: o.kind === "egg", note: o.kind === "egg" ? FOUND_EGG : null };
 }
 
+// What the player sees at a folded page while the claims read is not good. Not ready (still reading, or the read failed):
+// no "Hold to unfold" prompt, and no call can be made. A failed read also gets the plain line when E is held there.
+export function unfoldView(local: boolean, ready: boolean, failed: boolean): { prompt: boolean; canAsk: boolean; noteOnHold: string | null } {
+  const ok = local || ready;
+  return { prompt: ok, canAsk: ok, noteOnHold: !local && failed ? MARGINS_ERRORS.network : null };
+}
+
 // The result of reading today's claims on entering the area. A failed read keeps the ring from running.
 export function afterClaimsRead(rows: number[] | null): { ready: boolean; opened: number[]; note: string | null } {
   return rows === null ? { ready: false, opened: [], note: MARGINS_ERRORS.network } : { ready: true, opened: rows, note: null };

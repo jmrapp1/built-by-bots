@@ -207,7 +207,7 @@ describe("a failed claims read", () => {
   it("the world retries the read on every entry and gates the ring on it", () => {
     const w = readFileSync(new URL("../components/World.tsx", import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
     expect(w).toMatch(/serverReady = local;/); // reset on each entry, so a failed read is retried quietly next time
-    expect(w).toMatch(/!uBlocked && serverReady/);
+    expect(w).toMatch(/!uBlocked && view\.canAsk/); // canAsk is false until the read is good
     expect(w).toMatch(/serverReady = r\.ready/);
   });
 });
@@ -230,5 +230,32 @@ describe("a late answer is not lost", () => {
     expect(w).toMatch(/settleUnfold\(o, here, room\)/);
     expect(w).toMatch(/if \(!here\) \{/);
     expect(w).not.toMatch(/if \(myVisit !== visit \|\| !inMargins\) return;\s*uPending = false;/);
+  });
+});
+
+import { unfoldView } from "@/lib/margins-server";
+import { readFileSync as readSrc } from "node:fs";
+
+describe("a failed claims read at a folded page", () => {
+  it("hides the prompt, allows no call, and has the plain line ready for a hold", () => {
+    const v = unfoldView(false, false, true);
+    expect(v).toEqual({ prompt: false, canAsk: false, noteOnHold: "Can't reach the garden right now. The page stays folded." });
+    expect(v.noteOnHold).not.toMatch(/\d/);
+  });
+  it("while the read is still going: no prompt and no call, but no error line yet", () => {
+    expect(unfoldView(false, false, false)).toEqual({ prompt: false, canAsk: false, noteOnHold: null });
+  });
+  it("after a good read: prompt and calls as before; dev previews are never blocked", () => {
+    expect(unfoldView(false, true, false)).toEqual({ prompt: true, canAsk: true, noteOnHold: null });
+    expect(unfoldView(true, false, false)).toEqual({ prompt: true, canAsk: true, noteOnHold: null });
+    expect(unfoldView(true, true, true).noteOnHold).toBeNull();
+  });
+  it("the world uses it for the prompt, the hold and the call, and the line stays up long enough to read", () => {
+    const strip = (p: string) => readSrc(new URL(p, import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
+    const w = strip("../components/World.tsx");
+    expect(w).toMatch(/!unfoldView\(local, serverReady, readFailed\)\.prompt \? null/);
+    expect(w).toMatch(/keys\.has\(PLAY\.keys\.hold\) && !live\.current\.locked && !uBlocked && view\.canAsk/);
+    expect(w).toMatch(/view\.noteOnHold/);
+    expect(strip("../app/page.tsx")).toMatch(/msg !== MARGINS_ERRORS\.network\) return/); // clears after a short while, like the pouch line
   });
 });

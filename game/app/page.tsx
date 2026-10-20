@@ -10,7 +10,7 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
-import { FOUND_EGG, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
+import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -171,7 +171,7 @@ export default function Page() {
   }, [reacting, fedTick]);
   // The confirmation fades after a moment.
   useEffect(() => {
-    if (!isFeedMessage(msg) && msg !== POUCH_FULL) return;
+    if (!isFeedMessage(msg) && msg !== POUCH_FULL && msg !== MARGINS_ERRORS.network) return;
     const t = setTimeout(() => setMsg((m) => (m === msg ? "" : m)), 2600);
     return () => clearTimeout(t);
   }, [msg]);
