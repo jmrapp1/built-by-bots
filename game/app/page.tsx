@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
+import { friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
@@ -21,6 +23,12 @@ export default function Page() {
   const [session, setSession] = useState<boolean | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"in" | "up">("in");
+  const [showPw, setShowPw] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [confirmSent, setConfirmSent] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
@@ -50,13 +58,15 @@ export default function Page() {
     else { setEgg(null); setCreature(null); setMsg(""); }
   }, [session, load]);
 
-  const auth = async (mode: "in" | "up") => {
+  const auth = async () => {
     const sb = supabase();
     const creds = { email, password };
+    setBusy(true); setAuthError("");
     const { data, error } = mode === "in" ? await sb.auth.signInWithPassword(creds) : await sb.auth.signUp(creds);
+    setBusy(false);
     setPassword("");
-    if (error) return setMsg(error.message);
-    if (mode === "up" && !data.session) setMsg("Check your email to confirm your account, then sign in.");
+    if (error) return setAuthError(friendlyAuthError(error.message));
+    if (mode === "up" && !data.session) setConfirmSent(true);
   };
   const signOut = () => supabase().auth.signOut();
 
@@ -76,7 +86,7 @@ export default function Page() {
   };
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.code === "Escape") setMenu(null); };
+    const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setMenu(null); setMenuOpen(false); } };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, []);
@@ -107,54 +117,118 @@ export default function Page() {
 
   const hud: React.CSSProperties = { position: "absolute", left: 12, right: 12, padding: 8, background: "rgba(251,248,239,0.9)", borderRadius: 8 };
   const screen = screenFor(session);
-  if (screen !== "world") {
+  if (screen === "loading") {
     return (
-      <main style={{ display: "grid", placeItems: "center", minHeight: "100vh", margin: 0 }}>
-        <div>
-          <h1>Blotty</h1>
-          {screen === "loading" && <p>Loading…</p>}
-          {screen === "sign-in" && (
-            <form onSubmit={(e) => { e.preventDefault(); auth("in"); }}>
-              <p>Sign in to enter the garden.</p>
-              <input type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />{" "}
-              <input type="password" required minLength={8} autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />{" "}
-              <button type="submit">Sign in</button>{" "}
-              <button type="button" onClick={() => auth("up")}>Sign up</button>
-              {msg && <p>{msg}</p>}
-            </form>
-          )}
+      <main className="stage">
+        <div className="card loading" role="status">
+          <svg width="48" height="56" viewBox="0 0 40 48" aria-hidden="true"><path d="M20 3c8 10 15 17 15 27a15 15 0 0 1-30 0C5 20 12 13 20 3z" fill="#f1e8d2" stroke="#2b2a33" strokeWidth="2" /><rect className="fill" x="5" y="30" width="30" height="18" fill="#3b4a8c" clipPath="inset(0 0 0 0)" opacity="0.85" /></svg>
+          <h2>Opening the garden…</h2>
         </div>
       </main>
     );
   }
+  if (screen === "sign-in") {
+    return (
+      <main className="stage">
+        {confirmSent ? (
+          <div className="card signin" role="status">
+            <EnvelopeIcon />
+            <h2>Check your email to finish</h2>
+            <p className="note">We sent a link. Open it, then come back and sign in.</p>
+            <button className="btn quiet" onClick={() => { setConfirmSent(false); setMode("in"); }}>Back to sign in</button>
+          </div>
+        ) : (
+          <form className="card signin" onSubmit={(e) => { e.preventDefault(); auth(); }} noValidate={false}>
+            <div className="brand"><Blot /><h1>Blotty</h1></div>
+            <p className="tagline">Raise little creatures made of ink.</p>
+            <div className="tabs" data-mode={mode} role="tablist">
+              <button type="button" role="tab" aria-selected={mode === "in"} className="tab" onClick={() => { setMode("in"); setAuthError(""); }}>Sign in</button>
+              <button type="button" role="tab" aria-selected={mode === "up"} className="tab" onClick={() => { setMode("up"); setAuthError(""); }}>Create account</button>
+            </div>
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input id="email" className="input" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="password">Password</label>
+              <div className="input-wrap">
+                <input id="password" className="input" type={showPw ? "text" : "password"} required minLength={8} autoComplete={mode === "in" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={authError ? true : undefined} aria-describedby={authError ? "auth-error" : undefined} />
+                <button type="button" className="eye" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)}><EyeIcon off={showPw} /></button>
+              </div>
+              {authError && <p id="auth-error" className="error" role="alert">{authError}</p>}
+            </div>
+            <button type="submit" className="btn primary" disabled={busy}>{busy ? "One moment…" : mode === "in" ? "Sign in" : "Create account"}</button>
+          </form>
+        )}
+      </main>
+    );
+  }
 
+  const state = { hasEgg: !!egg, hasCreature: !!creature, hatchWait: wait };
+  const tag = nearby ? promptFor(nearby, state) : null;
+  const bad = /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
-    <main style={{ position: "fixed", inset: 0, margin: 0 }}>
+    <main className="hud-root">
       <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} />
-      <div style={{ ...hud, top: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <strong>Blotty</strong>
-        <button onClick={signOut}>Sign out</button>
-        <span style={{ opacity: 0.7 }}>WASD move · Shift jog · drag to look · E interact</span>
-      </div>
-      {(msg || nearby) && (
-        <div style={{ ...hud, bottom: 12, textAlign: "center" }}>
-          {msg && <div>{msg}</div>}
-          {nearby && <div>{nearby.label}: press E to {nearby.prompt.toLowerCase()}</div>}
+
+      <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
+      {menuOpen && (
+        <div className="card menu" role="dialog" aria-label="Menu">
+          <h3>Menu</h3>
+          <dl className="keys">
+            <dt><KeyCap>W</KeyCap> <KeyCap>A</KeyCap> <KeyCap>S</KeyCap> <KeyCap>D</KeyCap></dt><dd style={{ margin: 0 }}>Walk</dd>
+            <dt><KeyCap>Shift</KeyCap></dt><dd style={{ margin: 0 }}>Jog</dd>
+            <dt>Drag</dt><dd style={{ margin: 0 }}>Look around</dd>
+            <dt><KeyCap>E</KeyCap></dt><dd style={{ margin: 0 }}>Do the thing nearby</dd>
+            <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
+          </dl>
+          <button className="btn quiet" onClick={signOut}>Sign out</button>
         </div>
       )}
+
+      {tag && !menu && (
+        <div className="card tag" role="status">
+          {nearby?.kind === "egg" && <EggIcon />}
+          <strong>{tag}</strong>
+          {(nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+        </div>
+      )}
+      {msg && <div className={`card toast${bad ? " bad" : ""}`} role="status">{msg}</div>}
+
+      {creature && (
+        <div className="card mood" aria-label="Your Print">
+          <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
+          <div className="drops">
+            <InkDrop value={creature.fullness} label="Fed" />
+            <InkDrop value={creature.mood} label="Happy" />
+          </div>
+        </div>
+      )}
+
       {menu === "feed" && creature && (
-        <div style={{ ...hud, top: "40%", left: "35%", right: "35%", textAlign: "center" }}>
-          <p>Fullness {creature.fullness}/100 · Mood {creature.mood}/100</p>
-          {FOODS.map((f) => (
-            <button key={f.id} onClick={() => feed(f.id)} style={{ marginRight: 8 }}>{f.name}</button>
-          ))}
-          <button onClick={() => setMenu(null)}>Close</button>
+        <div className="card tray" role="dialog" aria-label="Feed your Print">
+          <h3>What shall we feed?</h3>
+          <div className="foods">
+            {FOODS.map((f) => (
+              <button key={f.id} className="food" onClick={() => feed(f.id)}>
+                {f.id === "glyph" ? <GlyphIcon /> : <Blot size={32} />}
+                {f.name}
+              </button>
+            ))}
+          </div>
+          <button className="btn quiet" onClick={() => setMenu(null)}>Close</button>
         </div>
       )}
       {menu === "board" && (
-        <div style={{ ...hud, top: "40%", left: "35%", right: "35%", textAlign: "center" }}>
-          {creature ? <p>Fullness {creature.fullness}/100 · Mood {creature.mood}/100</p> : <p>No Print yet.</p>}
-          <button onClick={() => setMenu(null)}>Close</button>
+        <div className="card tray" role="dialog" aria-label="Notice board">
+          <h3>Notice board</h3>
+          {creature ? (
+            <div className="drops" style={{ justifyContent: "center" }}>
+              <InkDrop value={creature.fullness} label="Fed" />
+              <InkDrop value={creature.mood} label="Happy" />
+            </div>
+          ) : <p className="note">Nothing here yet. Take your egg and hatch it.</p>}
+          <button className="btn quiet" onClick={() => setMenu(null)}>Close</button>
         </div>
       )}
     </main>
