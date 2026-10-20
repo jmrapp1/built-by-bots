@@ -8,6 +8,7 @@ import {
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
+import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -21,6 +22,8 @@ type Props = {
   onPrintNear: (near: boolean) => void;
   onFeedPrint: () => void; // the hold finished: ask the server to feed
   fedTick?: number; // goes up each time a feed succeeded, to start the Print's reaction
+  onGather?: (kind: string) => "ok" | "full"; // the page owns the pouch; the world only reports a walk-over
+  canOffer?: boolean; // something is in the pouch
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
 
@@ -164,13 +167,13 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, fedTick = 0, locked = false }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, fedTick = 0, locked = false, onGather, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage, species, locked });
-  live.current = { genes, eggPhase, stage, species, locked };
+  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer });
+  live.current = { genes, eggPhase, stage, species, locked, canOffer };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -265,6 +268,29 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       scene.add(m);
       return m;
     });
+    // Snacks to gather: ink puddles and glyph crumbs. Layout and timings come from data/forage.json.
+    const t0 = performance.now();
+    const spots = FORAGE.spots.map((sp, i) => {
+      const g = new THREE.Group();
+      g.position.set(sp.x, 0, sp.z);
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 24), new THREE.MeshBasicMaterial({ color: sp.kind === "ink" ? 0x5b86d6 : 0xf2b632, transparent: true, opacity: 0.7, depthWrite: false }));
+      glow.rotation.x = -Math.PI / 2;
+      glow.position.y = 0.02;
+      g.add(glow);
+      let body: THREE.Mesh;
+      if (sp.kind === "ink") {
+        body = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), new THREE.MeshToonMaterial({ color: "#2b2a33" }));
+        body.rotation.x = -Math.PI / 2;
+        body.position.y = 0.04;
+      } else {
+        body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), new THREE.MeshToonMaterial({ color: "#3b4a8c" }));
+        body.position.y = 0.3;
+        body.rotation.set(0.4, 0.7, 0.2);
+      }
+      g.add(body);
+      scene.add(g);
+      return { sp, g, glow, body, takenAt: null as number | null, hinted: false, phase: i * 1.3 };
+    });
     let holdStart = -1;
     let strokeStart = -1;
     let strokeEnd = -1;
@@ -320,7 +346,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (printNear) {
           // Hold to feed. Not while a feed is in flight, a panel is open, or the last reaction is still playing.
           const reactingNow = reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000;
-          if (!live.current.locked && !reactingNow && holdStart < 0) holdStart = performance.now();
+          if (!live.current.locked && live.current.canOffer && !reactingNow && holdStart < 0) holdStart = performance.now();
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -402,7 +428,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (printMesh && wander) {
         const isLocked = live.current.locked;
         // Hold E: the ring fills; letting go, walking away or a locked state cancels with no feed.
-        if (holdStart >= 0 && (!keys.has(PLAY.keys.hold) || !printNear || isLocked || reacting)) holdStart = -1;
+        if (holdStart >= 0 && (!keys.has(PLAY.keys.hold) || !printNear || isLocked || reacting || !live.current.canOffer)) holdStart = -1;
         let heldFor = -1;
         if (holdStart >= 0) {
           heldFor = (t - holdStart) / 1000;
@@ -458,6 +484,26 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         });
       } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); }
 
+      // Snacks: show the ready ones, collect on walk-over, shimmer gently.
+      const now = (t - t0) / 1000;
+      for (const o of spots) {
+        const since = sinceReady(o.takenAt, now, o.sp.readyAfter);
+        o.g.visible = since >= 0;
+        if (since < 0) continue;
+        const near = inReach(pos, o.sp);
+        if (near && !o.hinted) {
+          const r = cb.current.onGather?.(o.sp.kind);
+          if (r === "ok") { o.takenAt = now; o.g.visible = false; continue; }
+          o.hinted = true; // full pouch: leave it, hint once until the player walks away
+        } else if (!near) o.hinted = false;
+        const sh = shimmer(now, o.phase, reducedMotion);
+        o.glow.scale.setScalar(sh.scale);
+        (o.glow.material as THREE.MeshBasicMaterial).opacity = sh.glow;
+        const fall = dropOffset(since, reducedMotion);
+        if (o.sp.kind === "glyph") { o.body.position.y = 0.3 + fall; o.body.rotation.y += dt * (reducedMotion ? 0.2 : 0.8); }
+        else o.body.scale.setScalar(Math.max(0.05, 1 - fall / FORAGE.dropHeight));
+      }
+
       // Third-person follow camera, pulled in near scenery and smoothed.
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
@@ -489,6 +535,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
       ring.remove();
+      spots.forEach((o) => { scene.remove(o.g); o.glow.geometry.dispose(); o.body.geometry.dispose(); (o.glow.material as THREE.Material).dispose(); (o.body.material as THREE.Material).dispose(); });
       dropGeo.dispose();
       drops.forEach((m) => (m.material as THREE.Material).dispose());
       renderer.dispose();

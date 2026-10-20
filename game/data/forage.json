@@ -1,0 +1,19 @@
+{
+  "pouchSize": 3,
+  "reach": 1.3,
+  "respawnSeconds": 60,
+  "hintSeconds": 4,
+  "dropSeconds": 0.7,
+  "dropHeight": 2.2,
+  "shimmerSeconds": 3,
+  "calmFactor": 0.3,
+  "spots": [
+    { "id": "puddle-1", "kind": "ink", "x": 6.2, "z": -4.2, "readyAfter": 0 },
+    { "id": "puddle-2", "kind": "ink", "x": 10.2, "z": -4.4, "readyAfter": 0 },
+    { "id": "puddle-3", "kind": "ink", "x": 9.8, "z": -8.2, "readyAfter": 0 },
+    { "id": "crumb-1", "kind": "glyph", "x": 14.2, "z": 1.2, "readyAfter": 0 },
+    { "id": "crumb-2", "kind": "glyph", "x": -3.3, "z": 6.6, "readyAfter": 12 },
+    { "id": "crumb-3", "kind": "glyph", "x": -13.2, "z": -12.8, "readyAfter": 25 },
+    { "id": "crumb-4", "kind": "glyph", "x": 4.6, "z": 14.4, "readyAfter": 40 }
+  ]
+}

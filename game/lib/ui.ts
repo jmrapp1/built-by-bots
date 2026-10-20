@@ -54,11 +54,14 @@ export function friendlyAuthError(message: string): string {
   return "Something went wrong. Please try again.";
 }
 
-// Feed prompt: only for a hatched Print that is close by. Unhatched eggs never get one.
-export function feedPrompt(hasCreature: boolean, printNear: boolean): string | null {
-  return hasCreature && printNear ? "Hold to feed" : null;
+// Feed prompt: only for a hatched Print that is close by. With nothing in the pouch it nudges instead.
+export const GATHER_NUDGE = "Gather a snack first";
+export function feedPrompt(hasCreature: boolean, printNear: boolean, hasSnack = true): string | null {
+  if (!hasCreature || !printNear) return null;
+  return hasSnack ? "Hold to feed" : GATHER_NUDGE;
 }
 
+export const POUCH_FULL = "Your pouch is full. Share a snack with your Print first.";
 export const FED_MESSAGE = "Nom! Your Print is fed.";
 
 // Gentle wording for feed errors from the server. The raw message is never shown.

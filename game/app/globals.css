@@ -167,3 +167,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .hold-arc { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; }
 .hand { position: absolute; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
 .hand .fav { font-style: normal; color: var(--ink-soft); font-size: 0.85em; }
+
+/* The pouch: a few small slots, filled as snacks are gathered */
+.pouch { display: flex; gap: 6px; }
+.slot { width: 34px; height: 34px; display: grid; place-items: center; border: 2px dashed var(--ink-soft); border-radius: 10px; }
+.slot.full { border-style: solid; border-color: var(--ink); background: var(--paper-shade); }
+.slot.held { box-shadow: 0 0 0 3px rgba(227, 168, 59, 0.55); }
