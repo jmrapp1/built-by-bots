@@ -15,6 +15,7 @@ export type Colliders = { circles: Circle[]; boxes: Box[] };
 export function colliders(g: GardenData = GARDEN): Colliders {
   const circles: Circle[] = g.trees.map((t) => ({ x: t.x, z: t.z, r: t.r }));
   for (const p of g.places) if (p.solid) circles.push({ x: p.x, z: p.z, r: p.solid });
+  for (const q of (g as { posts?: Circle[] }).posts ?? []) circles.push({ x: q.x, z: q.z, r: q.r }); // the gate posts
   const boxes: Box[] = g.hedges.map((h) => ({ x: h.x, z: h.z, w: h.w, d: h.d }));
   return { circles, boxes };
 }
@@ -71,7 +72,7 @@ export function insideAny(p: Vec, margin: number, cols: Colliders): boolean {
 // forward/right in -1..1. yaw is the camera heading; at yaw 0 the camera looks along -z.
 export function movePlayer(
   pos: Vec, input: { forward: number; right: number }, yaw: number, speed: number, dt: number,
-  radius: number, cols: Colliders,
+  radius: number, cols: Colliders, size: number = GARDEN.size,
 ): { pos: Vec; moving: boolean; heading: number | null } {
   let f = input.forward, r = input.right;
   const len = Math.hypot(f, r);
@@ -80,7 +81,7 @@ export function movePlayer(
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
   const rx = Math.cos(yaw), rz = -Math.sin(yaw);
   const dx = (fx * f + rx * r) * speed * dt, dz = (fz * f + rz * r) * speed * dt;
-  const next = pushOut(clampToBounds({ x: pos.x + dx, z: pos.z + dz }, radius), radius, cols);
+  const next = pushOut(clampToBounds({ x: pos.x + dx, z: pos.z + dz }, radius, size), radius, cols);
   return { pos: next, moving: true, heading: Math.atan2(dx, dz) };
 }
 

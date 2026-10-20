@@ -15,8 +15,8 @@ function overlaps(p: { x: number; z: number }, r: number) {
 const P = GARDEN.player;
 
 describe("garden data", () => {
-  it("has the six places inside the garden", () => {
-    expect(GARDEN.places.map((p) => p.id).sort()).toEqual(["egg-spot", "inkwell", "nest", "notice-board", "pond", "rest-spot"]);
+  it("has the seven places inside the garden", () => {
+    expect(GARDEN.places.map((p) => p.id).sort()).toEqual(["egg-spot", "gate", "inkwell", "nest", "notice-board", "pond", "rest-spot"]);
     for (const p of GARDEN.places) {
       expect(Math.abs(p.x)).toBeLessThan(GARDEN.size / 2);
       expect(Math.abs(p.z)).toBeLessThan(GARDEN.size / 2);
