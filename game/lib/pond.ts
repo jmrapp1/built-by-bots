@@ -53,6 +53,8 @@ export function overrideState(o: "1" | "splash"): PondState {
 
 // Visits happen by day, for a Print that is awake, and not too far away.
 export const isDay = (hour: number): boolean => { const h = ((hour % 24) + 24) % 24; return h >= POND.dayFrom && h < POND.dayTo; };
+// The player's own splash follows the same day window as the Print's visits: none at night.
+export const canPlayerSplash = (hour: number): boolean => isDay(hour);
 export const between = ([a, b]: number[], roll: number): number => a + clamp01(roll) * (b - a);
 export const firstVisitDelay = (roll: number) => between(POND.firstVisit, roll);
 export const nextVisitDelay = (roll: number) => between(POND.spacing, roll);

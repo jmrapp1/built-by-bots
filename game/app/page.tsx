@@ -11,7 +11,7 @@ import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
-import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
+import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -60,6 +60,8 @@ export default function Page() {
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
+  const [findable, setFindable] = useState(false);
+  const [canSplash, setCanSplash] = useState(true);
   // Dev-only look at another species (?species=leaflet). Display only; ignored in production builds.
   const previewSpecies = typeof window === "undefined" ? null : speciesOverride(window.location.search, process.env.NODE_ENV === "production");
   const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
@@ -271,13 +273,13 @@ export default function Page() {
     );
   }
 
-  const state = { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined };
+  const state = { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined, canSplash };
   const feedTag = feedPrompt(!!creature, printNear, !!food);
-  const tag = feedTag ?? (nearby ? promptFor(nearby, state) : null);
+  const tag = findable ? FOUND_PROMPT : feedTag ?? (nearby ? promptFor(nearby, state) : null);
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
