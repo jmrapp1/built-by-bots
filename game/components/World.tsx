@@ -3,12 +3,13 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
-  GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Wander,
+  GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
+import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -291,6 +292,25 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       scene.add(g);
       return { sp, g, glow, body, takenAt: null as number | null, hinted: false, phase: i * 1.3 };
     });
+    // Night: the Print goes to bed at the rest spot; ink fireflies glow. Everything follows the same hour as the light.
+    type Bed = "none" | "yawn" | "walk" | "curl" | "sleep" | "wake";
+    let bed: Bed = "none";
+    let bedAt = 0, leg = 0, restartAt = 0, wakeMove = false;
+    let route: Vec[] = [];
+    let curlFrom: Vec = { x: 0, z: 0 }, wakeFrom: Vec = { x: 0, z: 0 };
+    let sitting = false;
+    let hourNow = override ?? hourOfDay(new Date());
+    const anchors = fireflyAnchors();
+    const flies = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(1, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+      NIGHT.fireflies.count,
+    );
+    flies.frustumCulled = false;
+    flies.visible = false;
+    scene.add(flies);
+    const flyMat = new THREE.Object3D();
+    const flyCol = new THREE.Color();
     let holdStart = -1;
     let strokeStart = -1;
     let strokeEnd = -1;
@@ -347,6 +367,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           // Hold to feed. Not while a feed is in flight, a panel is open, or the last reaction is still playing.
           const reactingNow = reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000;
           if (!live.current.locked && live.current.canOffer && !reactingNow && holdStart < 0) holdStart = performance.now();
+        } else if (nearby?.kind === "rest") {
+          sitting = !sitting; // sit beside the bed (or get up again); any walking key also stands up
+          if (sitting) pos = { x: NIGHT.sit.x, z: NIGHT.sit.z };
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -384,7 +407,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // so there is no sudden flash, which also keeps it gentle for reduced-motion.
     let lightClock = 0;
     const applyLight = () => {
-      const L = lightingAt(override ?? hourOfDay(new Date()));
+      hourNow = override ?? hourOfDay(new Date());
+      const L = lightingAt(hourNow);
       (scene.background as THREE.Color).set(L.sky);
       (scene.fog as THREE.Fog).color.set(L.fog);
       (edge.material as THREE.MeshBasicMaterial).color.set(L.sky);
@@ -408,7 +432,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (t - lightClock > 1000) { lightClock = t; applyLight(); }
       last = t;
       const k = (a: string, b: string) => (keys.has(a) || keys.has(b) ? 1 : 0);
-      const res = movePlayer(
+      if (sitting && ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c))) sitting = false;
+      const res = sitting ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : movePlayer(
         pos,
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
@@ -421,7 +446,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         d = Math.atan2(Math.sin(d), Math.cos(d));
         player.rotation.y += d * Math.min(1, dt * 12);
       }
-      player.position.set(pos.x, hoverY(t), pos.z);
+      player.position.set(pos.x, sitting ? NIGHT.sit.y : hoverY(t), pos.z);
 
       const sinceFeed = reactAt.current < 0 ? -1 : (t - reactAt.current) / 1000;
       const reacting = sinceFeed >= 0 && sinceFeed < PLAY.reactionSeconds;
@@ -442,18 +467,72 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if ((t - strokeEnd) / 1000 >= PLAY.stroke.easeOut) { strokeStart = -1; strokeEnd = -1; }
         }
         const engaged = holdStart >= 0 || reacting || strokeStart >= 0;
-        if (!engaged) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        // Bedtime. The hour decides; being fed or stroked wakes the Print gently and it settles again later.
+        const ts = t / 1000, ph = sleepPhase(hourNow), R = GARDEN.print.radius;
+        const atBed = Math.hypot(wander.x - NIGHT.bed.x, wander.z - NIGHT.bed.z) < 0.6;
+        if (engaged) {
+          restartAt = ts + NIGHT.napSeconds;
+          if (bed === "yawn" || bed === "walk") bed = "none";
+          else if (bed === "curl" || bed === "sleep") { bed = "wake"; bedAt = ts; wakeMove = false; }
+        }
+        if (ph === "awake") {
+          if (bed === "yawn" || bed === "walk") bed = "none";
+          if (!engaged && (bed === "curl" || bed === "sleep" || (bed === "none" && atBed))) { bed = "wake"; bedAt = ts; wakeMove = true; wakeFrom = { x: wander.x, z: wander.z }; }
+        } else if (bed === "none" && !engaged && ts >= restartAt) {
+          bed = atBed ? "curl" : "yawn"; bedAt = ts; curlFrom = { x: wander.x, z: wander.z };
+        }
+        const holdStill = bed === "none" && atBed && ph !== "awake";
+        let owned = false, yBase = holdStill ? NIGHT.bed.y : 0;
+        let bedPose: ReturnType<typeof sleepPose> | null = null;
+        const ease = (n: number) => n * n * (3 - 2 * n);
+        if (bed === "yawn") {
+          owned = true; bedPose = stretchPose(ts - bedAt, false, reducedMotion);
+          if (ts - bedAt >= NIGHT.yawnSeconds) { route = routeTo(wander, NIGHT.approach, cols, R); leg = 0; bed = "walk"; }
+        } else if (bed === "walk") {
+          owned = true;
+          const r = walkRoute(wander, route, leg, dt, R, cols);
+          wander = { ...wander, x: r.pos.x, z: r.pos.z, heading: r.heading ?? wander.heading };
+          leg = r.leg;
+          if (r.done) { bed = "curl"; bedAt = ts; curlFrom = { x: wander.x, z: wander.z }; }
+        } else if (bed === "curl") {
+          owned = true;
+          const u = Math.min(1, (ts - bedAt) / NIGHT.settleSeconds), e = ease(u);
+          wander = { ...wander, x: curlFrom.x + (NIGHT.bed.x - curlFrom.x) * e, z: curlFrom.z + (NIGHT.bed.z - curlFrom.z) * e };
+          yBase = NIGHT.bed.y * e;
+          bedPose = mixPose({ lean: 0, squash: 1, hop: 0 }, sleepPose(ts, reducedMotion), e);
+          if (u >= 1) bed = "sleep";
+        } else if (bed === "sleep") {
+          owned = true; yBase = NIGHT.bed.y; bedPose = sleepPose(ts, reducedMotion);
+          wander = { ...wander, x: NIGHT.bed.x, z: NIGHT.bed.z, wait: 1 };
+        } else if (bed === "wake") {
+          owned = true;
+          const u = Math.min(1, (ts - bedAt) / NIGHT.wakeSeconds), e = ease(u);
+          if (wakeMove) {
+            wander = { ...wander, x: wakeFrom.x + (NIGHT.approach.x - wakeFrom.x) * e, z: wakeFrom.z + (NIGHT.approach.z - wakeFrom.z) * e };
+            yBase = NIGHT.bed.y * (1 - e);
+            bedPose = stretchPose(ts - bedAt, true, reducedMotion);
+          } else {
+            yBase = NIGHT.bed.y;
+            bedPose = mixPose(sleepPose(ts, reducedMotion), { lean: 0, squash: 1, hop: 0 }, e);
+          }
+          if (u >= 1) {
+            bed = "none";
+            if (wakeMove) wander = { ...wander, x: NIGHT.approach.x, z: NIGHT.approach.z, tx: NIGHT.approach.x, tz: NIGHT.approach.z, wait: 1.5 };
+          }
+        }
+        if (!engaged && !owned && !holdStill) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
         // Pose: the reaction wins, then stroking, otherwise rest.
         const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
-        const pose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
+        const reactPose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
+        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? reactPose;
         const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
         let dy = faceTarget - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
         printMesh.rotation.x = pose.lean;
-        printMesh.position.set(wander.x, Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1) + pose.hop, wander.z);
+        printMesh.position.set(wander.x, (owned || holdStill ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
@@ -473,16 +552,35 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const puffs: Puff[] = [
           ...(reacting ? feedPuffs(sinceFeed, reducedMotion) : []),
           ...(stroked >= 0 && released === 0 ? strokePuffs(stroked, reducedMotion) : []),
+          ...(bed === "sleep" && !engaged ? swirlPuffs(ts, reducedMotion) : []),
         ];
         drops.forEach((m, i) => {
           const pf = puffs[i];
           m.visible = !!pf;
           if (!pf) return;
-          m.position.set(wander!.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy, wander!.z + Math.sin(pf.angle) * pf.dx);
+          m.position.set(wander!.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase, wander!.z + Math.sin(pf.angle) * pf.dx);
           m.scale.setScalar(pf.scale);
           (m.material as THREE.MeshToonMaterial).opacity = pf.opacity;
         });
       } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); }
+
+      // Fireflies glow from dusk to dawn.
+      const fl = fireflyLevel(hourNow);
+      flies.visible = fl > 0;
+      if (fl > 0) {
+        (flies.material as THREE.MeshBasicMaterial).opacity = fl;
+        for (let i = 0; i < NIGHT.fireflies.count; i++) {
+          const f = fireflyAt(i, t / 1000, anchors, reducedMotion);
+          flyMat.position.set(f.x, f.y, f.z);
+          flyMat.scale.setScalar(NIGHT.fireflies.size * (0.8 + 0.4 * f.glow));
+          flyMat.updateMatrix();
+          flies.setMatrixAt(i, flyMat.matrix);
+          flyCol.setRGB(0.95 * f.glow, 0.62 * f.glow, 0.12 * f.glow);
+          flies.setColorAt(i, flyCol);
+        }
+        flies.instanceMatrix.needsUpdate = true;
+        if (flies.instanceColor) flies.instanceColor.needsUpdate = true;
+      }
 
       // Snacks: show the ready ones, collect on walk-over, shimmer gently.
       const now = (t - t0) / 1000;
@@ -507,7 +605,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       // Third-person follow camera, pulled in near scenery and smoothed.
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
-      const dist = cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
+      const dist = sitting ? GARDEN.camera.distance * (1 - NIGHT.sit.cameraIn) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
       target.set(pos.x, GARDEN.camera.height * 0.7, pos.z);
       const want = new THREE.Vector3(
         pos.x + (dir.x / flat) * dist * Math.cos(pitch),
@@ -535,6 +634,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
       ring.remove();
+      scene.remove(flies);
+      flies.geometry.dispose();
+      (flies.material as THREE.Material).dispose();
       spots.forEach((o) => { scene.remove(o.g); o.glow.geometry.dispose(); o.body.geometry.dispose(); (o.glow.material as THREE.Material).dispose(); (o.body.material as THREE.Material).dispose(); });
       dropGeo.dispose();
       drops.forEach((m) => (m.material as THREE.Material).dispose());
