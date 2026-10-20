@@ -29,8 +29,8 @@
   {
     "id": "elder",
     "name": "Elder",
-    "minCare": 60,
-    "minAgeSeconds": 86400,
+    "minCare": 120,
+    "minAgeSeconds": 259200,
     "scale": 1.12,
     "partsShown": 2,
     "mark": "halo"
