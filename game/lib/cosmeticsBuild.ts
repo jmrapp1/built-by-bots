@@ -46,7 +46,7 @@ function inkCheeks(spread: number): THREE.Group {
   const m = toon(0x2f3a78, { side: THREE.DoubleSide });
   for (const side of [-1, 1]) {
     const dot = new THREE.Mesh(new THREE.CircleGeometry(0.075, 16), m);
-    dot.position.set(side * 0.34 * spread, 0, 0);
+    dot.position.set(side * 0.3 * spread, 0, 0);
     dot.rotation.y = side * 0.62 * Math.min(1, spread); // follows the curve of the face
     dot.scale.set(1, 0.8, 1);
     g.add(dot);

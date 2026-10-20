@@ -58,7 +58,8 @@ describe("keepsake data", () => {
   it("the leaflet's flatter body gets its own anchors", () => {
     const a = placementFor("paper_crown", "blotling", "round")!, b = placementFor("paper_crown", "leaflet", "round")!;
     expect(b.flat).toBeLessThan(1);
-    expect(JSON.stringify(a.pos)).not.toBe(JSON.stringify(b.pos));
+    expect(a.flat).toBe(1);
+    expect(JSON.stringify(placementFor("scarf", "blotling", "round")!.pos)).not.toBe(JSON.stringify(placementFor("scarf", "leaflet", "round")!.pos));
   });
 });
 
