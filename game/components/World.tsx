@@ -274,6 +274,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let inMargins = false;
     let mg: MarginsScene | null = null, mLayout: Layout | null = null, mField: Field | null = null, mSpots: Spot[] = [];
     let mDay = "";
+    const keepsakePages = new Set<number>(); // pages whose find is drawn as a scrap but is a keepsake: not counted as a scrap
     const heldByDay = new Map<string, Map<number, Shown>>(); // food the server gave while the pouch was full: kept until there is room (this visit only)
     const openedByDay = new Map<string, Set<number>>(); // this visit only: nothing is saved or sent
     let opened = new Set<number>();
@@ -1016,7 +1017,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
               const sp = mSpots.find((q) => q.id === mActive!.id)!;
               opened.add(sp.id);
               const food = foodOf(sp.kind);
-              if (sp.kind === "scrap") scraps++; else if (food) cb.current.onGather?.(food); // food goes into the pouch
+              if (sp.kind === "scrap" && !keepsakePages.has(sp.id)) scraps++; else if (food) cb.current.onGather?.(food); // food goes into the pouch
               else if (sp.kind === "egg") cb.current.onMarginsNote?.(FOUND_EGG); // the page reloads the nest
               mActive = null; report();
             }
@@ -1063,7 +1064,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
                   if (st.ceiling) quietUntilNext = true;
                   if (st.note && !st.animate) cb.current.onMarginsNote?.(st.note);
                   if (st.cosmetic) { cosFoundAway = true; cb.current.onKeepsake?.(st.cosmetic); } // the Print is away: it is worn at once, and the put-on plays when the player is back in the garden
-                  if (st.animate && st.kind) { spot.kind = st.kind === "keepsake" ? "scrap" : st.kind; /* a keepsake rises as a paper scrap */ mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
+                  if (st.animate && st.kind) { if (st.kind === "keepsake") keepsakePages.add(spot.id); spot.kind = st.kind === "keepsake" ? "scrap" : st.kind; /* a keepsake rises as a paper scrap, but is never counted as one */ mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
                   else { uBlocked = true; uHold = 0; report(); } // refused: stays folded, nothing spent. A repeat: shown open, nothing granted.
                 });
               } else { uBlocked = true; uHold = 0; }

@@ -95,6 +95,15 @@ describe("the wiring", () => {
     expect(world).toMatch(/if \(cosFoundAway\) \{ cosFoundAway = false; cosHold = performance\.now\(\) \+ \d+; cosPlayUntil = performance\.now\(\) \+ \d+; \}/);
     expect(world).toMatch(/wantId !== cosId && \(cosPreview \|\| \(!inMargins && t >= cosHold\)\)/);
   });
+  it("a keepsake is drawn as a scrap but never counted as one", () => {
+    expect(world).toMatch(/const keepsakePages = new Set<number>\(\)/);
+    expect(world).toMatch(/if \(st\.kind === "keepsake"\) keepsakePages\.add\(spot\.id\); spot\.kind = st\.kind === "keepsake" \? "scrap" : st\.kind/);
+    expect(world).toMatch(/if \(sp\.kind === "scrap" && !keepsakePages\.has\(sp\.id\)\) scraps\+\+/);
+    // the count is only ever raised in these two places: the finish step (guarded above) and a late answer that really was a scrap
+    expect([...world.matchAll(/scraps\+\+/g)].length).toBe(2);
+    expect(settleUnfold({ ok: true, kind: "keepsake", cosmetic: "ribbon", spot: 3, duplicate: false }, false).scrap).toBe(false);
+    expect(settleUnfold({ ok: true, kind: "scrap", spot: 3, duplicate: false }, false).scrap).toBe(true);
+  });
   it("the preview switch is still dev-only and unchanged", () => {
     expect(world).toMatch(/cosmeticOverride\(window\.location\.search, process\.env\.NODE_ENV === "production"\)/);
   });
