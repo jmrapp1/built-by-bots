@@ -1,10 +1,11 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
+import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
@@ -12,7 +13,7 @@ import type { Genes } from "@/lib/creature";
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
 type Egg = { id: string; hatch_at: string; hatched_at: string | null };
-type Creature = { id: string; genes: Genes; fullness: number; mood: number };
+type Creature = { id: string; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
 
 export default function Page() {
   const [egg, setEgg] = useState<Egg | null>(null);
@@ -36,6 +37,15 @@ export default function Page() {
   const [printNear, setPrintNear] = useState(false);
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
 
+  // Every creature update goes through here so a stage change is announced once.
+  const lastStage = useRef<string | null>(null);
+  const applyCreature = (c: Creature) => {
+    const st = c.stage ?? "blot";
+    if (stageChanged(lastStage.current, st)) setMsg(`Your Print grew into a ${stageById(st).name}!`);
+    lastStage.current = st;
+    setCreature(c);
+  };
+
   // Load whatever the player already owns. Claiming the egg is a world action.
   const load = useCallback(async () => {
     const sb = supabase();
@@ -44,9 +54,25 @@ export default function Page() {
     if (!e) return setMsg("");
     setEgg(e as Egg);
     const { data: c } = await sb.from("creatures").select("*").eq("egg_id", (e as Egg).id).maybeSingle();
-    if (c) setCreature(c as Creature);
+    if (c) applyCreature(c as Creature);
     setMsg("");
   }, []);
+
+  // Growth is decided by the server. Ask it to check when the player returns and now and then
+  // while they play. If the server has no growth yet, this is ignored.
+  const creatureId = creature?.id;
+  useEffect(() => {
+    if (!session || !creatureId) return;
+    let live = true;
+    const grow = async () => {
+      const { data, error } = await supabase().rpc("grow_creature", { p_creature_id: creatureId });
+      if (live && !error && data) applyCreature(data as Creature);
+    };
+    grow();
+    const t = setInterval(grow, 120000);
+    return () => { live = false; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, creatureId]);
 
   // Auth state comes from Supabase Auth only. The password is handed straight to
   // Supabase and is never stored or logged here.
@@ -58,7 +84,7 @@ export default function Page() {
   }, []);
   useEffect(() => {
     if (session) load().catch((x) => setMsg(String(x.message ?? x)));
-    else { setEgg(null); setCreature(null); setMsg(""); }
+    else { setEgg(null); setCreature(null); lastStage.current = null; setMsg(""); }
   }, [session, load]);
 
   const auth = async () => {
@@ -78,7 +104,7 @@ export default function Page() {
   const hatch = async () => {
     const { data, error } = await supabase().rpc("hatch_egg", { p_egg_id: egg!.id });
     if (error) return setMsg(error.message);
-    setCreature(data as Creature);
+    applyCreature(data as Creature);
     setMsg("");
   };
   // On success the tray closes and a short confirmation shows; on error the tray stays open.
@@ -88,9 +114,10 @@ export default function Page() {
     const { data, error } = await supabase().rpc("feed_creature", { p_creature_id: creature!.id, p_food_id: foodId });
     setFeeding(false);
     if (error) return setFeedError(friendlyFeedError(error.message));
-    setCreature(data as Creature);
+    const grew = stageChanged(lastStage.current, (data as Creature).stage ?? "blot");
+    applyCreature(data as Creature);
     setMenu(null);
-    setMsg(FED_MESSAGE);
+    if (!grew) setMsg(FED_MESSAGE);
   };
   // The confirmation fades after a moment.
   useEffect(() => {
@@ -187,7 +214,7 @@ export default function Page() {
   const bad = msg !== FED_MESSAGE && /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
+      <World genes={creature?.genes ?? null} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -216,6 +243,12 @@ export default function Page() {
       {creature && (
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
+          <div className="stage" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
+            <span className="stage-name">{stageById(creature.stage ?? "blot").name}</span>
+            <span className="stage-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
+              <span style={{ width: `${progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100}%` }} />
+            </span>
+          </div>
           <div className="drops">
             <InkDrop value={creature.fullness} label="Fed" />
             <InkDrop value={creature.mood} label="Happy" />

@@ -5,11 +5,13 @@ import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
   GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Wander,
 } from "@/lib/world";
+import { growthPulse, stageById } from "@/lib/growth";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "unclaimed" | "in-nest";
 type Props = {
   genes: Genes | null;
+  stage?: string;
   eggPhase: EggPhase;
   onNearby: (place: Place | null) => void;
   onInteract: (place: Place) => void;
@@ -128,15 +130,15 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
+export default function World({ genes, stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint });
   cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase });
-  live.current = { genes, eggPhase };
+  const live = useRef({ genes, eggPhase, stage });
+  live.current = { genes, eggPhase, stage };
   const rebuild = useRef<() => void>(() => {});
-  useEffect(() => { rebuild.current(); }, [genes, eggPhase]);
+  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage]);
 
   useEffect(() => {
     const el = mount.current!;
@@ -196,15 +198,23 @@ export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNe
     scene.add(dynamic);
     let wander: Wander | null = null;
     let printMesh: THREE.Group | null = null;
+    let baseScale = 1;
+    let shownStage: string | null = null;
+    let pulseStart = -1;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
     rebuild.current = () => {
       dynamic.clear();
-      const { genes: g, eggPhase: phase } = live.current;
+      const { genes: g, eggPhase: phase, stage: st } = live.current;
       printMesh = null;
       if (g) {
-        printMesh = buildCreature(g);
-        printMesh.scale.setScalar(GARDEN.print.scale);
+        const sd = stageById(st);
+        printMesh = buildCreature(g, { partsShown: sd.partsShown, mark: sd.mark });
+        baseScale = GARDEN.print.scale * sd.scale;
+        printMesh.scale.setScalar(baseScale);
+        if (shownStage !== null && shownStage !== st) pulseStart = performance.now();
+        shownStage = st;
         dynamic.add(printMesh);
         wander = wander ?? newWander({ x: nest.x, z: nest.z + 2 });
       } else {
@@ -297,6 +307,9 @@ export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNe
         wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
         printMesh.position.set(wander.x, Math.abs(Math.sin(t / 300)) * 0.03, wander.z);
         printMesh.rotation.y = wander.heading;
+        const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
+        if (prog >= 1) pulseStart = -1;
+        printMesh.scale.setScalar(baseScale * growthPulse(prog, reduced));
       }
 
       // Third-person follow camera, pulled in near scenery and smoothed.

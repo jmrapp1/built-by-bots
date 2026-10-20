@@ -1,0 +1,38 @@
+[
+  {
+    "id": "blot",
+    "name": "Blot",
+    "minCare": 0,
+    "minAgeSeconds": 0,
+    "scale": 0.75,
+    "partsShown": 0,
+    "mark": null
+  },
+  {
+    "id": "sprout",
+    "name": "Sprout",
+    "minCare": 6,
+    "minAgeSeconds": 600,
+    "scale": 0.9,
+    "partsShown": 1,
+    "mark": "leaf"
+  },
+  {
+    "id": "full",
+    "name": "Full form",
+    "minCare": 20,
+    "minAgeSeconds": 3600,
+    "scale": 1.0,
+    "partsShown": 2,
+    "mark": null
+  },
+  {
+    "id": "elder",
+    "name": "Elder",
+    "minCare": 60,
+    "minAgeSeconds": 86400,
+    "scale": 1.12,
+    "partsShown": 2,
+    "mark": "halo"
+  }
+]
