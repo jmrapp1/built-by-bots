@@ -30,6 +30,24 @@ export function hideOverride(search: string, isProduction: boolean): "1" | "foun
   return v === "1" || v === "found" ? v : null;
 }
 
+// ?hide=found: put the Print hiding, a short way in front of the player (by the way they face), on a clear
+// spot, so one E press shows the found burst. Tries straight ahead first, then swings round. Dev-only.
+export function previewSpot(player: Vec, yaw: number, cols: Colliders, radius: number = GARDEN.print.radius): Spot {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), dist = HIDE.previewDistance;
+  let best: Spot | null = null;
+  for (const deg of [0, 30, -30, 60, -60, 90, -90, 135, -135, 180]) {
+    const a = (deg * Math.PI) / 180, dx = fx * Math.cos(a) - fz * Math.sin(a), dz = fx * Math.sin(a) + fz * Math.cos(a);
+    const spot = { x: player.x + dx * dist, z: player.z + dz * dist };
+    const lim = GARDEN.size / 2 - radius - HIDE.mapMargin;
+    if (Math.abs(spot.x) > lim || Math.abs(spot.z) > lim || insideAny(spot, radius + 0.1, cols)) continue;
+    const sp: Spot = { tree: -1, spot, perp: { x: -dz, z: dx } };
+    // it should also have room to step out to its side
+    const out = { x: spot.x + sp.perp.x * HIDE.stepOut, z: spot.z + sp.perp.z * HIDE.stepOut };
+    if (insideAny(out, radius, cols)) { best = best ?? sp; continue; }
+    return sp;
+  }
+  return best ?? { tree: -1, spot: { x: player.x + fx * dist, z: player.z + fz * dist }, perp: { x: -fz, z: fx } };
+}
 export const hideBusy = (s: HideState): boolean => s.phase !== "idle";
 
 // A game starts by day, for an awake Print that is not busy with the pond, when the player is close.

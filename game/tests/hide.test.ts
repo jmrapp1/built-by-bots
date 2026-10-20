@@ -2,9 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   HIDE, HIDEIDLE, canFind, canStartGame, hideAdvance, hideAnchor, hideArrived, hideBusy, hideFound, hideOverride, hidePose, hidePuffs, hideStart,
-  maxGameSeconds, peekAmount, pickSpot, spotBehind, spotValid, withSpot, type HideState,
+  maxGameSeconds, peekAmount, pickSpot, previewSpot, spotBehind, spotValid, withSpot, type HideState,
 } from "@/lib/hide";
 import { canPlayerSplash, POND } from "@/lib/pond";
+import { routeTo, walkRoute } from "@/lib/night";
 import { promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { GARDEN, colliders, insideAny } from "@/lib/world";
 
@@ -160,7 +161,7 @@ describe("preview switch and prompt", () => {
     expect(hideOverride("?hide=1", true)).toBeNull();
     expect(hideOverride("", false)).toBeNull();
   });
-  it("the found prompt has no numbers", () => { expect(FOUND_PROMPT).toBe("Found you!"); expect(FOUND_PROMPT).not.toMatch(/\d/); });
+  it("the found prompt has no numbers", () => { expect(FOUND_PROMPT).toBe("Found you?"); expect(FOUND_PROMPT).not.toMatch(/\d/); });
   it("E order in World: found, feed, sit, pond", () => {
     const src = readFileSync("components/World.tsx", "utf8");
     const i = [src.indexOf("if (hideFindable)"), src.indexOf("} else if (printNear) {"), src.indexOf('nearby?.kind === "rest"'), src.indexOf('nearby?.kind === "pond"')];
@@ -170,5 +171,66 @@ describe("preview switch and prompt", () => {
   it("hide data has no network, and spacing is generous", () => {
     expect(readFileSync("lib/hide.ts", "utf8")).not.toMatch(/fetch\(|http/);
     expect(HIDE.spacing[0]).toBeGreaterThanOrEqual(60);
+  });
+});
+
+describe("?hide=found is reproducible", () => {
+  const starts = [[0, 9], [-6.6, 9.5], [-7.5, 8], [9, 5], [0, -4], [14, 1], [-12, -12], [4, 14]];
+  it("puts the Print hiding in reach of the player at any start, on a clear spot, outside the pond", () => {
+    for (const [x, z] of starts) for (const yaw of [0, 1, 2.5, -2]) {
+      const player = { x, z }, sp = previewSpot(player, yaw, cols);
+      const hiding = { ...withSpot(hideStart(), sp), phase: "hiding" as const, t: 0 };
+      expect(canFind(hiding, player, sp.spot), `${x},${z},${yaw}`).toBe(true); // one E press works
+      expect(insideAny(sp.spot, R, cols)).toBe(false);
+      const pond = GARDEN.places.find((q) => q.kind === "pond")!;
+      expect(Math.hypot(sp.spot.x - pond.x, sp.spot.z - pond.z)).toBeGreaterThan((pond.solid ?? 0) + R);
+    }
+  });
+  it("is in front of the player when the way is clear (the default start)", () => {
+    const sp = previewSpot({ x: 0, z: 9 }, 0, cols);
+    expect(sp.spot.z).toBeLessThan(9);
+    expect(Math.abs(sp.spot.x)).toBeLessThan(0.5);
+  });
+  it("found then plays and ends, and the prompt reads Found you?", () => {
+    const sp = previewSpot({ x: 0, z: 9 }, 0, cols);
+    let s = hideFound({ ...withSpot(hideStart(), sp), phase: "hiding" as const, t: 0 });
+    expect(s.phase).toBe("found");
+    for (let t = 0; t < HIDE.foundSeconds + 0.1; t += 0.02) s = hideAdvance(s, 0.02);
+    expect(s.phase).toBe("idle"); // the burst is the end of the game
+    expect(FOUND_PROMPT).toBe("Found you?");
+  });
+  it("World uses the preview spot and the findable prompt wins the E over the pond", () => {
+    const w = readFileSync("components/World.tsx", "utf8");
+    expect(w).toMatch(/previewSpot\(pos, yaw, cols\)/);
+    expect(w.indexOf("if (hideFindable)")).toBeLessThan(w.indexOf("pgStart < 0 && canPlayerSplash"));
+    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/findable \? FOUND_PROMPT/);
+  });
+});
+
+describe("the dash really reaches the hiding spot", () => {
+  it("walks the route from many Print starts and rolls and ends at the spot, in time", () => {
+    let games = 0, worst = 0;
+    const players = [{ x: 0, z: 9 }, { x: -7.5, z: 8 }, { x: 9, z: 5 }, { x: 0, z: -4 }, { x: 12, z: -6 }];
+    for (const player of players) for (let x = -14; x <= 14; x += 4) for (let z = -14; z <= 14; z += 4) {
+      const print = { x, z };
+      if (insideAny(print, R + 0.15, cols) || Math.hypot(x - player.x, z - player.z) > HIDE.inviteRadius) continue;
+      for (const rolls of [[0, 0.2, 0.1], [0.9, 0.8, 0.7], [0.3, 0.5, 0.9]]) {
+        const pick = pickSpot(player, print, -1, cols, rolls[0], rolls[1], rolls[2]);
+        if (!pick) continue;
+        games++;
+        const route = routeTo(print, pick.spot, cols, R);
+        let pos = print, leg = 0, done = false, t = 0;
+        while (!done && t < HIDE.dashMaxSeconds) {
+          const r = walkRoute(pos, route, leg, 0.05, R, cols, HIDE.dashSpeed);
+          expect(insideAny(r.pos, R - 0.05, cols)).toBe(false);
+          pos = r.pos; leg = r.leg; done = r.done; t += 0.05;
+        }
+        worst = Math.max(worst, t);
+        expect(done, `dash from ${x},${z} to ${pick.spot.x.toFixed(1)},${pick.spot.z.toFixed(1)}`).toBe(true);
+        expect(Math.hypot(pos.x - pick.spot.x, pos.z - pick.spot.z)).toBeLessThan(0.3);
+      }
+    }
+    expect(games).toBeGreaterThan(40);
+    expect(worst).toBeLessThan(HIDE.dashMaxSeconds);
   });
 });

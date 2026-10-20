@@ -21,6 +21,7 @@
   "stepOut": 1.0,
   "leaveSeconds": 1.2,
   "reach": 2.0,
+  "previewDistance": 1.4,
   "behind": [0.9, 1.2],
   "minTreeDistance": 6,
   "placeClearance": 2.5,

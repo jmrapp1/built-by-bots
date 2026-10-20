@@ -46,7 +46,7 @@ export function promptFor(place: Place, s: PromptState): string | null {
 }
 
 // Shown while the Print hides and the player is within reach. No numbers.
-export const FOUND_PROMPT = "Found you!";
+export const FOUND_PROMPT = "Found you?";
 
 // Short human sentences instead of raw auth errors.
 export function friendlyAuthError(message: string): string {

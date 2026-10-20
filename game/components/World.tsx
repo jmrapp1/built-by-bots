@@ -18,7 +18,7 @@ import {
 } from "@/lib/pond";
 import {
   HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
-  hideStart, nextGameDelay, pickSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
+  hideStart, nextGameDelay, pickSpot, previewSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
 } from "@/lib/hide";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
@@ -650,10 +650,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
         // Hide and seek. A feed, stroke, bedtime or sit ends it gently; a player splash is ignored until it ends.
         if (hidePreview) {
-          const pick = hidePreview === "found" ? pickSpot(pos, wander, hideLast, cols, 0, 0.5, 0) ?? spotBehind(0, pos) : null;
-          if (hidePreview === "found" && pick) {
+          if (hidePreview === "found") {
+            // Hiding just ahead of the player, within reach: one E press plays the found burst.
+            const pick = previewSpot(pos, yaw, cols);
+            pondS = PONDIDLE;
             wander = { ...wander, x: pick.spot.x, z: pick.spot.z, tx: pick.spot.x, tz: pick.spot.z, wait: 1 };
-            hideS = { ...withSpot(hideStart(), pick), phase: "found", t: 0 };
+            hideS = { ...withSpot(hideStart(), pick), phase: "hiding", t: 0 };
           } else if (hidePreview === "1") { pondS = PONDIDLE; hideS = hideStart(); }
           hidePreview = null;
         }
