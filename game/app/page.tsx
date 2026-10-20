@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
+import { screenFor } from "@/lib/gate";
 import type { Genes } from "@/lib/creature";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
@@ -105,26 +106,40 @@ export default function Page() {
   };
 
   const hud: React.CSSProperties = { position: "absolute", left: 12, right: 12, padding: 8, background: "rgba(251,248,239,0.9)", borderRadius: 8 };
+  const screen = screenFor(session);
+  if (screen !== "world") {
+    return (
+      <main style={{ display: "grid", placeItems: "center", minHeight: "100vh", margin: 0 }}>
+        <div>
+          <h1>Blotty</h1>
+          {screen === "loading" && <p>Loading…</p>}
+          {screen === "sign-in" && (
+            <form onSubmit={(e) => { e.preventDefault(); auth("in"); }}>
+              <p>Sign in to enter the garden.</p>
+              <input type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />{" "}
+              <input type="password" required minLength={8} autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />{" "}
+              <button type="submit">Sign in</button>{" "}
+              <button type="button" onClick={() => auth("up")}>Sign up</button>
+              {msg && <p>{msg}</p>}
+            </form>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main style={{ position: "fixed", inset: 0, margin: 0 }}>
       <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} />
       <div style={{ ...hud, top: 12, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <strong>Blotty</strong>
-        {session === false && (
-          <form onSubmit={(e) => { e.preventDefault(); auth("in"); }}>
-            <input type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />{" "}
-            <input type="password" required minLength={8} autoComplete="current-password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />{" "}
-            <button type="submit">Sign in</button>{" "}
-            <button type="button" onClick={() => auth("up")}>Sign up</button>
-          </form>
-        )}
-        {session && <button onClick={signOut}>Sign out</button>}
+        <button onClick={signOut}>Sign out</button>
         <span style={{ opacity: 0.7 }}>WASD move · Shift jog · drag to look · E interact</span>
       </div>
-      {(msg || (nearby && session)) && (
+      {(msg || nearby) && (
         <div style={{ ...hud, bottom: 12, textAlign: "center" }}>
           {msg && <div>{msg}</div>}
-          {nearby && session && <div>{nearby.label}: press E to {nearby.prompt.toLowerCase()}</div>}
+          {nearby && <div>{nearby.label}: press E to {nearby.prompt.toLowerCase()}</div>}
         </div>
       )}
       {menu === "feed" && creature && (
