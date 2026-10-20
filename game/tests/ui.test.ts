@@ -39,8 +39,8 @@ describe("prompts", () => {
   it("gives the inkwell no prompt", () => {
     expect(promptFor(place("scenery"), { hasEgg: true, hasCreature: true, hatchWait: 0 })).toBeNull();
   });
-  it("offers Feed only for a hatched Print that is close", () => {
-    expect(feedPrompt(true, true)).toBe("Feed");
+  it("offers Hold to feed only for a hatched Print that is close", () => {
+    expect(feedPrompt(true, true)).toBe("Hold to feed");
     expect(feedPrompt(true, false)).toBeNull();
     expect(feedPrompt(false, true)).toBeNull(); // an unhatched egg is never feedable
   });
