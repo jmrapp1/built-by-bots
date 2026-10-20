@@ -56,17 +56,26 @@ export function friendlyAuthError(message: string): string {
 
 // Feed prompt: only for a hatched Print that is close by. Unhatched eggs never get one.
 export function feedPrompt(hasCreature: boolean, printNear: boolean): string | null {
-  return hasCreature && printNear ? "Feed" : null;
+  return hasCreature && printNear ? "Hold to feed" : null;
 }
 
 export const FED_MESSAGE = "Nom! Your Print is fed.";
 
 // Gentle wording for feed errors from the server. The raw message is never shown.
+const FEED_ERRORS = {
+  soon: "Easy there, your Print is still munching. Try again in a moment.",
+  full: "Your Print is full for today. Come back tomorrow.",
+  signin: "Please sign in again.",
+  network: "Can't reach the garden right now. Check your connection.",
+  other: "That didn't work. Please try again.",
+} as const;
 export function friendlyFeedError(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes("too soon")) return "Easy there, your Print is still munching. Try again in a moment.";
-  if (m.includes("fed enough")) return "Your Print is full for today. Come back tomorrow.";
-  if (m.includes("not signed in") || m.includes("sign in")) return "Please sign in again.";
-  if (m.includes("fetch") || m.includes("network")) return "Can't reach the garden right now. Check your connection.";
-  return "That didn't work. Please try again.";
+  if (m.includes("too soon")) return FEED_ERRORS.soon;
+  if (m.includes("fed enough")) return FEED_ERRORS.full;
+  if (m.includes("not signed in") || m.includes("sign in")) return FEED_ERRORS.signin;
+  if (m.includes("fetch") || m.includes("network")) return FEED_ERRORS.network;
+  return FEED_ERRORS.other;
 }
+// Feed confirmations and feed errors are short-lived toasts.
+export const isFeedMessage = (m: string): boolean => m === FED_MESSAGE || (Object.values(FEED_ERRORS) as string[]).includes(m);

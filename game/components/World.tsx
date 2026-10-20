@@ -7,6 +7,7 @@ import {
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
+import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -18,7 +19,9 @@ type Props = {
   onNearby: (place: Place | null) => void;
   onInteract: (place: Place) => void;
   onPrintNear: (near: boolean) => void;
-  onFeedPrint: () => void;
+  onFeedPrint: () => void; // the hold finished: ask the server to feed
+  fedTick?: number; // goes up each time a feed succeeded, to start the Print's reaction
+  locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
 
 
@@ -161,13 +164,19 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, fedTick = 0, locked = false }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint });
   cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage, species });
-  live.current = { genes, eggPhase, stage, species };
+  const live = useRef({ genes, eggPhase, stage, species, locked });
+  live.current = { genes, eggPhase, stage, species, locked };
+  // When the server accepts a feed the Print reacts. The loop reads this time stamp.
+  const reactAt = useRef(-1);
+  const seenTick = useRef(fedTick);
+  useEffect(() => {
+    if (fedTick !== seenTick.current) { seenTick.current = fedTick; reactAt.current = performance.now(); }
+  }, [fedTick]);
   const rebuild = useRef<() => void>(() => {});
   useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species]);
 
@@ -227,6 +236,38 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // Egg and Print are rebuilt when the game state changes.
     const dynamic = new THREE.Group();
     scene.add(dynamic);
+    // The hold ring is a small screen-space circle that follows the Print.
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const ring = document.createElement("div");
+    ring.className = "hold-ring";
+    ring.style.display = "none";
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("viewBox", "0 0 72 72");
+    svg.setAttribute("aria-hidden", "true");
+    const track = document.createElementNS(SVGNS, "circle");
+    const arc = document.createElementNS(SVGNS, "circle");
+    for (const c of [track, arc]) { c.setAttribute("cx", "36"); c.setAttribute("cy", "36"); c.setAttribute("r", "28"); }
+    track.setAttribute("class", "hold-track");
+    arc.setAttribute("class", "hold-arc");
+    const CIRC = 2 * Math.PI * 28;
+    arc.setAttribute("stroke-dasharray", String(CIRC));
+    arc.setAttribute("stroke-dashoffset", String(CIRC));
+    arc.setAttribute("transform", "rotate(-90 36 36)");
+    svg.append(track, arc);
+    ring.append(svg);
+    el.appendChild(ring);
+    // A few ink drops, reused for feeding and stroking.
+    const dropGeo = new THREE.SphereGeometry(1, 10, 8);
+    const dropMat = new THREE.MeshToonMaterial({ color: "#2b2a33", transparent: true });
+    const drops = Array.from({ length: 8 }, () => {
+      const m = new THREE.Mesh(dropGeo, dropMat.clone());
+      m.visible = false;
+      scene.add(m);
+      return m;
+    });
+    let holdStart = -1;
+    let strokeStart = -1;
+    let strokeEnd = -1;
     let wander: Wander | null = null;
     let printMesh: THREE.Group | null = null;
     let baseScale = 1;
@@ -275,9 +316,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
-      if (e.code === "KeyE" && !e.repeat) {
-        if (printNear) cb.current.onFeedPrint();
-        else if (nearby) cb.current.onInteract(nearby);
+      if (e.code === PLAY.keys.hold && !e.repeat) {
+        if (printNear) {
+          // Hold to feed. Not while a feed is in flight, a panel is open, or the last reaction is still playing.
+          const reactingNow = reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000;
+          if (!live.current.locked && !reactingNow && holdStart < 0) holdStart = performance.now();
+        } else if (nearby) cb.current.onInteract(nearby);
       }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
@@ -353,14 +397,66 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       }
       player.position.set(pos.x, hoverY(t), pos.z);
 
+      const sinceFeed = reactAt.current < 0 ? -1 : (t - reactAt.current) / 1000;
+      const reacting = sinceFeed >= 0 && sinceFeed < PLAY.reactionSeconds;
       if (printMesh && wander) {
-        wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
-        printMesh.position.set(wander.x, Math.abs(Math.sin(t / 300)) * 0.03, wander.z);
-        printMesh.rotation.y = wander.heading;
+        const isLocked = live.current.locked;
+        // Hold E: the ring fills; letting go, walking away or a locked state cancels with no feed.
+        if (holdStart >= 0 && (!keys.has(PLAY.keys.hold) || !printNear || isLocked || reacting)) holdStart = -1;
+        let heldFor = -1;
+        if (holdStart >= 0) {
+          heldFor = (t - holdStart) / 1000;
+          if (holdDone(heldFor)) { holdStart = -1; heldFor = -1; cb.current.onFeedPrint(); }
+        }
+        // Hold R: stroke, for fun only.
+        const wantStroke = keys.has(PLAY.keys.stroke) && printNear && !reacting && holdStart < 0 && !isLocked;
+        if (wantStroke) { if (strokeStart < 0) strokeStart = t; strokeEnd = -1; }
+        else if (strokeStart >= 0) {
+          if (strokeEnd < 0) strokeEnd = t;
+          if ((t - strokeEnd) / 1000 >= PLAY.stroke.easeOut) { strokeStart = -1; strokeEnd = -1; }
+        }
+        const engaged = holdStart >= 0 || reacting || strokeStart >= 0;
+        if (!engaged) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        // Pose: the reaction wins, then stroking, otherwise rest.
+        const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
+        const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
+        const pose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
+        const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : wander.heading;
+        printMesh.rotation.order = "YXZ";
+        let dy = faceTarget - printMesh.rotation.y;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        printMesh.rotation.y += dy * Math.min(1, dt * 8);
+        printMesh.rotation.x = pose.lean;
+        printMesh.position.set(wander.x, Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1) + pose.hop, wander.z);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
-        printMesh.scale.setScalar(baseScale * growthPulse(prog, reduced));
-      }
+        const sc = baseScale * growthPulse(prog, reduced);
+        const wide = 1 + (1 - pose.squash) * 0.5;
+        printMesh.scale.set(sc * wide, sc * pose.squash, sc * wide);
+
+        // The ring follows the Print on screen.
+        if (heldFor >= 0) {
+          const v = new THREE.Vector3(wander.x, baseScale * 0.55, wander.z).project(camera);
+          ring.style.display = "block";
+          ring.style.left = `${(v.x * 0.5 + 0.5) * el.clientWidth}px`;
+          ring.style.top = `${(-v.y * 0.5 + 0.5) * el.clientHeight}px`;
+          arc.setAttribute("stroke-dashoffset", String(CIRC * (1 - holdProgress(heldFor))));
+        } else ring.style.display = "none";
+
+        // Ink drops.
+        const puffs: Puff[] = [
+          ...(reacting ? feedPuffs(sinceFeed, reducedMotion) : []),
+          ...(stroked >= 0 && released === 0 ? strokePuffs(stroked, reducedMotion) : []),
+        ];
+        drops.forEach((m, i) => {
+          const pf = puffs[i];
+          m.visible = !!pf;
+          if (!pf) return;
+          m.position.set(wander!.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy, wander!.z + Math.sin(pf.angle) * pf.dx);
+          m.scale.setScalar(pf.scale);
+          (m.material as THREE.MeshToonMaterial).opacity = pf.opacity;
+        });
+      } else { ring.style.display = "none"; drops.forEach((m) => { m.visible = false; }); }
 
       // Third-person follow camera, pulled in near scenery and smoothed.
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
@@ -392,6 +488,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
+      ring.remove();
+      dropGeo.dispose();
+      drops.forEach((m) => (m.material as THREE.Material).dispose());
       renderer.dispose();
       el.removeChild(renderer.domElement);
     };

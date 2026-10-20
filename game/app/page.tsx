@@ -9,7 +9,8 @@ import { BOARD_PAGES, BOARD_TITLE, nextPage, pageAt, pageLabel, prevPage } from 
 import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/species";
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
-import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
+import { PLAY, nextFood } from "@/lib/play";
+import { FED_MESSAGE, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -39,8 +40,10 @@ export default function Page() {
   const [authError, setAuthError] = useState("");
   const [confirmSent, setConfirmSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [feedError, setFeedError] = useState("");
   const [feeding, setFeeding] = useState(false);
+  const [fedTick, setFedTick] = useState(0); // each success starts the Print's reaction
+  const [reacting, setReacting] = useState(false);
+  const [food, setFood] = useState(FOODS[0].id); // the food in hand
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
@@ -49,7 +52,7 @@ export default function Page() {
   const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
   const shownGenes = creature ? (previewSpecies ? { ...creature.genes, hue: clampHue(creature.genes.hue, speciesById(previewSpecies)) } : creature.genes) : null;
   const [boardPage, setBoardPage] = useState(0);
-  const [menu, setMenu] = useState<null | "feed" | "board">(null);
+  const [menu, setMenu] = useState<null | "board">(null);
 
   // Every creature update goes through here so a stage change is announced once.
   const lastStage = useRef<Record<string, string>>({}); // last stage seen per Print
@@ -127,27 +130,38 @@ export default function Page() {
     applyCreature(data as Creature);
     setMsg("");
   };
-  // On success the tray closes and a short confirmation shows; on error the tray stays open.
-  const feed = async (foodId: string) => {
-    if (feeding) return;
-    setFeeding(true); setFeedError("");
-    const { data, error } = await supabase().rpc("feed_creature", { p_creature_id: creature!.id, p_food_id: foodId });
+  // Hold E near your Print: the world calls this when the ring is full. The server still decides the outcome.
+  const feed = async () => {
+    if (feeding || reacting || !creature) return;
+    setFeeding(true);
+    const { data, error } = await supabase().rpc("feed_creature", { p_creature_id: creature.id, p_food_id: food });
     setFeeding(false);
-    if (error) return setFeedError(friendlyFeedError(error.message));
+    if (error) return setMsg(friendlyFeedError(error.message)); // no reaction when the server says no
     const grew = stageChanged(lastStage.current[(data as Creature).id] ?? null, (data as Creature).stage ?? "blot");
     applyCreature(data as Creature);
-    setMenu(null);
+    setFedTick((n) => n + 1);
+    setReacting(true);
     if (!grew) setMsg(FED_MESSAGE);
   };
+  // The reaction is locked in for as long as the server cooldown, so the next hold cannot hit it.
+  useEffect(() => {
+    if (!reacting) return;
+    const tm = setTimeout(() => setReacting(false), PLAY.reactionSeconds * 1000);
+    return () => clearTimeout(tm);
+  }, [reacting, fedTick]);
   // The confirmation fades after a moment.
   useEffect(() => {
-    if (msg !== FED_MESSAGE) return;
-    const t = setTimeout(() => setMsg((m) => (m === FED_MESSAGE ? "" : m)), 2600);
+    if (!isFeedMessage(msg)) return;
+    const t = setTimeout(() => setMsg((m) => (m === msg ? "" : m)), 2600);
     return () => clearTimeout(t);
   }, [msg]);
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setMenu(null); setMenuOpen(false); } };
+    const k = (e: KeyboardEvent) => {
+      if (e.code === "Escape") { setMenu(null); setMenuOpen(false); }
+      // Q swaps the food in hand.
+      if (e.code === PLAY.keys.swap && !e.repeat && (e.target as HTMLElement)?.tagName !== "INPUT") setFood((f) => nextFood(f, FOODS.map((x) => x.id)));
+    };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, []);
@@ -170,8 +184,6 @@ export default function Page() {
     setMsg(DAILY.messages.collected);
   };
 
-  // Feeding: walk up to your hatched Print and press E. The server still decides the outcome.
-  const feedAtPrint = () => { if (session && creature) { setMsg(""); setFeedError(""); setMenu("feed"); } };
 
   const wait = egg ? secondsUntilHatch(new Date(egg.hatch_at), now) : 0;
   const dailyReady = claimedOn !== undefined && !!starter && dailyAvailable(claimedOn, utcDay(now), !!egg);
@@ -247,10 +259,10 @@ export default function Page() {
   const state = { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined };
   const feedTag = feedPrompt(!!creature, printNear);
   const tag = feedTag ?? (nearby ? promptFor(nearby, state) : null);
-  const bad = msg !== FED_MESSAGE && /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
+  const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -260,7 +272,9 @@ export default function Page() {
             <dt><KeyCap>W</KeyCap> <KeyCap>A</KeyCap> <KeyCap>S</KeyCap> <KeyCap>D</KeyCap></dt><dd style={{ margin: 0 }}>Walk</dd>
             <dt><KeyCap>Shift</KeyCap></dt><dd style={{ margin: 0 }}>Jog</dd>
             <dt>Drag</dt><dd style={{ margin: 0 }}>Look around</dd>
-            <dt><KeyCap>E</KeyCap></dt><dd style={{ margin: 0 }}>Do the thing nearby</dd>
+            <dt><KeyCap>E</KeyCap></dt><dd style={{ margin: 0 }}>Do the thing nearby. Hold it near your Print to feed</dd>
+            <dt><KeyCap>Q</KeyCap></dt><dd style={{ margin: 0 }}>Change the food in hand</dd>
+            <dt><KeyCap>R</KeyCap></dt><dd style={{ margin: 0 }}>Hold to stroke your Print</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
@@ -270,8 +284,15 @@ export default function Page() {
       {tag && !menu && (
         <div className="card tag" role="status">
           {!feedTag && nearby?.kind === "egg" && <EggIcon />}
-          <strong>{tag}</strong>
+          <strong>{feedTag && (feeding || reacting) ? "Munching…" : tag}</strong>
           {(feedTag || nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+        </div>
+      )}
+      {creature && !menu && (
+        <div className="card hand" aria-label="Food in hand">
+          {food === "glyph" ? <GlyphIcon /> : <Blot size={28} />}
+          <span>{FOODS.find((f) => f.id === food)!.name}{isFavourite(food, shownSpecies) && <em className="fav"> Favourite</em>}</span>
+          <KeyCap>Q</KeyCap>
         </div>
       )}
       {msg && <div className={`card toast${bad ? " bad" : ""}`} role="status">{msg}</div>}
@@ -299,22 +320,6 @@ export default function Page() {
         </div>
       )}
 
-      {menu === "feed" && creature && (
-        <div className="card tray" role="dialog" aria-label="Feed your Print">
-          <h3>What shall we feed?</h3>
-          <div className="foods">
-            {FOODS.map((f) => (
-              <button key={f.id} className="food" disabled={feeding} onClick={() => feed(f.id)}>
-                {f.id === "glyph" ? <GlyphIcon /> : <Blot size={32} />}
-                {f.name}
-                {isFavourite(f.id, shownSpecies) && <span className="fav">Favourite</span>}
-              </button>
-            ))}
-          </div>
-          {feedError && <p className="error" role="alert">{feedError}</p>}
-          <button className="btn quiet" onClick={() => { setMenu(null); setFeedError(""); }}>Close</button>
-        </div>
-      )}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
           <h3>{pageAt(boardPage).title}</h3>

@@ -1,0 +1,27 @@
+{
+  "holdSeconds": 1,
+  "reactionSeconds": 3.4,
+  "keys": { "hold": "KeyE", "swap": "KeyQ", "stroke": "KeyR" },
+  "feed": {
+    "leanIn": 0.5,
+    "leanRadians": 0.35,
+    "chewStart": 0.6,
+    "chewEnd": 2.2,
+    "chewCycles": 4,
+    "chewDepth": 0.1,
+    "hopAt": 2.3,
+    "hopLength": 0.6,
+    "hopHeight": 0.28,
+    "dropLaunches": [0.7, 1.1, 1.5, 2.3, 2.4, 2.5]
+  },
+  "stroke": {
+    "period": 1.2,
+    "squashDepth": 0.14,
+    "hopHeight": 0.12,
+    "easeOut": 0.3,
+    "dropEvery": 0.45,
+    "dropSlots": 5
+  },
+  "drop": { "life": 0.9, "spread": 0.4, "height": 0.6, "size": 0.07 },
+  "calmFactor": 0.35
+}
