@@ -84,3 +84,35 @@ describe("world chunks", () => {
     expect(src("../lib/worldMap.ts")).not.toMatch(/from "three"/);
   });
 });
+
+describe("the shell and the garden wiring", () => {
+  const world = src("../components/World.tsx"), shell = src("../components/worldShell.ts");
+  it("the World is built by the garden zone and freed when it leaves, through the zone controller", () => {
+    expect(world).toMatch(/\{ id: "garden", enter: enterGardenZone, leave: leaveGardenZone \}/);
+    expect(world).toMatch(/const leaveGardenZone = \(\) => \{ shell\?\.dispose\(\); shell = null; \};/);
+    expect(world.match(/buildWorldShell\(/g)).toHaveLength(1);
+  });
+  it("chunks stream at most buildsPerFrame at a time, and the first call may build all", () => {
+    expect(shell).toMatch(/if \(!all && made >= WORLD\.buildsPerFrame\) break;/);
+    expect(WORLD.buildsPerFrame).toBe(2); expect(WORLD.chunk).toBe(64);
+    expect(world).toMatch(/shell\.update\(pos\.x, pos\.z\)/);
+  });
+  it("a dropped chunk frees its instance buffers and the shell frees everything it made", () => {
+    expect(shell).toMatch(/for \(const im of c\.ims\) im\.dispose\(\)/);
+    expect(shell).toMatch(/for \(const d of own\) d\.dispose\(\)/);
+    expect(shell).toMatch(/scene\.remove\(group\)/);
+  });
+  it("garden collision is merged with the World's, and the player is bounded by the World, not the garden", () => {
+    expect(world).toMatch(/gardenCols\(\), WORLD\.size,/);
+    expect(world).toMatch(/GARDEN\.camera\.minDistance, gardenCols\(\)\)/);
+  });
+  it("the Print, bedtime and hide and seek still use the garden's own colliders and bounds", () => {
+    expect(world).toMatch(/routeTo\(wander, NIGHT\.approach, cols, R\)/);
+    expect(world).toMatch(/stepWander\(wander, dt, rng, GARDEN\.print\.radius, GARDEN\.print\.s/);
+    expect(world).toMatch(/pickSpot\(pos, wander, hideLast, cols,/);
+  });
+  it("the dev spawn is gated for production and nothing in the World reads the network", () => {
+    expect(world).toMatch(/atOverride\(window\.location\.search, process\.env\.NODE_ENV === "production"\)/);
+    expect(shell).not.toMatch(/fetch\(|supabase|XMLHttpRequest/);
+  });
+});
