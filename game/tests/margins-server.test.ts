@@ -229,7 +229,7 @@ describe("a late answer is not lost", () => {
     const w = readFileSync(new URL("../components/World.tsx", import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
     expect(w).toMatch(/settleUnfold\(o, here, room\)/);
     expect(w).toMatch(/if \(!here\) \{/);
-    expect(w).not.toMatch(/if \(myVisit !== visit \|\| !inMargins\) return;\s*uPending = false;/);
+    expect(w).not.toMatch(/if \(myVisit !== visit \|\| !zones\.is\("margins"\)\) return;\s*uPending = false;/);
   });
 });
 
