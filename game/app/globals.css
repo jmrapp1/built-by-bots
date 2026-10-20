@@ -137,11 +137,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .foods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .food { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; min-height: 88px; font: 700 15px var(--font-ui); color: var(--ink); background: var(--paper-shade); border: var(--border); border-radius: var(--radius-control); cursor: pointer; transition: transform 120ms var(--ease), background 120ms var(--ease); }
 .food:hover { background: var(--paper); transform: translateY(-2px); }
+.food[disabled] { opacity: 0.6; cursor: wait; }
 .food:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .hatch-line { margin: 0; font-variant-numeric: tabular-nums; }
 
 @keyframes fill { from { transform: scaleY(0.2); } to { transform: scaleY(1); } }
-.fill { transform-origin: bottom; animation: fill 600ms var(--ease) both; }
+.fill { transform-box: fill-box; transform-origin: bottom; animation: fill 600ms var(--ease) both; }
 @keyframes bob { 50% { transform: translateY(-4px); } }
 .bob { animation: bob 2.4s ease-in-out infinite; }
 

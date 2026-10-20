@@ -43,3 +43,15 @@ export function friendlyAuthError(message: string): string {
 export function feedPrompt(hasCreature: boolean, printNear: boolean): string | null {
   return hasCreature && printNear ? "Feed" : null;
 }
+
+export const FED_MESSAGE = "Nom! Your Print is fed.";
+
+// Gentle wording for feed errors from the server. The raw message is never shown.
+export function friendlyFeedError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("too soon")) return "Easy there, your Print is still munching. Try again in a moment.";
+  if (m.includes("fed enough")) return "Your Print is full for today. Come back tomorrow.";
+  if (m.includes("not signed in") || m.includes("sign in")) return "Please sign in again.";
+  if (m.includes("fetch") || m.includes("network")) return "Can't reach the garden right now. Check your connection.";
+  return "That didn't work. Please try again.";
+}

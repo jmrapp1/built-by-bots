@@ -44,7 +44,7 @@ export function InkDrop({ value, label }: { value: number; label: string }) {
         <defs><clipPath id={id}><path d="M20 3c8 10 15 17 15 27a15 15 0 0 1-30 0C5 20 12 13 20 3z" /></clipPath></defs>
         <path d="M20 3c8 10 15 17 15 27a15 15 0 0 1-30 0C5 20 12 13 20 3z" fill="#f1e8d2" />
         <g clipPath={`url(#${id})`}>
-          <rect className="fill" x="0" y={48 - 48 * f} width="40" height={48 * f} fill={full ? "#5e9c76" : "#3b4a8c"} />
+          <rect key={Math.round(f * 100)} className="fill" x="0" y={48 - 48 * f} width="40" height={48 * f} fill={full ? "#5e9c76" : "#3b4a8c"} />
         </g>
         <path d="M20 3c8 10 15 17 15 27a15 15 0 0 1-30 0C5 20 12 13 20 3z" fill="none" stroke={full ? "#5e9c76" : "#2b2a33"} strokeWidth="2" />
       </svg>

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
-import { feedPrompt, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -29,6 +29,8 @@ export default function Page() {
   const [authError, setAuthError] = useState("");
   const [confirmSent, setConfirmSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [feedError, setFeedError] = useState("");
+  const [feeding, setFeeding] = useState(false);
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
@@ -79,12 +81,23 @@ export default function Page() {
     setCreature(data as Creature);
     setMsg("");
   };
+  // On success the tray closes and a short confirmation shows; on error the tray stays open.
   const feed = async (foodId: string) => {
+    if (feeding) return;
+    setFeeding(true); setFeedError("");
     const { data, error } = await supabase().rpc("feed_creature", { p_creature_id: creature!.id, p_food_id: foodId });
-    if (error) return setMsg(error.message);
+    setFeeding(false);
+    if (error) return setFeedError(friendlyFeedError(error.message));
     setCreature(data as Creature);
-    setMsg("");
+    setMenu(null);
+    setMsg(FED_MESSAGE);
   };
+  // The confirmation fades after a moment.
+  useEffect(() => {
+    if (msg !== FED_MESSAGE) return;
+    const t = setTimeout(() => setMsg((m) => (m === FED_MESSAGE ? "" : m)), 2600);
+    return () => clearTimeout(t);
+  }, [msg]);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setMenu(null); setMenuOpen(false); } };
@@ -100,7 +113,7 @@ export default function Page() {
   };
 
   // Feeding: walk up to your hatched Print and press E. The server still decides the outcome.
-  const feedAtPrint = () => { if (session && creature) { setMsg(""); setMenu("feed"); } };
+  const feedAtPrint = () => { if (session && creature) { setMsg(""); setFeedError(""); setMenu("feed"); } };
 
   const wait = egg ? secondsUntilHatch(new Date(egg.hatch_at), now) : 0;
 
@@ -171,7 +184,7 @@ export default function Page() {
   const state = { hasEgg: !!egg, hasCreature: !!creature, hatchWait: wait };
   const feedTag = feedPrompt(!!creature, printNear);
   const tag = feedTag ?? (nearby ? promptFor(nearby, state) : null);
-  const bad = /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
+  const bad = msg !== FED_MESSAGE && /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
       <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
@@ -215,13 +228,14 @@ export default function Page() {
           <h3>What shall we feed?</h3>
           <div className="foods">
             {FOODS.map((f) => (
-              <button key={f.id} className="food" onClick={() => feed(f.id)}>
+              <button key={f.id} className="food" disabled={feeding} onClick={() => feed(f.id)}>
                 {f.id === "glyph" ? <GlyphIcon /> : <Blot size={32} />}
                 {f.name}
               </button>
             ))}
           </div>
-          <button className="btn quiet" onClick={() => setMenu(null)}>Close</button>
+          {feedError && <p className="error" role="alert">{feedError}</p>}
+          <button className="btn quiet" onClick={() => { setMenu(null); setFeedError(""); }}>Close</button>
         </div>
       )}
       {menu === "board" && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dropFill, feedPrompt, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { FED_MESSAGE, dropFill, feedPrompt, friendlyFeedError, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
 import { GARDEN } from "@/lib/world";
 
 const place = (kind: string) => GARDEN.places.find((p) => p.kind === kind)!;
@@ -41,5 +41,17 @@ describe("auth errors", () => {
     expect(friendlyAuthError("User already registered")).toMatch(/already has an account/);
     expect(friendlyAuthError("Password should be at least 8 characters")).toMatch(/longer password/);
     expect(friendlyAuthError("weird thing 500")).toBe("Something went wrong. Please try again.");
+  });
+});
+
+describe("feed messages", () => {
+  it("has a gentle confirmation", () => {
+    expect(FED_MESSAGE).toMatch(/fed/i);
+  });
+  it("turns server errors into short sentences, never raw text", () => {
+    expect(friendlyFeedError("too soon")).toMatch(/munching/);
+    expect(friendlyFeedError("fed enough for today")).toMatch(/full for today/);
+    expect(friendlyFeedError("not signed in")).toMatch(/sign in/i);
+    expect(friendlyFeedError("PGRST500 boom")).toBe("That didn't work. Please try again.");
   });
 });
