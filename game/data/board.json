@@ -3,7 +3,7 @@
   "pages": [
     { "id": "welcome", "title": "Welcome to the garden", "lines": ["A quiet corner of the story, made of ink and paper.", "Take your time. Nothing here ever hurries you."] },
     { "id": "move", "title": "Getting around", "lines": ["Walk with W A S D or the arrow keys. Hold Shift to jog.", "Drag the mouse to look around.", "Press E when a prompt appears near something."] },
-    { "id": "feed", "title": "Looking after your Print", "lines": ["Walk up to your Print and hold E to offer a snack. Press Q to change what is in your hand.","Hold R to stroke your Print. That is just for fun.", "A fed, happy Print grows. A forgotten one only grows slower, and nothing is ever lost."] },
+    { "id": "feed", "title": "Looking after your Print", "lines": ["Gather ink puddles by the inkwell and glyph crumbs under the trees. Your pouch holds a few.","Walk up to your Print and hold E to share one. Press Q to change what is in your hand.","Hold R to stroke your Print. That is just for fun.", "A fed, happy Print grows. A forgotten one only grows slower, and nothing is ever lost."] },
     { "id": "stages", "title": "How a Print grows", "lines": ["Blot: a small, shy splash of ink.", "Sprout: it grows a leaf and a little more shape.", "Full form: all its parts have come in.", "Elder: wise, a little bigger, and wearing a golden halo."] }
   ]
 }
