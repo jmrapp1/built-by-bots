@@ -62,6 +62,7 @@ export default function Page() {
   const [printNear, setPrintNear] = useState(false);
   const [findable, setFindable] = useState(false);
   const [canSplash, setCanSplash] = useState(true);
+  const [margins, setMargins] = useState({ inside: false, left: 0, total: 0, scraps: 0 });
   // Dev-only look at another species (?species=leaflet). Display only; ignored in production builds.
   const previewSpecies = typeof window === "undefined" ? null : speciesOverride(window.location.search, process.env.NODE_ENV === "production");
   const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
@@ -279,7 +280,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -303,6 +304,12 @@ export default function Page() {
           {!feedTag && nearby?.kind === "egg" && <EggIcon />}
           <strong>{feedTag && (feeding || reacting) ? "Munching…" : tag}</strong>
           {(feedTag || nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+        </div>
+      )}
+      {margins.inside && (
+        <div className="card finds" aria-label="Pages left to unfold today">
+          {Array.from({ length: margins.total }, (_, i) => <span key={i} className={`page-pip${i < margins.total - margins.left ? " done" : ""}`} />)}
+          <span className="scrap-count" aria-label="Glyph scraps"><span className="scrap-icon" />{margins.scraps}</span>
         </div>
       )}
       {creature && !menu && (

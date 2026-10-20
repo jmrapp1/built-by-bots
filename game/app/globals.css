@@ -173,3 +173,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .slot { width: 34px; height: 34px; display: grid; place-items: center; border: 2px dashed var(--ink-soft); border-radius: 10px; }
 .slot.full { border-style: solid; border-color: var(--ink); background: var(--paper-shade); }
 .slot.held { box-shadow: 0 0 0 3px rgba(227, 168, 59, 0.55); }
+
+/* The Margins (slice 6a): the page-turn wipe, the finds row and the scrap count */
+.page-wipe { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: #f4ecd6; box-shadow: -14px 0 0 -2px #e8dcc0, -26px 0 30px rgba(42, 36, 56, 0.18); }
+.finds { position: absolute; left: 24px; top: 24px; display: flex; align-items: center; gap: 6px; padding: 8px 14px; }
+.page-pip { width: 14px; height: 18px; border: 2px solid var(--ink-soft); border-radius: 2px 5px 2px 2px; background: transparent; transition: background 300ms var(--ease); }
+.page-pip.done { background: #f2b632; border-color: var(--ink); }
+.scrap-count { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-weight: 700; }
+.scrap-icon { width: 12px; height: 15px; background: #fffaf0; border: 2px solid var(--ink); transform: rotate(8deg); border-radius: 1px 4px 1px 1px; }

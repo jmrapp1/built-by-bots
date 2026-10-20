@@ -37,6 +37,8 @@ export function promptFor(place: Place, s: PromptState): string | null {
     case "nest":
       if (!waiting) return null;
       return s.hatchWait > 0 ? `Hatching in ${s.hatchWait}s` : "Hatch";
+    case "gate": return place.prompt || "Go through the gate";
+    case "unfold": return place.prompt;
     case "rest": return place.prompt || "Sit and rest";
     case "scenery": return null; // the inkwell is decoration only
     case "notice": return "Read the board";

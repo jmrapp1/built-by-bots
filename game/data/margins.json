@@ -1,0 +1,156 @@
+{
+  "note": "The Margins (slice 6a). Layout and timings. Nothing here is shown to players.",
+  "seed": 4417,
+  "size": 90,
+  "gate": {
+    "garden": {
+      "x": 17.5,
+      "z": -17.5
+    },
+    "margins": {
+      "x": -37,
+      "z": 37
+    },
+    "out": [
+      0.7071,
+      -0.7071
+    ],
+    "postOffset": 1.3,
+    "postR": 0.35,
+    "zoneLateral": 0.9,
+    "zoneBack": 2.6,
+    "zoneFront": 0.8,
+    "threshold": 1.8,
+    "approach": 1.2,
+    "emerge": 0.5,
+    "arrive": 2.4
+  },
+  "travel": {
+    "walkSeconds": 0.8,
+    "coverFrom": 0.5,
+    "coverTo": 1.2,
+    "swapAt": 1.3,
+    "uncoverFrom": 1.45,
+    "uncoverTo": 2.15,
+    "arriveFrom": 1.45,
+    "arriveTo": 2.65,
+    "reducedFactor": 0.6
+  },
+  "zones": [
+    {
+      "id": "inkwood",
+      "x0": -45,
+      "x1": -5,
+      "z0": -5,
+      "z1": 45,
+      "tint": "#4d5d54",
+      "trees": 56,
+      "bushes": 34,
+      "hills": 0,
+      "stacks": 0,
+      "shelves": 0,
+      "spots": 5
+    },
+    {
+      "id": "paper-hills",
+      "x0": -5,
+      "x1": 45,
+      "z0": -5,
+      "z1": 45,
+      "tint": "#e9d2ae",
+      "trees": 8,
+      "bushes": 8,
+      "hills": 8,
+      "stacks": 0,
+      "shelves": 0,
+      "spots": 4
+    },
+    {
+      "id": "glyph-steps",
+      "x0": -45,
+      "x1": 45,
+      "z0": -45,
+      "z1": -5,
+      "tint": "#8fa0b8",
+      "trees": 4,
+      "bushes": 6,
+      "hills": 0,
+      "stacks": 14,
+      "shelves": 8,
+      "spots": 3
+    }
+  ],
+  "layout": {
+    "edge": 2,
+    "gap": 1.7,
+    "keepOutGate": 7,
+    "hillR": [
+      3.8,
+      6.4
+    ],
+    "treeR": [
+      0.6,
+      0.95
+    ],
+    "bushR": [
+      0.45,
+      0.7
+    ],
+    "stack": [
+      1.2,
+      2.0
+    ],
+    "shelf": [
+      4.2,
+      0.6
+    ]
+  },
+  "spots": {
+    "count": 12,
+    "fromGate": 9,
+    "apart": 6,
+    "clear": 1.4,
+    "edge": 3,
+    "weights": {
+      "ink": 0.35,
+      "glyph": 0.25,
+      "scrap": 0.4
+    }
+  },
+  "unfold": {
+    "reach": 1.5,
+    "holdSeconds": 0.9,
+    "beat": 0.3,
+    "riseSeconds": 0.7,
+    "arcSeconds": 0.45,
+    "riseHeight": 0.6,
+    "unwindSeconds": 0.25,
+    "arcHeight": 0.5
+  },
+  "glint": {
+    "visible": 10,
+    "fadeTo": 14,
+    "farVisible": 40,
+    "pulse": 0.06,
+    "pulseSeconds": 2.4
+  },
+  "arrows": {
+    "count": 5,
+    "spacing": 2.6,
+    "startDist": 3,
+    "hideNear": 7,
+    "flowSpeed": 0.7
+  },
+  "fireflies": {
+    "count": 70,
+    "boost": 1.35
+  },
+  "fog": [
+    40,
+    90
+  ],
+  "field": {
+    "cell": 1.5,
+    "margin": 0.55
+  }
+}

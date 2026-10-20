@@ -21,6 +21,11 @@ import {
   hideStart, nextGameDelay, pickSpot, previewSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
 } from "@/lib/hide";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
+import {
+  MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
+  pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
+} from "@/lib/margins";
+import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
 type Props = {
@@ -36,6 +41,8 @@ type Props = {
   onFeedPrint: () => void; // the hold finished: ask the server to feed
   fedTick?: number; // goes up each time a feed succeeded, to start the Print's reaction
   onGather?: (kind: string) => "ok" | "full"; // the page owns the pouch; the world only reports a walk-over
+  onMargins?: (s: { inside: boolean; left: number; total: number; scraps: number }) => void; // the Margins row and scrap count
+  canGather?: (kind: string) => boolean; // there is room in the pouch for a find
   canOffer?: boolean; // something is in the pouch
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
@@ -83,6 +90,10 @@ function buildPlace(p: Place): THREE.Object3D {
   g.position.set(p.x, 0, p.z);
   const paper = mat("#fffaf0"), ink = mat("#1b1b2a"), stone = mat("#b9b3a6");
   switch (p.kind) {
+    case "gate": {
+      g.add(buildGate(gateFrame("garden").d));
+      break;
+    }
     case "egg": {
       const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 0.5, 20), stone);
       plinth.position.y = 0.25;
@@ -181,10 +192,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, canOffer = true }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer });
   live.current = { genes, eggPhase, stage, species, locked, canOffer };
@@ -249,6 +260,64 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let pitch = GARDEN.camera.pitch;
     let camPos = new THREE.Vector3();
     let camInit = false;
+
+    // --- The Margins (slice 6a): a second area, far along x, shown by moving the player and camera there. ---
+    const mo = marginsOverrides(window.location.search, process.env.NODE_ENV === "production");
+    let inMargins = false;
+    let mg: MarginsScene | null = null, mLayout: Layout | null = null, mField: Field | null = null, mSpots: Spot[] = [];
+    let mDay = "";
+    const openedByDay = new Map<string, Set<number>>(); // this visit only: nothing is saved or sent
+    let opened = new Set<number>();
+    let scraps = 0;
+    let mActive: { id: number; since: number } | null = null; // the page that is opening, and when it began (ms)
+    let uHold = 0, uSpot: Spot | null = null;
+    let travel: null | { into: "margins" | "garden"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
+    let mCols = colliders();
+    let reportKey = "";
+    let uBlocked = false;
+    let trailKey = "";
+    let trailPath: { x: number; z: number }[] = [];
+    const report = () => {
+      const k = `${inMargins}|${mSpots.length}|${opened.size}|${scraps}`;
+      if (k === reportKey) return;
+      reportKey = k;
+      cb.current.onMargins?.({ inside: inMargins, left: spotsLeft(mSpots, opened), total: mSpots.length, scraps });
+    };
+    const wipe = document.createElement("div");
+    wipe.className = "page-wipe";
+    wipe.style.display = "none";
+    el.appendChild(wipe);
+    const enterMargins = () => {
+      if (!mLayout || !mField) { mLayout = generateLayout(); mField = buildField(mLayout.cols); mCols = mLayout.cols; }
+      mg = buildMarginsScene(mLayout);
+      scene.add(mg.group);
+      mDay = mo.day ?? utcDay(new Date()); // the day is fixed for the whole visit
+      mSpots = spotsForDay(mDay, mLayout, mField);
+      opened = openedByDay.get(mDay) ?? new Set<number>();
+      openedByDay.set(mDay, opened);
+      mg.setSpots(mSpots, opened);
+      mActive = null; uHold = 0; uSpot = null;
+      inMargins = true;
+      (scene.fog as THREE.Fog).near = MARGINS.fog[0]; (scene.fog as THREE.Fog).far = MARGINS.fog[1];
+      lightClock = 0;
+      report();
+    };
+    const leaveMargins = () => {
+      if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
+      mSpots = []; mActive = null; uHold = 0; uSpot = null;
+      inMargins = false;
+      (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70;
+      lightClock = 0;
+      report();
+    };
+    const startTravel = (into: "margins" | "garden", from: { x: number; z: number }) => {
+      if (travel) return;
+      const local = into === "margins" ? from : { x: from.x - OFF, z: from.z };
+      const walk = gatePath(local, into === "margins" ? "garden" : "home").map((q) => (into === "margins" ? q : { x: q.x + OFF, z: q.z }));
+      travel = { into, start: performance.now(), walk, arrive: arrivalPath(into).map((q) => (into === "margins" ? { x: q.x + OFF, z: q.z } : q)), swapped: false };
+      sit = STANDING;
+      holdStart = -1; uHold = 0;
+    };
 
     // Egg and Print are rebuilt when the game state changes.
     const dynamic = new THREE.Group();
@@ -421,7 +490,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
       if (e.code === PLAY.keys.hold && !e.repeat) {
-        if (hideFindable) {
+        if (travel) {
+          // walking through a gate: nothing else to do
+        } else if (nearby?.kind === "gate") {
+          startTravel(inMargins ? "garden" : "margins", pos); // the gate in either direction
+        } else if (inMargins) {
+          // unfolding is a hold, handled each frame
+        } else if (hideFindable) {
           hideS = hideFound(hideS); // while the game runs, E near the hiding Print means "found"
         } else if (printNear) {
           // Hold to feed. Not while a feed is in flight, a panel is open, or the last reaction is still playing.
@@ -477,6 +552,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       (scene.background as THREE.Color).set(L.sky);
       (scene.fog as THREE.Fog).color.set(L.fog);
       (edge.material as THREE.MeshBasicMaterial).color.set(L.sky);
+      mg?.setSky(L.sky);
       hemi.color.set(L.hemisphereSky);
       hemi.groundColor.set(L.hemisphereGround);
       hemi.intensity = L.hemisphereIntensity;
@@ -484,6 +560,26 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       sun.intensity = L.sunIntensity;
       sun.position.set(...L.sunPosition);
     };
+    // Dev-only starts for the Margins (ignored in production): ?area=margins ?unfold=1 ?gate=1
+    if (mo.area || mo.unfold) {
+      enterMargins();
+      const a = arrivalPath("margins");
+      pos = { x: a[1].x + OFF, z: a[1].z };
+      yaw = arrivalYaw("margins");
+      const ml = mLayout as Layout | null;
+      if (mo.unfold && mSpots[0] && ml) {
+        const s0 = mSpots[0];
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const q = { x: s0.x + dx * 0.9, z: s0.z + dz * 0.9 };
+          if (!ml.cols.circles.some((c) => Math.hypot(c.x - q.x, c.z - q.z) < c.r + GARDEN.player.radius)) { pos = { x: q.x + OFF, z: q.z }; break; }
+        }
+        yaw = Math.atan2(-(s0.x - (pos.x - OFF)), -(s0.z - pos.z)) + Math.PI;
+      }
+    } else if (mo.gate) {
+      const { g, d } = gateFrame("garden");
+      pos = { x: g.x - d.x * 1.8, z: g.z - d.z * 1.8 };
+      yaw = arrivalYaw("margins");
+    }
     let last = performance.now();
     let raf = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -520,7 +616,30 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           }
         }
       }
-      const res = !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : pgStart >= 0 ? { pos, heading: towardPond(pos) } : movePlayer(
+      let ground = 0;
+      if (inMargins && mLayout) ground = heightAt(pos.x - OFF, pos.z, mLayout.hills);
+      let tRes: { pos: { x: number; z: number }; heading: number | null } | null = null;
+      if (travel) {
+        const tt = (t - travel.start) / 1000, f = travelFrame(tt, reducedMotion);
+        if (f.swapped && !travel.swapped) {
+          travel.swapped = true; // behind the full page, so nothing flashes
+          if (travel.into === "margins") enterMargins(); else leaveMargins();
+          yaw = arrivalYaw(travel.into);
+          camInit = false;
+        }
+        const pp = pointAlong(travel.swapped ? travel.arrive : travel.walk, travel.swapped ? f.arrive : f.walk);
+        tRes = { pos: pp.p, heading: pp.heading };
+        wipe.style.display = f.wipe > 0 || tt < 0.05 ? "block" : "none";
+        if (reducedMotion) { wipe.style.transform = "none"; wipe.style.opacity = String(f.wipe); } // a fade, not a sweep
+        else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
+        if (f.done) { travel = null; wipe.style.display = "none"; }
+      }
+      const res = tRes ? tRes : inMargins && canWalk(sit) ? (() => {
+        const l = { x: pos.x - OFF, z: pos.z };
+        const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
+          keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, mCols, MARGINS.size);
+        return { pos: { x: r.pos.x + OFF, z: r.pos.z }, heading: r.heading };
+      })() : !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : pgStart >= 0 ? { pos, heading: towardPond(pos) } : movePlayer(
         pos,
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
@@ -535,7 +654,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       }
       // The hover bob fades out as the body lowers onto the seat; the pose is a fold, a tilt and a slow sway.
       player.rotation.order = "YXZ";
-      player.position.set(pos.x, hoverY(t) + (SIT.y - hoverY(t)) * sf.lower, pos.z);
+      player.position.set(pos.x, ground + hoverY(t) + (SIT.y - hoverY(t)) * sf.lower, pos.z);
       player.scale.y = (1 - SIT.lower * sf.lower) * (1 - 0.12 * pgLean);
       player.rotation.x = sf.tilt + pgLean * POND.player.lean;
       player.rotation.z = sf.sway;
@@ -820,17 +939,60 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         else o.body.scale.setScalar(Math.max(0.05, 1 - fall / FORAGE.dropHeight));
       }
 
+      // The Margins: the glints, the unfold hold, the finds and the way home.
+      let mNear: Place | null = null;
+      if (inMargins && mg && mLayout && mField) {
+        const l = { x: pos.x - OFF, z: pos.z };
+        if (!travel) {
+          if (mActive) {
+            if ((t - mActive.since) / 1000 >= unfoldSeconds(reducedMotion)) {
+              const sp = mSpots.find((q) => q.id === mActive!.id)!;
+              opened.add(sp.id);
+              if (sp.kind === "scrap") scraps++; else cb.current.onGather?.(sp.kind); // food goes into the pouch, nothing else is saved
+              mActive = null; report();
+            }
+          } else {
+            const cand = nearestSpot(l, mSpots, opened);
+            if (cand !== uSpot) { uSpot = cand; uHold = 0; uBlocked = false; }
+            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !uBlocked;
+            uHold = holdStep(uHold, holding, dt);
+            if (cand && !keys.has(PLAY.keys.hold)) uBlocked = false;
+            if (uHold >= 1 && cand) {
+              if (cand.kind !== "scrap" && cb.current.canGather && !cb.current.canGather(cand.kind)) { cb.current.onGather?.(cand.kind); uBlocked = true; uHold = 0; } // a full pouch leaves the page folded
+              else { mActive = { id: cand.id, since: t }; uHold = 0; }
+            }
+          }
+          if (mActive) mNear = null;
+          else if (uSpot) mNear = { id: "unfold", kind: "unfold", x: uSpot.x + OFF, z: uSpot.z, label: "Folded page", prompt: "Hold to unfold" };
+          else if (inGateZone(l, "home")) mNear = { id: "gate-home", kind: "gate", x: 0, z: 0, label: "Gate", prompt: "Back to the garden" };
+        }
+        // the way home is recomputed only when the player moves to a new cell
+        const key = `${Math.round(l.x / 1.5)},${Math.round(l.z / 1.5)}`;
+        if (key !== trailKey) { trailKey = key; trailPath = homePath(mField, l); }
+        const A = MARGINS.arrows;
+        const hereHome = pathLength(trailPath) < A.hideNear;
+        const trail = hereHome ? [] : along(trailPath, A.startDist, A.spacing, A.count, reducedMotion ? 0 : ((t / 1000) * A.flowSpeed) % A.spacing);
+        mg.update({ t: t / 1000, dt, player: l, hour: hourNow, reduced: reducedMotion, all: mo.all, opened, active: mActive ? { id: mActive.id, since: (t - mActive.since) / 1000 } : null, target: l, trail });
+        if (uHold > 0 && uSpot) {
+          const v = new THREE.Vector3(uSpot.x + OFF, 0.5 + heightAt(uSpot.x, uSpot.z, mLayout.hills), uSpot.z).project(camera);
+          ring.style.display = "block";
+          ring.style.left = `${(v.x * 0.5 + 0.5) * el.clientWidth}px`;
+          ring.style.top = `${(-v.y * 0.5 + 0.5) * el.clientHeight}px`;
+          arc.setAttribute("stroke-dashoffset", String(CIRC * (1 - uHold)));
+        }
+      }
+
       // Third-person follow camera, pulled in near scenery and smoothed.
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const walkDist = cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
+      const walkDist = inMargins ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, cols);
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
-      target.set(pos.x, GARDEN.camera.height * 0.7, pos.z);
+      target.set(pos.x, ground + GARDEN.camera.height * 0.7, pos.z);
       const want = new THREE.Vector3(
         pos.x + (dir.x / flat) * dist * Math.cos(pitch),
-        GARDEN.camera.height + Math.sin(pitch) * dist,
+        ground + GARDEN.camera.height + Math.sin(pitch) * dist,
         pos.z + (dir.z / flat) * dist * Math.cos(pitch),
       );
       if (!camInit) { camPos.copy(want); camInit = true; }
@@ -846,7 +1008,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const cs = canPlayerSplash(hourNow);
       if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
 
-      const n = nearestPlace(pos);
+      const n = travel ? null : inMargins ? mNear : nearestPlace(pos);
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
@@ -859,6 +1021,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
       ring.remove();
+      wipe.remove();
+      if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; }
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       for (const m of hideDrops) { scene.remove(m); (m.material as THREE.Material).dispose(); }
       scene.remove(flies);
