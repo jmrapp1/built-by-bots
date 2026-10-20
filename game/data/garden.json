@@ -1,9 +1,9 @@
 {
   "size": 40,
-  "player": { "speed": 4, "jogSpeed": 7, "radius": 0.4, "hoverHeight": 0.5, "start": [0, 9] },
+  "player": { "speed": 4, "jogSpeed": 7, "radius": 0.4, "hoverHeight": 0.2, "bob": 0.05, "start": [0, 9] },
   "camera": { "distance": 6, "minDistance": 1.5, "height": 1.6, "pitch": 0.45, "smoothing": 6, "turnSpeed": 0.005 },
   "interactRadius": 2.2,
-  "print": { "speed": 0.8, "radius": 0.5, "scale": 0.7 },
+  "print": { "speed": 0.8, "radius": 0.5, "scale": 0.7, "feedReach": 1.8 },
   "lighting": {
     "sky": "#f6f1e4",
     "fog": "#f6f1e4",
@@ -17,7 +17,7 @@
   "places": [
     { "id": "egg-spot", "kind": "egg", "x": -8, "z": -7, "solid": 0.9, "label": "Egg spot", "prompt": "Collect your egg" },
     { "id": "nest", "kind": "nest", "x": 0, "z": -4, "label": "Nest", "prompt": "Hatch your egg" },
-    { "id": "inkwell", "kind": "feeding", "x": 8, "z": -6, "solid": 1.0, "label": "Feeding inkwell", "prompt": "Feed your Print" },
+    { "id": "inkwell", "kind": "scenery", "x": 8, "z": -6, "solid": 1.0, "label": "Inkwell", "prompt": "" },
     { "id": "rest-spot", "kind": "rest", "x": 11, "z": 7, "solid": 1.2, "label": "Rest spot", "prompt": "Sit and rest" },
     { "id": "pond", "kind": "pond", "x": -11, "z": 8, "solid": 3.2, "label": "Ink pond", "prompt": "Look at the pond" },
     { "id": "notice-board", "kind": "notice", "x": 0, "z": 14, "solid": 0.9, "label": "Notice board", "prompt": "Read the board" }

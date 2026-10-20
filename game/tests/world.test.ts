@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  GARDEN, cameraDistance, clampToBounds, colliders, insideAny, movePlayer, nearestPlace, newWander, pushOut, stepWander,
+  GARDEN, cameraDistance, hoverY, printInReach, clampToBounds, colliders, insideAny, movePlayer, nearestPlace, newWander, pushOut, stepWander,
 } from "@/lib/world";
 
 const cols = colliders();
@@ -105,5 +105,33 @@ describe("Print wandering", () => {
       expect(overlaps(w, r - 0.05)).toBe(false);
     }
     expect(travelled).toBeGreaterThan(50);
+  });
+});
+
+describe("feeding proximity", () => {
+  it("is in reach only when close to the Print's current position", () => {
+    const r = GARDEN.print.feedReach;
+    expect(printInReach({ x: 0, z: 0 }, { x: r - 0.1, z: 0 })).toBe(true);
+    expect(printInReach({ x: 0, z: 0 }, { x: r + 0.1, z: 0 })).toBe(false);
+  });
+  it("follows the Print as it wanders", () => {
+    const player = { x: 5, z: 5 };
+    expect(printInReach(player, { x: 5.5, z: 5 })).toBe(true);
+    expect(printInReach(player, { x: 9, z: 5 })).toBe(false);
+  });
+  it("is never in reach with no hatched Print", () => {
+    expect(printInReach({ x: 0, z: 0 }, null)).toBe(false);
+  });
+  it("the inkwell is scenery, not a feeding place", () => {
+    expect(GARDEN.places.some((p) => p.kind === "feeding")).toBe(false);
+    expect(GARDEN.places.find((p) => p.id === "inkwell")?.kind).toBe("scenery");
+  });
+});
+
+describe("hover", () => {
+  it("floats closer to the ground, and the bob never reaches it", () => {
+    expect(GARDEN.player.hoverHeight).toBeLessThanOrEqual(0.25);
+    for (let t = 0; t < 20000; t += 7) expect(hoverY(t)).toBeGreaterThan(GARDEN.player.hoverHeight * 0.45);
+    for (let t = 0; t < 20000; t += 7) expect(hoverY(t, 0.2, 5)).toBeGreaterThan(0.09);
   });
 });

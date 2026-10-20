@@ -127,3 +127,13 @@ export function stepWander(w: Wander, dt: number, rng: () => number, radius: num
   const next: Wander = { ...w, x: moved.x, z: moved.z, heading: Math.atan2(dx, dz) };
   return blocked ? { ...pick(), x: moved.x, z: moved.z, heading: next.heading } : next;
 }
+
+// Feeding happens next to a hatched Print, wherever it has wandered to.
+export function printInReach(player: Vec, print: Vec | null, reach: number = GARDEN.print.feedReach): boolean {
+  return !!print && Math.hypot(player.x - print.x, player.z - print.z) <= reach;
+}
+
+// Hover height with a gentle bob. The bob is capped so it can never reach the ground.
+export function hoverY(t: number, hover: number = GARDEN.player.hoverHeight, bob: number = GARDEN.player.bob): number {
+  return hover + Math.sin(t / 400) * Math.min(bob, hover * 0.5);
+}

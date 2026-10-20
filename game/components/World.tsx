@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
-  GARDEN, cameraDistance, colliders, movePlayer, nearestPlace, newWander, stepWander, type Place, type Wander,
+  GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Wander,
 } from "@/lib/world";
 
 export type EggPhase = "unclaimed" | "in-nest";
@@ -12,6 +12,8 @@ type Props = {
   eggPhase: EggPhase;
   onNearby: (place: Place | null) => void;
   onInteract: (place: Place) => void;
+  onPrintNear: (near: boolean) => void;
+  onFeedPrint: () => void;
 };
 
 const L = GARDEN.lighting;
@@ -70,7 +72,7 @@ function buildPlace(p: Place): THREE.Object3D {
       g.add(ring);
       break;
     }
-    case "feeding": {
+    case "scenery": {
       const table = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.7, 20), mat("#8a6b4a"));
       table.position.y = 0.35;
       const well = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.4, 16), ink);
@@ -126,10 +128,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, eggPhase, onNearby, onInteract }: Props) {
+export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract });
-  cb.current = { onNearby, onInteract };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase });
   live.current = { genes, eggPhase };
@@ -215,7 +217,10 @@ export default function World({ genes, eggPhase, onNearby, onInteract }: Props) 
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
-      if (e.code === "KeyE" && !e.repeat && nearby) cb.current.onInteract(nearby);
+      if (e.code === "KeyE" && !e.repeat) {
+        if (printNear) cb.current.onFeedPrint();
+        else if (nearby) cb.current.onInteract(nearby);
+      }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.code);
     window.addEventListener("keydown", down);
@@ -244,6 +249,7 @@ export default function World({ genes, eggPhase, onNearby, onInteract }: Props) 
     window.addEventListener("resize", onResize);
 
     let nearby: Place | null = null;
+    let printNear = false;
     const rng = Math.random;
     const target = new THREE.Vector3();
     let last = performance.now();
@@ -265,7 +271,7 @@ export default function World({ genes, eggPhase, onNearby, onInteract }: Props) 
         d = Math.atan2(Math.sin(d), Math.cos(d));
         player.rotation.y += d * Math.min(1, dt * 12);
       }
-      player.position.set(pos.x, GARDEN.player.hoverHeight + Math.sin(t / 400) * 0.06, pos.z);
+      player.position.set(pos.x, hoverY(t), pos.z);
 
       if (printMesh && wander) {
         wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
@@ -287,6 +293,9 @@ export default function World({ genes, eggPhase, onNearby, onInteract }: Props) 
       camPos.lerp(want, 1 - Math.exp(-GARDEN.camera.smoothing * dt));
       camera.position.copy(camPos);
       camera.lookAt(target);
+
+      const pn = !!printMesh && !!wander && printInReach(pos, wander);
+      if (pn !== printNear) { printNear = pn; cb.current.onPrintNear(pn); }
 
       const n = nearestPlace(pos);
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }

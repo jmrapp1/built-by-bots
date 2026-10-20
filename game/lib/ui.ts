@@ -21,7 +21,7 @@ export function promptFor(place: Place, s: { hasEgg: boolean; hasCreature: boole
     case "nest":
       if (!s.hasEgg || s.hasCreature) return null;
       return s.hatchWait > 0 ? `Hatching in ${s.hatchWait}s` : "Hatch";
-    case "feeding": return s.hasCreature ? "Feed" : null;
+    case "scenery": return null; // the inkwell is decoration only
     case "notice": return "Read the board";
     default: return place.label;
   }
@@ -37,4 +37,9 @@ export function friendlyAuthError(message: string): string {
   if (m.includes("rate") || m.includes("too many")) return "Too many tries. Wait a moment, then try again.";
   if (m.includes("fetch") || m.includes("network")) return "Can't reach the garden right now. Check your connection.";
   return "Something went wrong. Please try again.";
+}
+
+// Feed prompt: only for a hatched Print that is close by. Unhatched eggs never get one.
+export function feedPrompt(hasCreature: boolean, printNear: boolean): string | null {
+  return hasCreature && printNear ? "Feed" : null;
 }

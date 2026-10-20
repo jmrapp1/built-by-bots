@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
-import { friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { feedPrompt, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -31,6 +31,7 @@ export default function Page() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [nearby, setNearby] = useState<Place | null>(null);
+  const [printNear, setPrintNear] = useState(false);
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
 
   // Load whatever the player already owns. Claiming the egg is a world action.
@@ -98,6 +99,9 @@ export default function Page() {
     setMsg("Your egg is in the nest.");
   };
 
+  // Feeding: walk up to your hatched Print and press E. The server still decides the outcome.
+  const feedAtPrint = () => { if (session && creature) { setMsg(""); setMenu("feed"); } };
+
   const wait = egg ? secondsUntilHatch(new Date(egg.hatch_at), now) : 0;
 
   // The server decides every outcome; these only ask and show the answer.
@@ -110,7 +114,7 @@ export default function Page() {
       else if (creature) setMsg("Your Print has hatched.");
       else if (wait > 0) setMsg(`Your egg hatches in ${wait}s.`);
       else hatch();
-    } else if (p.kind === "feeding") { if (creature) setMenu("feed"); else setMsg("Hatch an egg first."); }
+    }
     else if (p.kind === "notice") setMenu("board");
     else setMsg(p.label);
   };
@@ -165,11 +169,12 @@ export default function Page() {
   }
 
   const state = { hasEgg: !!egg, hasCreature: !!creature, hatchWait: wait };
-  const tag = nearby ? promptFor(nearby, state) : null;
+  const feedTag = feedPrompt(!!creature, printNear);
+  const tag = feedTag ?? (nearby ? promptFor(nearby, state) : null);
   const bad = /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} />
+      <World genes={creature?.genes ?? null} eggPhase={egg ? "in-nest" : "unclaimed"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFeedPrint={feedAtPrint} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -188,9 +193,9 @@ export default function Page() {
 
       {tag && !menu && (
         <div className="card tag" role="status">
-          {nearby?.kind === "egg" && <EggIcon />}
+          {!feedTag && nearby?.kind === "egg" && <EggIcon />}
           <strong>{tag}</strong>
-          {(nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+          {(feedTag || nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
         </div>
       )}
       {msg && <div className={`card toast${bad ? " bad" : ""}`} role="status">{msg}</div>}

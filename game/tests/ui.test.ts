@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dropFill, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { dropFill, feedPrompt, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
 import { GARDEN } from "@/lib/world";
 
 const place = (kind: string) => GARDEN.places.find((p) => p.kind === kind)!;
@@ -24,8 +24,14 @@ describe("prompts", () => {
     expect(promptFor(place("egg"), { hasEgg: true, hasCreature: false, hatchWait: 0 })).toBeNull();
     expect(promptFor(place("nest"), { hasEgg: true, hasCreature: false, hatchWait: 12 })).toBe("Hatching in 12s");
     expect(promptFor(place("nest"), { hasEgg: true, hasCreature: false, hatchWait: 0 })).toBe("Hatch");
-    expect(promptFor(place("feeding"), { hasEgg: true, hasCreature: false, hatchWait: 0 })).toBeNull();
-    expect(promptFor(place("feeding"), { hasEgg: true, hasCreature: true, hatchWait: 0 })).toBe("Feed");
+  });
+  it("gives the inkwell no prompt", () => {
+    expect(promptFor(place("scenery"), { hasEgg: true, hasCreature: true, hatchWait: 0 })).toBeNull();
+  });
+  it("offers Feed only for a hatched Print that is close", () => {
+    expect(feedPrompt(true, true)).toBe("Feed");
+    expect(feedPrompt(true, false)).toBeNull();
+    expect(feedPrompt(false, true)).toBeNull(); // an unhatched egg is never feedable
   });
 });
 
