@@ -330,6 +330,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     };
     const leaveMargins = () => {
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
+      if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
       inMargins = false;
       (scene.fog as THREE.Fog).near = 30; (scene.fog as THREE.Fog).far = 70;
@@ -474,7 +475,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let pulseStart = -1;
     // Keepsakes (slice 6d-1): one slot, the newest is worn. A new one plays the put-on motion; a reload or a rebuild just shows it.
     const cosPreview = cosmeticOverride(window.location.search, process.env.NODE_ENV === "production");
-    let cosId: string | null = null, cosObj: THREE.Group | null = null, cosOld: THREE.Group | null = null, cosStart = -1, cosResting = false, cosInit = false, cosPlayUntil = 0; // the put-on plays only just after a find, never on load or when switching Prints
+    let cosId: string | null = null, cosObj: THREE.Group | null = null, cosOld: THREE.Group | null = null, cosStart = -1, cosResting = false, cosInit = false, cosPlayUntil = 0, cosHold = 0, cosFoundAway = false; // the put-on plays only just after a find, never on load or when switching Prints
     const dropOld = () => { if (cosOld) { disposeCosmetic(cosOld); cosOld = null; } };
     const attachCos = (id: string | null) => {
       if (cosObj) { disposeCosmetic(cosObj); cosObj = null; }
@@ -877,7 +878,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         // Keepsakes: swap to what should be worn, then play the put-on motion (eased; never blocks input).
         const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
         const wantId = want && COSMETIC_IDS.includes(want) ? want : null;
-        if (wantId !== cosId) {
+        if (wantId !== cosId && (cosPreview || (!inMargins && t >= cosHold))) { // away in the Margins the Print is not on screen: the swap waits until the player is back
           const moving = (cosPreview ? cosInit : t < cosPlayUntil && !inMargins) && (cosObj !== null || wantId !== null); // the first look (a reload, or a preview switch) shows at once
           if (moving && printMesh && live.current.genes) {
             dropOld();
@@ -1061,7 +1062,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
                   uPending = false;
                   if (st.ceiling) quietUntilNext = true;
                   if (st.note && !st.animate) cb.current.onMarginsNote?.(st.note);
-                  if (st.cosmetic) cb.current.onKeepsake?.(st.cosmetic); // in the Margins the Print is away, so it is set quietly
+                  if (st.cosmetic) { cosFoundAway = true; cb.current.onKeepsake?.(st.cosmetic); } // the Print is away: it is worn at once, and the put-on plays when the player is back in the garden
                   if (st.animate && st.kind) { spot.kind = st.kind === "keepsake" ? "scrap" : st.kind; /* a keepsake rises as a paper scrap */ mActive = { id: spot.id, since: performance.now() }; uHold = 0; }
                   else { uBlocked = true; uHold = 0; report(); } // refused: stays folded, nothing spent. A repeat: shown open, nothing granted.
                 });

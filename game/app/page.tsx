@@ -78,7 +78,7 @@ export default function Page() {
     const st = c.stage ?? "blot";
     if (stageChanged(lastStage.current[c.id] ?? null, st)) setMsg(`Your Print grew into a ${stageById(st).name}!`);
     lastStage.current[c.id] = st;
-    setCreatures((all) => (all.some((x) => x.id === c.id) ? all.map((x) => (x.id === c.id ? c : x)) : [...all, c]));
+    setCreatures((all) => (all.some((x) => x.id === c.id) ? all.map((x) => (x.id === c.id ? (c.worn_cosmetic === undefined ? { ...c, worn_cosmetic: x.worn_cosmetic } : c) : x)) : [...all, c]));
   };
 
   // Load whatever the player already owns. Claiming the egg is a world action.

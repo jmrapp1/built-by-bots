@@ -90,10 +90,21 @@ describe("the wiring", () => {
     expect(world).toMatch(/const moving = \(cosPreview \? cosInit : t < cosPlayUntil && !inMargins\)/);
     expect(world).toMatch(/cosPlayUntil = performance\.now\(\) \+ \d+; cb\.current\.onKeepsake/);
   });
+  it("a find made away from the garden plays the put-on once, when the player is back", () => {
+    expect(world).toMatch(/cosFoundAway = true; cb\.current\.onKeepsake/);
+    expect(world).toMatch(/if \(cosFoundAway\) \{ cosFoundAway = false; cosHold = performance\.now\(\) \+ \d+; cosPlayUntil = performance\.now\(\) \+ \d+; \}/);
+    expect(world).toMatch(/wantId !== cosId && \(cosPreview \|\| \(!inMargins && t >= cosHold\)\)/);
+  });
   it("the preview switch is still dev-only and unchanged", () => {
     expect(world).toMatch(/cosmeticOverride\(window\.location\.search, process\.env\.NODE_ENV === "production"\)/);
   });
   it("no supabase folder change is part of the client, and the text has no digits for keepsakes", () => {
     expect(src("../lib/margins-server.ts")).not.toMatch(/supabase|\.rpc\(|fetch\(/);
+  });
+});
+
+describe("applying a Print the server sends back", () => {
+  it("keeps what is worn when the answer does not carry it", () => {
+    expect(src("../app/page.tsx")).toMatch(/c\.worn_cosmetic === undefined \? \{ \.\.\.c, worn_cosmetic: x\.worn_cosmetic \} : c/);
   });
 });
