@@ -23,6 +23,7 @@ export function dailyPrompt(available: boolean): string | null {
 export function friendlyDailyError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes("already claimed")) return daily.messages.already;
+  if (m.includes("starter egg first")) return daily.messages.needStarter;
   if (m.includes("hatch your egg")) return daily.messages.busy;
   if (m.includes("sign in")) return "Please sign in again.";
   if (m.includes("fetch") || m.includes("network")) return "Can't reach the garden right now. Check your connection.";

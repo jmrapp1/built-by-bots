@@ -5,6 +5,8 @@ import species from "@/data/species.json";
 
 const sql = readFileSync(new URL("../supabase/migrations/20261020000002_daily_egg.sql", import.meta.url), "utf8");
 const code = sql.replace(/--.*$/gm, "");
+const guardSql = readFileSync(new URL("../supabase/migrations/20261020000003_daily_egg_guard.sql", import.meta.url), "utf8");
+const guard = guardSql.replace(/--.*$/gm, "");
 
 describe("daily egg display rules", () => {
   it("shows the egg only if today's is unclaimed and nothing waits", () => {
@@ -25,6 +27,7 @@ describe("daily egg display rules", () => {
   it("turns server errors into gentle sentences", () => {
     expect(friendlyDailyError("already claimed today")).toMatch(/Come back tomorrow/);
     expect(friendlyDailyError("hatch your egg first")).toMatch(/will wait/);
+    expect(friendlyDailyError("collect your starter egg first")).toBe(DAILY.messages.needStarter);
     expect(friendlyDailyError("boom: relation x")).toBe(DAILY.messages.error);
     for (const m of Object.values(DAILY.messages)) expect(m).not.toMatch(/\d/);
   });
@@ -87,5 +90,32 @@ describe("migration safety", () => {
     expect(code).toContain("alter table public.daily_egg_claims enable row level security");
     expect(code).toContain("alter table public.game_daily_pool enable row level security");
     expect(code).toContain("using (owner = auth.uid())");
+  });
+});
+
+describe("starter-egg guard migration", () => {
+  const body = (t: string) => t.slice(t.indexOf("language plpgsql"), t.indexOf("revoke execute"));
+  const old = body(code.replace("create function", "create or replace function"));
+  it("changes the function by exactly one guard", () => {
+    const strip = (t: string) => t.replace(/\s+/g, " ").trim();
+    const guardBlock = /if not exists \(select 1 from public\.eggs where owner = uid and kind = 'starter'\) and not exists \(select 1 from public\.creatures where owner = uid\) then raise exception 'collect your starter egg first'; end if;/;
+    const without = strip(body(guard)).replace(guardBlock, "");
+    expect(without.replace(/\s+/g, " ")).toBe(strip(old).replace(/\s+/g, " "));
+    expect(strip(body(guard))).toMatch(guardBlock);
+  });
+  it("checks before anything is written", () => {
+    expect(guard.indexOf("collect your starter egg first")).toBeLessThan(guard.indexOf("insert into public.daily_egg_claims"));
+  });
+  it("lets a player with a starter egg or a Print through", () => {
+    expect(guard).toMatch(/not exists \(select 1 from public\.eggs where owner = uid and kind = 'starter'\)\s+and not exists \(select 1 from public\.creatures where owner = uid\)/);
+  });
+  it("only replaces the function, with the same grants and no destructive statements", () => {
+    expect(guard).toContain("create or replace function public.claim_daily_egg()");
+    expect(guard).toContain("security definer set search_path = ''");
+    expect(guard).toContain("revoke execute on function public.claim_daily_egg() from public, anon");
+    expect(guard).toContain("grant execute on function public.claim_daily_egg() to authenticated");
+    expect(guard).not.toMatch(/\bdrop\b|\btruncate\b|\bdelete\s+from\b|\balter\s+table\b|\bcreate\s+table\b/i);
+    expect(guard.match(/\bupdate\s[^;]*;/gi)).toEqual(["update public.daily_egg_claims set claimed_on = today where owner = uid;"]);
+    expect(guard).not.toMatch(/grant[^;]*\banon\b/i);
   });
 });
