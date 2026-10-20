@@ -11,8 +11,8 @@
 --   * Signed-in accounts only. Anonymous sessions and anon are refused.
 -- "Current Print" = the player's oldest creature, the same one the app lists first (order by created_at).
 -- NOTE for review: grant_keepsake has no limit of its own; in slice 6d-3 the Margins claim calls it in the same
--- transaction so the daily ceiling applies. Until then it is only for tests and previews, and should not be wired
--- to the client directly.
+-- transaction so the daily ceiling applies. Clients cannot call it at all (execute revoked from public, anon, authenticated);
+-- until then it is only callable by the owner role, for tests and previews.
 
 create table public.game_cosmetics (
   id text primary key,
@@ -71,5 +71,5 @@ begin
   return query select pick, false, 0;
 end $$;
 
-revoke execute on function public.grant_keepsake(text) from public, anon;
-grant execute on function public.grant_keepsake(text) to authenticated;
+-- Not callable by clients: only the 6d-3 security-definer claim function (and the table owner) may call it.
+revoke execute on function public.grant_keepsake(text) from public, anon, authenticated;

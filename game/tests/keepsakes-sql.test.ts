@@ -29,13 +29,13 @@ describe("keepsakes migration", () => {
     expect(sql).not.toMatch(/grant\s+(insert|update|delete|all)/i);
     expect(sql).toMatch(/revoke insert \(worn_cosmetic\), update \(worn_cosmetic\) on public\.creatures from anon, authenticated/);
   });
-  it("grant_keepsake is definer, empty search path, signed-in only, no client-named cosmetic", () => {
+  it("grant_keepsake is definer, empty search path, not client-callable, signed-in only inside, no client-named cosmetic", () => {
     expect(fn).toMatch(/security definer set search_path = ''/);
     expect(fn).toMatch(/uid uuid := auth\.uid\(\)/);
     expect(fn).toMatch(/is_anonymous/);
     expect(fn.match(/create function[^)]*\)/)![0]).toBe("create function public.grant_keepsake(kind text)");
-    expect(sql).toMatch(/revoke execute on function public\.grant_keepsake\(text\) from public, anon/);
-    expect(sql).toMatch(/grant execute on function public\.grant_keepsake\(text\) to authenticated/);
+    expect(sql).toMatch(/revoke execute on function public\.grant_keepsake\(text\) from public, anon, authenticated/);
+    expect(sql).not.toMatch(/grant execute on function public\.grant_keepsake/);
     expect(fn).toMatch(/kind is distinct from 'margins' then raise exception/);
   });
   it("locks the Print row, and a duplicate gives food without a row", () => {
