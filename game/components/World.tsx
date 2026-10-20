@@ -5,6 +5,7 @@ import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
   GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Wander,
 } from "@/lib/world";
+import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
 import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
@@ -54,6 +55,9 @@ function buildTree(r: number) {
   return g;
 }
 
+// Pond ripples are animated from the render loop; buildPlace registers them here.
+const ripples: { mesh: THREE.Mesh; offset: number }[] = [];
+
 function buildPlace(p: Place): THREE.Object3D {
   const g = new THREE.Group();
   g.position.set(p.x, 0, p.z);
@@ -83,22 +87,48 @@ function buildPlace(p: Place): THREE.Object3D {
       break;
     }
     case "rest": {
-      for (let i = 0; i < 5; i++) {
-        const page = new THREE.Mesh(new THREE.BoxGeometry(1.8 - i * 0.2, 0.12, 1.4 - i * 0.15), mat(i % 2 ? "#fffaf0" : "#efe4c8"));
-        page.position.y = 0.06 + i * 0.12;
-        page.rotation.y = i * 0.35;
-        g.add(page);
-      }
+      // An ink-blot bench with a soft cushion and a little pillow.
+      const blot = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 12), mat("#2f2a44"));
+      blot.scale.set(1.5, 0.3, 1);
+      blot.position.y = 0.3;
+      const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 12), mat("#e8b9a0"));
+      cushion.scale.set(1.3, 0.28, 0.85);
+      cushion.position.y = 0.62;
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), mat("#fffaf0"));
+      pillow.position.set(-0.7, 0.82, 0);
+      pillow.rotation.set(0, 0.4, 0.25);
+      g.add(blot, cushion, pillow);
       break;
     }
     case "pond": {
+      const r = p.solid ?? 3;
+      const bank = new THREE.Mesh(new THREE.RingGeometry(r - 0.05, r + 0.35, 40), mat("#b9b3a6"));
+      bank.rotation.x = -Math.PI / 2;
+      bank.position.y = 0.015;
       const pond = new THREE.Mesh(
-        new THREE.CircleGeometry(p.solid ?? 3, 40),
-        new THREE.MeshStandardMaterial({ color: 0x14142a, roughness: 0.1, metalness: 0.6 }),
+        new THREE.CircleGeometry(r, 40),
+        new THREE.MeshStandardMaterial({ color: 0x2a3a66, roughness: 0.15, metalness: 0.4 }),
       );
       pond.rotation.x = -Math.PI / 2;
       pond.position.y = 0.02;
-      g.add(pond);
+      g.add(bank, pond);
+      // Soft ripples: three thin rings that grow and fade (still when reduced motion is on).
+      for (let i = 0; i < 3; i++) {
+        const m = new THREE.Mesh(
+          new THREE.RingGeometry(r * 0.9, r * 0.95, 40),
+          new THREE.MeshBasicMaterial({ color: 0xcfd9f2, transparent: true, opacity: 0.2, depthWrite: false }),
+        );
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(0, 0.03, 0);
+        g.add(m);
+        ripples.push({ mesh: m, offset: i / 3 });
+      }
+      // A few lily pages, one instanced mesh.
+      const spots: [number, number, number][] = [[0.9, -0.5, 0.45], [-1.1, 0.4, 0.38], [0.2, 1.1, 0.42], [-0.3, -1.2, 0.34]];
+      const lily = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 14), mat("#6f9a6a"), spots.length);
+      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+      spots.forEach(([x, z, sc], i) => { m4.compose(new THREE.Vector3(x, 0.045, z), q, new THREE.Vector3(sc, sc, sc)); lily.setMatrixAt(i, m4); });
+      g.add(lily);
       break;
     }
     case "notice": {
@@ -283,7 +313,13 @@ export default function World({ genes, stage = "blot", eggPhase, onNearby, onInt
     };
     let last = performance.now();
     let raf = 0;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const tick = (t: number) => {
+      for (const rp of ripples) {
+        const r = ripple((t / 6000) % 1, rp.offset, reducedMotion);
+        rp.mesh.scale.setScalar(r.scale);
+        (rp.mesh.material as THREE.MeshBasicMaterial).opacity = r.opacity;
+      }
       const dt = Math.min(0.05, (t - last) / 1000);
       if (t - lightClock > 1000) { lightClock = t; applyLight(); }
       last = t;

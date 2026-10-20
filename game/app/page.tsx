@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { FOODS, secondsUntilHatch } from "@/lib/rules";
 import type { Place } from "@/lib/world";
 import { screenFor } from "@/lib/gate";
+import { BOARD_PAGES, BOARD_TITLE, nextPage, pageAt, pageLabel, prevPage } from "@/lib/board";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { FED_MESSAGE, feedPrompt, friendlyAuthError, friendlyFeedError, moodFace, promptFor } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -35,6 +36,7 @@ export default function Page() {
 
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
+  const [boardPage, setBoardPage] = useState(0);
   const [menu, setMenu] = useState<null | "feed" | "board">(null);
 
   // Every creature update goes through here so a stage change is announced once.
@@ -155,7 +157,7 @@ export default function Page() {
       else if (wait > 0) setMsg(`Your egg hatches in ${wait}s.`);
       else hatch();
     }
-    else if (p.kind === "notice") setMenu("board");
+    else if (p.kind === "notice") { setBoardPage(0); setMenu("board"); }
     else setMsg(p.label);
   };
 
@@ -243,9 +245,9 @@ export default function Page() {
       {creature && (
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
-          <div className="stage" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
-            <span className="stage-name">{stageById(creature.stage ?? "blot").name}</span>
-            <span className="stage-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
+          <div className="growth" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
+            <span className="growth-name">{stageById(creature.stage ?? "blot").name}</span>
+            <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
               <span style={{ width: `${progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100}%` }} />
             </span>
           </div>
@@ -272,14 +274,14 @@ export default function Page() {
         </div>
       )}
       {menu === "board" && (
-        <div className="card tray" role="dialog" aria-label="Notice board">
-          <h3>Notice board</h3>
-          {creature ? (
-            <div className="drops" style={{ justifyContent: "center" }}>
-              <InkDrop value={creature.fullness} label="Fed" />
-              <InkDrop value={creature.mood} label="Happy" />
-            </div>
-          ) : <p className="note">Nothing here yet. Take your egg and hatch it.</p>}
+        <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
+          <h3>{pageAt(boardPage).title}</h3>
+          {pageAt(boardPage).lines.map((l) => <p className="note" key={l}>{l}</p>)}
+          <div className="board-nav">
+            <button className="btn quiet" onClick={() => setBoardPage(prevPage(boardPage))} disabled={boardPage <= 0}>Back</button>
+            <span className="note">{pageLabel(boardPage)}</span>
+            <button className="btn quiet" onClick={() => setBoardPage(nextPage(boardPage))} disabled={boardPage >= BOARD_PAGES.length - 1}>Next</button>
+          </div>
           <button className="btn quiet" onClick={() => setMenu(null)}>Close</button>
         </div>
       )}

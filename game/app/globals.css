@@ -132,10 +132,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .drops { display: flex; gap: 20px; }
 .drop { display: grid; justify-items: center; gap: 4px; font-size: 13px; color: var(--ink-soft); }
 
-.stage { display: grid; gap: 6px; }
-.stage-name { font: 600 15px var(--font-display); }
-.stage-bar { display: block; height: 10px; border: 2px solid var(--ink); border-radius: 999px; background: var(--paper-shade); overflow: hidden; }
-.stage-bar > span { display: block; height: 100%; background: var(--green); transition: width 600ms var(--ease); }
+.growth { display: grid; gap: 6px; }
+.growth-name { font: 600 15px var(--font-display); }
+.growth-bar { display: block; height: 10px; border: 2px solid var(--ink); border-radius: 999px; background: var(--paper-shade); overflow: hidden; }
+.growth-bar > span { display: block; height: 100%; background: var(--green); transition: width 600ms var(--ease); }
+.board-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, 90vw); display: grid; gap: 14px; text-align: center; }
 .tray h3 { font-size: 22px; }
 .foods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
