@@ -5,6 +5,7 @@ import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
   GARDEN, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Wander,
 } from "@/lib/world";
+import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
 
 export type EggPhase = "unclaimed" | "in-nest";
 type Props = {
@@ -16,7 +17,6 @@ type Props = {
   onFeedPrint: () => void;
 };
 
-const L = GARDEN.lighting;
 
 function paperTexture() {
   const c = document.createElement("canvas");
@@ -142,17 +142,21 @@ export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNe
     const el = mount.current!;
     const cols = colliders();
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(L.sky);
-    scene.fog = new THREE.Fog(L.fog, 30, 70);
+    // Light follows the player's local clock (data/daynight.json); ?hour=21 previews a time of day.
+    const override = hourOverride(window.location.search);
+    const L0 = lightingAt(override ?? hourOfDay(new Date()));
+    scene.background = new THREE.Color(L0.sky);
+    scene.fog = new THREE.Fog(L0.fog, 30, 70);
     const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, 100);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);
     el.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(L.hemisphereSky, L.hemisphereGround, L.hemisphereIntensity));
-    const sun = new THREE.DirectionalLight(L.sun, L.sunIntensity);
-    sun.position.set(...(L.sunPosition as [number, number, number]));
+    const hemi = new THREE.HemisphereLight(L0.hemisphereSky, L0.hemisphereGround, L0.hemisphereIntensity);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(L0.sun, L0.sunIntensity);
+    sun.position.set(...L0.sunPosition);
     scene.add(sun);
 
     const ground = new THREE.Mesh(
@@ -164,7 +168,7 @@ export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNe
     // soft page edge
     const edge = new THREE.Mesh(
       new THREE.RingGeometry(GARDEN.size * 0.5, GARDEN.size * 2, 4, 1, Math.PI / 4, Math.PI * 2),
-      new THREE.MeshBasicMaterial({ color: L.sky }),
+      new THREE.MeshBasicMaterial({ color: L0.sky }),
     );
     edge.rotation.x = -Math.PI / 2;
     edge.position.y = -0.05;
@@ -252,10 +256,26 @@ export default function World({ genes, eggPhase, onNearby, onInteract, onPrintNe
     let printNear = false;
     const rng = Math.random;
     const target = new THREE.Vector3();
+    // Re-read the clock about once a second. The change itself is slow and eased,
+    // so there is no sudden flash, which also keeps it gentle for reduced-motion.
+    let lightClock = 0;
+    const applyLight = () => {
+      const L = lightingAt(override ?? hourOfDay(new Date()));
+      (scene.background as THREE.Color).set(L.sky);
+      (scene.fog as THREE.Fog).color.set(L.fog);
+      (edge.material as THREE.MeshBasicMaterial).color.set(L.sky);
+      hemi.color.set(L.hemisphereSky);
+      hemi.groundColor.set(L.hemisphereGround);
+      hemi.intensity = L.hemisphereIntensity;
+      sun.color.set(L.sun);
+      sun.intensity = L.sunIntensity;
+      sun.position.set(...L.sunPosition);
+    };
     let last = performance.now();
     let raf = 0;
     const tick = (t: number) => {
       const dt = Math.min(0.05, (t - last) / 1000);
+      if (t - lightClock > 1000) { lightClock = t; applyLight(); }
       last = t;
       const k = (a: string, b: string) => (keys.has(a) || keys.has(b) ? 1 : 0);
       const res = movePlayer(

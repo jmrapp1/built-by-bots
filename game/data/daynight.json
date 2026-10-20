@@ -1,0 +1,13 @@
+{
+  "note": "Key times are hours on the player's local clock (0-24). Light blends between them and wraps at midnight.",
+  "keys": [
+    { "hour": 0,    "name": "night", "sky": "#2b3050", "fog": "#2b3050", "hemisphereSky": "#8e9bd0", "hemisphereGround": "#4a5470", "hemisphereIntensity": 1.0, "sun": "#b7c3ff", "sunIntensity": 0.55, "sunPosition": [-8, 12, -6] },
+    { "hour": 5.5,  "name": "pre-dawn", "sky": "#3d3f6b", "fog": "#3d3f6b", "hemisphereSky": "#9aa3d6", "hemisphereGround": "#5b6179", "hemisphereIntensity": 1.05, "sun": "#c9c7ee", "sunIntensity": 0.6, "sunPosition": [-10, 7, 4] },
+    { "hour": 7,    "name": "dawn", "sky": "#f2c6a0", "fog": "#f2c6a0", "hemisphereSky": "#ffe2c4", "hemisphereGround": "#b5b08a", "hemisphereIntensity": 1.3, "sun": "#ffcf99", "sunIntensity": 0.9, "sunPosition": [14, 5, 4] },
+    { "hour": 11,   "name": "day", "sky": "#f6f1e4", "fog": "#f6f1e4", "hemisphereSky": "#ffffff", "hemisphereGround": "#b5c9a0", "hemisphereIntensity": 1.6, "sun": "#ffffff", "sunIntensity": 1.2, "sunPosition": [8, 14, 6] },
+    { "hour": 16.5, "name": "late-day", "sky": "#f6e7c8", "fog": "#f6e7c8", "hemisphereSky": "#fff3dc", "hemisphereGround": "#b5c096", "hemisphereIntensity": 1.5, "sun": "#ffe3b0", "sunIntensity": 1.1, "sunPosition": [-8, 10, 6] },
+    { "hour": 18.5, "name": "dusk", "sky": "#e9a98a", "fog": "#e9a98a", "hemisphereSky": "#ffd0b0", "hemisphereGround": "#9c9a80", "hemisphereIntensity": 1.25, "sun": "#ffb27a", "sunIntensity": 0.85, "sunPosition": [-14, 5, 3] },
+    { "hour": 20.5, "name": "twilight", "sky": "#4a4478", "fog": "#4a4478", "hemisphereSky": "#a6a3dc", "hemisphereGround": "#5f607f", "hemisphereIntensity": 1.05, "sun": "#c3bdf2", "sunIntensity": 0.6, "sunPosition": [-10, 8, -2] },
+    { "hour": 22,   "name": "night", "sky": "#2b3050", "fog": "#2b3050", "hemisphereSky": "#8e9bd0", "hemisphereGround": "#4a5470", "hemisphereIntensity": 1.0, "sun": "#b7c3ff", "sunIntensity": 0.55, "sunPosition": [-8, 12, -6] }
+  ]
+}
