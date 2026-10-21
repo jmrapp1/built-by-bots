@@ -82,7 +82,7 @@ describe("the only server calls", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
   it("pins the rpc list: margins_unfold is the one new call", () => {
     const calls = [...page.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_worn_cosmetic", "world_unfold"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
   });
   it("margins_unfold is sent the page number and nothing else", () => {
     expect(page).toMatch(/rpc\("margins_unfold", \{ p_spot: n \}\)/);

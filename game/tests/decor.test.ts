@@ -168,14 +168,15 @@ describe("wiring", () => {
   });
   it("the room builds the decorations only when the switch is on, and frees them with the room", () => {
     const w = src("../components/World.tsx");
-    expect(w).toMatch(/decorOn\s*=\s*decorPreview\(/);
-    expect(w).toMatch(/decorPlaced && decorOn/);
+    expect(w).toMatch(/live\.current\.decorPlaced\) \{ decor = buildDecorScene\(\)/);
     expect(w).toMatch(/leaveHomeZone = \(\) => \{ decor\?\.dispose\(\)/);
   });
   it("the page keeps the placements in memory only and the strip needs the switch", () => {
     const p = src("../app/page.tsx");
-    expect(p).toMatch(/menu === "decor" && stubDecor/);
-    expect(p).toMatch(/decorPlaced=\{stubDecor \? placed : null\}/);
+    expect(p).toMatch(/menu === "decor" && \(stubDecor \|\| homeDecor\)/);
+    expect(p).toMatch(/decorPlaced=\{stubDecor \? placed : homeDecor\?\.placed \?\? null\}/);
+    expect(p).toMatch(/if \(stubDecor \|\| !userId/); // enterHome never calls the server in stub mode
+    expect(p).toMatch(/if \(stubDecor\) \{ setPlaced/); // nor does placing
   });
   it("the scene has a dispose that frees its geometry and materials", () => {
     const s = src("../components/decorScene.ts");

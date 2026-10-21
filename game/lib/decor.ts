@@ -55,9 +55,9 @@ export function nearestPlot(local: { x: number; z: number }): Place | null {
 export const fitting = (plotId: string): Decoration[] => { const k = plotOf(plotId)?.kind; return k ? DECORATIONS.filter((d) => d.fits === k) : []; };
 export type DecorChoice = { id: string | null; label: string; current: boolean; disabled?: boolean };
 /** "Clear" first (disabled while nothing is placed), then each decoration that fits, the placed one marked. */
-export function decorChoicesFor(plotId: string, placed: Placed): DecorChoice[] {
+export function decorChoicesFor(plotId: string, placed: Placed, owned?: string[]): DecorChoice[] {
   const here = isDecoration(placed[plotId]) ? placed[plotId] : null;
-  return [{ id: null, label: CLEAR, current: false, disabled: here === null }, ...fitting(plotId).map((d) => ({ id: d.id, label: d.name, current: d.id === here }))];
+  return [{ id: null, label: CLEAR, current: false, disabled: here === null }, ...fitting(plotId).filter((d) => !owned || owned.includes(d.id)).map((d) => ({ id: d.id, label: d.name, current: d.id === here }))];
 }
 export function canPlace(plotId: string, placed: Placed, choice: string | null): boolean {
   const here = isDecoration(placed[plotId]) ? placed[plotId] : null;
@@ -70,9 +70,10 @@ export function withChoice(plotId: string, placed: Placed, choice: string | null
   if (choice === null) delete next[plotId]; else next[plotId] = choice;
   return next;
 }
-export function decorStrip(plotId: string, placed: Placed): StripView {
-  const choices = decorChoicesFor(plotId, placed);
-  return { title: DECOR_TITLE, emptyText: fitting(plotId).length === 0 ? DECOR_EMPTY : null, choices, currentSuffix: "placed" };
+/** `owned` (server mode) limits the list to what the player has; leave it out for the ?decor=stub preview. */
+export function decorStrip(plotId: string, placed: Placed, owned?: string[]): StripView {
+  const choices = decorChoicesFor(plotId, placed, owned);
+  return { title: DECOR_TITLE, emptyText: choices.length === 1 ? DECOR_EMPTY : null, choices, currentSuffix: "placed" };
 }
 
 /** Extent of a decoration's parts (half-widths in x and z, top height, lowest point), to check it stays on its footprint. */
