@@ -21,7 +21,7 @@ import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } 
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
-import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
+import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
@@ -81,6 +81,8 @@ export default function Page() {
   const [printNear, setPrintNear] = useState(false);
   const [findable, setFindable] = useState(false);
   const [canSplash, setCanSplash] = useState(true);
+  const [npcLine, setNpcLine] = useState<{ name: string; text: string; icons: string[] } | null>(null); // N1: the neighbour's hint strip
+  const [npcClose, setNpcClose] = useState(0);
   const [margins, setMargins] = useState({ inside: false, left: 0, total: 0, scraps: 0 });
   // Dev-only look at another species (?species=leaflet). Display only; ignored in production builds.
   const previewSpecies = typeof window === "undefined" ? null : speciesOverride(window.location.search, process.env.NODE_ENV === "production");
@@ -405,7 +407,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -425,7 +427,14 @@ export default function Page() {
         </div>
       )}
 
-      {tag && !menu && (
+      {npcLine && !menu && (
+        <div className="card npc-strip" role="dialog" aria-label={npcLine.name}>
+          <div className="npc-icons">{npcLine.icons.map((n, i) => <NpcIcon key={i} name={n} />)}</div>
+          <p><strong>{npcLine.name}</strong><br />{npcLine.text}</p>
+          <button className="btn" onClick={() => { setNpcLine(null); setNpcClose((n) => n + 1); }}>Thanks</button>
+        </div>
+      )}
+      {tag && !menu && !npcLine && (
         <div className="card tag" role="status">
           {!feedTag && nearby?.kind === "egg" && <EggIcon />}
           <strong>{feedTag && (feeding || reacting) ? "Munching…" : tag}</strong>

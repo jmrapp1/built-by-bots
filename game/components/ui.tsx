@@ -1,5 +1,6 @@
 // Shared UI pieces. All icons are inline SVG drawn in code: no icon packs, emoji or images.
 import type { ReactNode } from "react";
+import { ICON_PATHS } from "@/lib/npcs";
 import { dropFill, type Face } from "@/lib/ui";
 
 const S = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
@@ -66,4 +67,11 @@ export function MoodFace({ face }: { face: Face }) {
 
 export function KeyCap({ children }: { children: ReactNode }) {
   return <span className="keycap">{children}</span>;
+}
+
+// A small stroked icon from the shared paths (the same ones the Binder's bubble is drawn from).
+export function NpcIcon({ name, size = 28 }: { name: string; size?: number }) {
+  const d = (ICON_PATHS as Record<string, string>)[name];
+  if (!d) return null;
+  return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...S} style={{ color: name === "question" ? "#3b4a8c" : "#2b2a33" }}><path d={d} /></svg>;
 }
