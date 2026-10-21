@@ -1,0 +1,90 @@
+{
+  "note": "Night sights on Pressmark Shore (slice T2). Same kinds and hours as the Margins. Sights, not prizes: nothing is given, saved or sent. Edit points and captions here, no code change. Points must lie inside the shore (x 66 to 126, z -62 to 62).",
+  "window": {
+    "inFrom": 18.5,
+    "inTo": 20.5,
+    "outFrom": 5.5,
+    "outTo": 7.5
+  },
+  "perNight": {
+    "min": 5,
+    "max": 7
+  },
+  "clear": {
+    "scenery": 1.6,
+    "pages": 1.5,
+    "npc": 0,
+    "gatePath": 0
+  },
+  "notice": {
+    "near": 3,
+    "far": 4.5
+  },
+  "captions": {
+    "moth": "A moth rests on a drifting page.",
+    "ink": "The ink glows at the water's edge.",
+    "glint": "A ring of light on the wet sand."
+  },
+  "points": [
+    {
+      "x": 82,
+      "z": -50,
+      "kind": "moth"
+    },
+    {
+      "x": 112,
+      "z": -52,
+      "kind": "ink"
+    },
+    {
+      "x": 92,
+      "z": -36,
+      "kind": "glint"
+    },
+    {
+      "x": 119,
+      "z": -32,
+      "kind": "moth"
+    },
+    {
+      "x": 78,
+      "z": -18,
+      "kind": "ink"
+    },
+    {
+      "x": 109,
+      "z": -22,
+      "kind": "glint"
+    },
+    {
+      "x": 86,
+      "z": 6,
+      "kind": "moth"
+    },
+    {
+      "x": 118,
+      "z": 8,
+      "kind": "ink"
+    },
+    {
+      "x": 96,
+      "z": 20,
+      "kind": "glint"
+    },
+    {
+      "x": 122,
+      "z": 26,
+      "kind": "moth"
+    },
+    {
+      "x": 84,
+      "z": 48,
+      "kind": "ink"
+    },
+    {
+      "x": 110,
+      "z": 50,
+      "kind": "glint"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 // Night sights as three.js objects (slice T1): moth-pages, lantern ink and night glints. Simple shapes,
 // no assets, no prizes. Rules, hours and captions live in lib/sights.ts and data/sights.json.
 import * as THREE from "three";
-import { SIGHTS, type SightKind, type SightPoint } from "@/lib/sights";
+import { SIGHTS, type SightData, type SightKind, type SightPoint } from "@/lib/sights";
 
 const ease = (n: number) => { const t = Math.min(1, Math.max(0, n)); return t * t * (3 - 2 * t); };
 
@@ -18,12 +18,13 @@ export type SightScene = {
   dispose(): void;
 };
 
-export function buildSights(points: SightPoint[], groundAt: (x: number, z: number) => number): SightScene {
+// `data` is the set whose notice distances and captions apply (the Margins by default; the shore passes its own).
+export function buildSights(points: SightPoint[], groundAt: (x: number, z: number) => number, data: SightData | null = SIGHTS): SightScene {
   const group = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(d: T): T => (disposables.push(d), d);
   const list: One[] = [];
-  const near = SIGHTS?.notice.near ?? 3, far = SIGHTS?.notice.far ?? 4.5;
+  const near = data?.notice.near ?? 3, far = data?.notice.far ?? 4.5;
   for (const p of points) {
     try {
       const g = new THREE.Group();
@@ -94,7 +95,7 @@ export function buildSights(points: SightPoint[], groundAt: (x: number, z: numbe
           if (m) m.base = 0.45 * (1 - over * 0.8);
           o.ring.scale.setScalar(reduced ? 1 : 1 + over * 0.9);
         }
-        if (!o.told && level > 0.6 && dist <= near && SIGHTS) { o.told = true; caption = SIGHTS.captions[o.kind]; }
+        if (!o.told && level > 0.6 && dist <= near && data) { o.told = true; caption = data.captions[o.kind]; }
       }
       return caption;
     },

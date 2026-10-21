@@ -4,6 +4,7 @@ import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, np
 import { buildNpc, type NpcScene } from "@/components/npcScene";
 import { buildSights, type SightScene } from "@/components/sightScene";
 import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
+import { SHORE_SIGHTS, shoreSightsForDay } from "@/lib/shoreSights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
@@ -355,6 +356,17 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       } catch { sights = null; }
     };
     const dropSights = () => { try { sights?.dispose(); } catch { /* nothing */ } sights = null; };
+    // T2: tonight's sights on Pressmark Shore (looks only), built with the World shell and freed with it. The shore is flat, so they sit at 0.
+    let shoreSights: SightScene | null = null, shoreLvl = 0;
+    const buildShoreSights = () => {
+      try {
+        if (shoreSights || !SHORE_SIGHTS) return;
+        shoreLvl = sightLevel(hourNow, SHORE_SIGHTS.window); // already the right level on arrival; only a moving clock fades
+        shoreSights = buildSights(shoreSightsForDay(utcDay(new Date()), SHORE_SIGHTS), () => 0, SHORE_SIGHTS);
+        scene.add(shoreSights.group);
+      } catch { shoreSights = null; }
+    };
+    const dropShoreSights = () => { try { shoreSights?.dispose(); } catch { /* nothing */ } shoreSights = null; };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
     const wipe = document.createElement("div");
@@ -411,6 +423,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       cb.current.onSpotsOpened?.(wSpots.filter((q) => wOpened.has(spotKey(q.region, q.id))).map((q) => ({ x: q.x, z: q.z })));
     };
     const startSpots = () => {
+      buildShoreSights(); // T2: the shore sights come and go with the spots (built once per stay)
       if (spotsOff || sc) return;
       wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
       wSpots = allSpotsForDay(wDay);
@@ -427,7 +440,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       });
       reportSpots();
     };
-    const stopSpots = () => { wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
@@ -1287,6 +1300,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
       }
 
+      if (shoreSights && zones.is("garden")) { // T2: the shore sights fade with the hour like the Margins ones; their caption goes to the same note line
+        try {
+          shoreLvl = levelStep(shoreLvl, sightLevel(hourNow, SHORE_SIGHTS!.window), dt, reducedMotion);
+          const cap = shoreSights.update({ t: t / 1000, dt, player: pos, level: shoreLvl, reduced: reducedMotion });
+          if (cap) cb.current.onMarginsNote?.(cap);
+        } catch { dropShoreSights(); }
+      }
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
       let wNear: Place | null = null;
       if (zones.is("garden") && sc && !travel) {
