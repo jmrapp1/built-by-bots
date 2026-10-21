@@ -140,6 +140,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .board-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, 90vw); display: grid; gap: 14px; text-align: center; }
 .tray h3 { font-size: 22px; }
+.picker-list { display: grid; gap: 8px; }
+.picker-list .btn.current { opacity: 1; cursor: default; box-shadow: inset 0 0 0 2px var(--ink); }
 .foods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .food { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; min-height: 88px; font: 700 15px var(--font-ui); color: var(--ink); background: var(--paper-shade); border: var(--border); border-radius: var(--radius-control); cursor: pointer; transition: transform 120ms var(--ease), background 120ms var(--ease); }
 .food:hover { background: var(--paper); transform: translateY(-2px); }

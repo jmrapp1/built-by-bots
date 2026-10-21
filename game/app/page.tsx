@@ -10,6 +10,8 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
+import KeepsakePicker from "@/components/KeepsakePicker";
+import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
@@ -70,7 +72,13 @@ export default function Page() {
   const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
   const shownGenes = creature ? (previewSpecies ? { ...creature.genes, hue: clampHue(creature.genes.hue, speciesById(previewSpecies)) } : creature.genes) : null;
   const [boardPage, setBoardPage] = useState(0);
-  const [menu, setMenu] = useState<null | "board">(null);
+  const [menu, setMenu] = useState<null | "board" | "keepsakes">(null);
+  // The keepsake picker. Owned keepsakes are read only when it opens; a failed read just lists none. ?picker=stub (dev only) uses a stub and never calls the server.
+  const stubPicker = typeof window === "undefined" ? false : pickerPreview(window.location.search, process.env.NODE_ENV === "production");
+  const [owned, setOwned] = useState<string[]>([]);
+  const [pickNote, setPickNote] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [stubWorn, setStubWorn] = useState<string | null>(null);
 
   // Every creature update goes through here so a stage change is announced once.
   const lastStage = useRef<Record<string, string>>({}); // last stage seen per Print
@@ -135,6 +143,25 @@ export default function Page() {
     setPassword("");
     if (error) return setAuthError(friendlyAuthError(error.message));
     if (mode === "up" && !data.session) setConfirmSent(true);
+  };
+  const openPicker = async () => {
+    setPickNote(null); setMenu("keepsakes");
+    if (stubPicker) return setOwned(STUB_OWNED);
+    const { data, error } = await supabase().from("owned_cosmetics").select("cosmetic");
+    setOwned(error ? [] : ownedFromRows(data));
+  };
+  // The only write the picker makes: set_worn_cosmetic. The Print changes only when the server confirms; on failure it stays as it was.
+  const pick = async (choice: string | null) => {
+    if (picking) return;
+    setPickNote(null);
+    if (stubPicker) return setStubWorn(choice); // preview: no server call
+    if (!creature) return;
+    setPicking(true);
+    const out = await runPick((a) => supabase().rpc("set_worn_cosmetic", a), creature.id, choice);
+    setPicking(false);
+    const s = settlePick(out, creature.worn_cosmetic);
+    setPickNote(s.note);
+    if (out.ok) setCreatures((cs) => cs.map((c) => (c.id === creature.id ? { ...c, worn_cosmetic: s.worn } : c)));
   };
   const signOut = () => supabase().auth.signOut();
 
@@ -309,7 +336,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={creature?.worn_cosmetic ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -375,9 +402,11 @@ export default function Page() {
             <InkDrop value={creature.fullness} label="Fed" />
             <InkDrop value={creature.mood} label="Happy" />
           </div>
+          <button className="btn quiet" onClick={openPicker}>Keepsakes</button>
         </div>
       )}
 
+      {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
           <h3>{pageAt(boardPage).title}</h3>
