@@ -1,4 +1,4 @@
-// The Binder as three.js objects (slice N1): a patient bookbinder-moth built from simple shapes, and her picture
+// The neighbours as three.js objects (slices N1, N2): each look is built from simple shapes, plus a picture
 // bubble. No assets. All rules and timings live in lib/npcs.ts.
 import * as THREE from "three";
 import { ICON_PATHS, bubbleLook, lerpAngle, ease, sway, type IconName, type Npc } from "@/lib/npcs";
@@ -27,7 +27,7 @@ function drawBubble(canvas: HTMLCanvasElement, icons: IconName[]): void {
   });
 }
 
-export type BinderScene = {
+export type NpcScene = {
   group: THREE.Group;
   /** Update each frame. `turn` 0..1 toward the player, `bubble` 0..1, `facePlayer` is the yaw to face. */
   update(a: { t: number; turn: number; bubble: number; faceYaw: number; restYaw: number; reduced: boolean; icons: IconName[] }): void;
@@ -36,7 +36,7 @@ export type BinderScene = {
   dispose(): void;
 };
 
-export function buildBinder(npc: Npc): BinderScene {
+export function buildNpc(npc: Npc): NpcScene {
   const group = new THREE.Group();
   const body = new THREE.Group();
   group.add(body);
@@ -46,19 +46,38 @@ export function buildBinder(npc: Npc): BinderScene {
   const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1): THREE.Mesh => {
     const o = new THREE.Mesh(keep(geo), m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); body.add(o); return o;
   };
-  add(new THREE.SphereGeometry(0.5, 20, 14), cream, 0, 0.72, 0, 1, 1.35, 0.95);           // body
-  add(new THREE.SphereGeometry(0.46, 20, 14), apron, 0, 0.55, 0.12, 0.95, 0.9, 0.9);      // apron
-  add(new THREE.SphereGeometry(0.34, 18, 14), fur, 0, 1.52, 0.04);                        // head
-  for (const k of [-1, 1]) {
-    add(new THREE.SphereGeometry(0.05, 8, 8), dark, k * 0.13, 1.56, 0.34);                // eyes
-    const a = add(new THREE.CylinderGeometry(0.015, 0.015, 0.5, 5), dark, k * 0.14, 1.9, 0.02); // antennae
-    a.rotation.z = -k * 0.35;
-    const w = add(new THREE.CircleGeometry(0.62, 18), wing, k * 0.34, 0.95, -0.42, 1, 1.25, 1); // folded wings
-    w.rotation.y = -k * 0.45;
-    w.rotation.z = k * 0.12;
+  if (npc.look === "owl") { // the Proof-reader: a round nearsighted owl with big spectacles and a quill
+    const brown = keep(mat("#a58a64")), belly = keep(mat("#eadfc4")), gold = keep(mat("#e3a83b")), ink = keep(mat("#3b4a8c"));
+    add(new THREE.SphereGeometry(0.52, 20, 14), brown, 0, 0.62, 0, 1, 1.15, 0.95);              // body
+    add(new THREE.SphereGeometry(0.38, 18, 14), belly, 0, 0.55, 0.22, 0.9, 1.05, 0.7);          // belly
+    add(new THREE.SphereGeometry(0.42, 20, 14), brown, 0, 1.4, 0.02, 1.1, 0.95, 1);             // head
+    for (const k of [-1, 1]) {
+      const lens = add(new THREE.TorusGeometry(0.15, 0.025, 8, 20), dark, k * 0.17, 1.44, 0.4);  // spectacles
+      lens.rotation.y = 0;
+      add(new THREE.SphereGeometry(0.06, 8, 8), dark, k * 0.17, 1.44, 0.4);                      // eyes
+      const ear = add(new THREE.ConeGeometry(0.1, 0.26, 6), brown, k * 0.28, 1.84, 0); ear.rotation.z = -k * 0.3; // ear tufts
+      const wg = add(new THREE.CircleGeometry(0.42, 16), brown, k * 0.5, 0.62, -0.05, 0.7, 1.25, 1); wg.rotation.y = k * 1.2; // wings
+    }
+    add(new THREE.ConeGeometry(0.07, 0.14, 6), gold, 0, 1.33, 0.46).rotation.x = Math.PI / 2;     // beak
+    add(new THREE.BoxGeometry(0.1, 0.02, 0.1), dark, 0, 1.43, 0.42);                              // bridge
+    const q = add(new THREE.CylinderGeometry(0.015, 0.015, 0.8, 5), belly, 0.5, 1.0, 0.25); q.rotation.z = -0.5; // the quill
+    add(new THREE.SphereGeometry(0.03, 6, 6), ink, 0.72, 1.36, 0.25);
+  } else {
+    add(new THREE.SphereGeometry(0.5, 20, 14), cream, 0, 0.72, 0, 1, 1.35, 0.95);           // body
+    add(new THREE.SphereGeometry(0.46, 20, 14), apron, 0, 0.55, 0.12, 0.95, 0.9, 0.9);      // apron
+    add(new THREE.SphereGeometry(0.34, 18, 14), fur, 0, 1.52, 0.04);                        // head
+    for (const k of [-1, 1]) {
+      add(new THREE.SphereGeometry(0.05, 8, 8), dark, k * 0.13, 1.56, 0.34);                // eyes
+      const a = add(new THREE.CylinderGeometry(0.015, 0.015, 0.5, 5), dark, k * 0.14, 1.9, 0.02); // antennae
+      a.rotation.z = -k * 0.35;
+      const w = add(new THREE.CircleGeometry(0.62, 18), wing, k * 0.34, 0.95, -0.42, 1, 1.25, 1); // folded wings
+      w.rotation.y = -k * 0.45;
+      w.rotation.z = k * 0.12;
+    }
+    add(new THREE.BoxGeometry(0.34, 0.26, 0.1), dark, 0.38, 0.8, 0.36).rotation.z = -0.3;  // the book she holds
+    add(new THREE.BoxGeometry(0.3, 0.22, 0.04), keep(mat("#fffaf0")), 0.38, 0.8, 0.42).rotation.z = -0.3;
+
   }
-  add(new THREE.BoxGeometry(0.34, 0.26, 0.1), dark, 0.38, 0.8, 0.36).rotation.z = -0.3;  // the book she holds
-  add(new THREE.BoxGeometry(0.3, 0.22, 0.04), keep(mat("#fffaf0")), 0.38, 0.8, 0.42).rotation.z = -0.3;
 
   // The bubble: a sprite, redrawn only when its icons change.
   const canvas = document.createElement("canvas");

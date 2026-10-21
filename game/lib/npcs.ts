@@ -2,7 +2,7 @@
 // timings and the hint cycle. No three.js, clock or server here. Lines live in data/npcs.json.
 // Missing or malformed data skips the neighbour; it never throws.
 import npcData from "@/data/npcs.json";
-import { gateFrame } from "@/lib/margins";
+import { MARGINS, gateFrame } from "@/lib/margins";
 import type { Vec } from "@/lib/world";
 
 // Icons are drawn from these paths (24 x 24, stroked) both in the page (SVG) and in the world (canvas).
@@ -21,10 +21,14 @@ export const ICON_NAMES = Object.keys(ICON_PATHS) as IconName[];
 export const MAX_LINE = 90;
 export const MAX_ICONS = 3;
 
+export const LOOKS = ["moth", "owl"] as const;
+export type Look = (typeof LOOKS)[number];
+// Two ways to place a neighbour: beside the Margins gate, or at a fixed point in the Margins (with a rest facing).
+export type Spot = { from: "gate"; out: number; side: number } | { at: [number, number]; face: number };
 export type Hint = { text: string; icons: IconName[] };
 export type Npc = {
-  id: string; name: string; area: "margins"; prompt: string; radius: number;
-  spot: { out: number; side: number };
+  id: string; name: string; look: Look; area: "margins"; prompt: string; radius: number;
+  spot: Spot;
   noticeEnter: number; noticeLeave: number; talkEnter: number; talkLeave: number;
   timeIcons: { from: number; to: number; icon: IconName }[]; otherwise: IconName; extra: IconName[];
   hints: Hint[];
@@ -42,7 +46,14 @@ export function checkNpc(raw: unknown): Npc | null {
     const r = raw as Record<string, any>;
     if (!r || typeof r !== "object") return null;
     if (typeof r.id !== "string" || !r.id || typeof r.name !== "string" || typeof r.prompt !== "string" || !r.prompt) return null;
-    if (r.area !== "margins" || !r.spot || r.spot.from !== "gate" || !isNum(r.spot.out) || !isNum(r.spot.side)) return null;
+    if (r.area !== "margins" || !r.spot || typeof r.spot !== "object" || !LOOKS.includes(r.look)) return null;
+    let spot: Spot;
+    if (r.spot.from === "gate") { if (!isNum(r.spot.out) || !isNum(r.spot.side)) return null; spot = { from: "gate", out: r.spot.out, side: r.spot.side }; }
+    else if (Array.isArray(r.spot.at)) {
+      const [x, z] = r.spot.at;
+      if (r.spot.at.length !== 2 || !isNum(x) || !isNum(z) || !isNum(r.spot.face) || Math.abs(x) > MARGINS.size / 2 - 2 || Math.abs(z) > MARGINS.size / 2 - 2) return null;
+      spot = { at: [x, z], face: r.spot.face };
+    } else return null;
     for (const k of ["radius", "noticeEnter", "noticeLeave", "talkEnter", "talkLeave"]) if (!isNum(r[k]) || r[k] <= 0) return null;
     if (r.noticeLeave <= r.noticeEnter || r.talkLeave <= r.talkEnter || r.talkEnter > r.noticeEnter) return null; // slack must be real
     const g = r.greeting;
@@ -61,7 +72,7 @@ export function checkNpc(raw: unknown): Npc | null {
       if (!icons || typeof h.text !== "string" || !h.text.trim() || h.text.length > MAX_LINE) return null;
       hints.push({ text: h.text, icons });
     }
-    return { id: r.id, name: r.name, area: "margins", prompt: r.prompt, radius: r.radius, spot: { out: r.spot.out, side: r.spot.side },
+    return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot,
       noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints };
   } catch { return null; }
 }
@@ -81,6 +92,7 @@ export const npcById = (id: string, list: Npc[] = NPCS): Npc | null => list.find
 
 // Where she stands (local to the Margins): beside the walkway, a little way out from the Margins gate.
 export function npcSpot(n: Npc): Vec & { face: number } {
+  if ("at" in n.spot) return { x: n.spot.at[0], z: n.spot.at[1], face: n.spot.face };
   const { g, d } = gateFrame("home"), out = { x: -d.x, z: -d.z }, side = { x: -out.z, z: out.x };
   const x = g.x + out.x * n.spot.out + side.x * n.spot.side, z = g.z + out.z * n.spot.out + side.z * n.spot.side;
   const walk = { x: g.x + out.x * n.spot.out, z: g.z + out.z * n.spot.out }; // she rests facing the walkway
