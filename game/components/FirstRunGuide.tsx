@@ -3,7 +3,7 @@
 // Never takes focus or blocks input. Progress is kept in local storage only (see lib/guide.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
-import { GUIDE_TEXT, afterEggClaimed, browserStore, currentHint, eggBearing, hasMoved, hintText, markDone, pointerOn, readDone, writeDone, type Step } from "@/lib/guide";
+import { GUIDE_TEXT, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, hasMoved, hintText, markDone, pointerOn, readDone, writeDone, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -26,6 +26,7 @@ export default function FirstRunGuide(p: GuideProps) {
   const store = useRef<ReturnType<typeof browserStore>>(null);
   const start = useRef<{ x: number; z: number } | null>(null);
   const fed0 = useRef(p.fedTick);
+  const shown = useRef<Step | null>(null); // the hint on screen in the previous render
   const egg = useMemo(() => GARDEN.places.find((x) => x.kind === "egg")!, []);
 
   const finish = (steps: Step[]) => setDone((d) => { const n = steps.reduce(markDone, d); if (n.length !== d.length) writeDone(store.current, n); return n; });
@@ -33,7 +34,7 @@ export default function FirstRunGuide(p: GuideProps) {
   useEffect(() => { store.current = browserStore(); setDone(readDone(store.current)); setRead(true); }, []);
   useEffect(() => { if (read && p.loaded && p.existing) finish(["move", "egg", "feed"]); }, [read, p.loaded, p.existing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (read && p.loaded && p.eggClaimed) setDone((d) => { const n = afterEggClaimed(d); if (n.length !== d.length) writeDone(store.current, n); return n; }); }, [read, p.loaded, p.eggClaimed]);
-  useEffect(() => { if (p.fedTick !== fed0.current) finish(["feed"]); }, [p.fedTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (feedFinishes(shown.current, fed0.current, p.fedTick)) finish(["feed"]); fed0.current = p.fedTick; }, [p.fedTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ready = read && p.loaded && !p.existing && p.clear && !!p.pose;
   useEffect(() => { // walking finishes the first step
@@ -44,6 +45,7 @@ export default function FirstRunGuide(p: GuideProps) {
 
   const ctx = { ready, inGarden: !!p.pose, nearEgg: p.nearEgg, eggPending: !p.eggClaimed, printNear: p.printNear, hasSnack: p.hasSnack, hasCreature: p.hasCreature, dismissed };
   const hint = currentHint(done, ctx);
+  useEffect(() => { shown.current = hint; }); // after the feed effect, so that one sees the hint from before the feed
   const pointer = pointerOn(done, ctx);
   const glow = read && p.loaded && !p.existing && !p.eggClaimed && !done.includes("egg");
   useEffect(() => { p.onGlow(glow); }, [glow]); // eslint-disable-line react-hooks/exhaustive-deps

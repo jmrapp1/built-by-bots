@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_KEY, GUIDE_TEXT, STEPS, afterEggClaimed, currentHint, eggBearing, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Store } from "@/lib/guide";
+import { GUIDE_KEY, GUIDE_TEXT, STEPS, afterEggClaimed, currentHint, eggBearing, feedFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Store } from "@/lib/guide";
 
 const mem = (): Store & { data: Record<string, string> } => {
   const data: Record<string, string> = {};
@@ -81,6 +81,24 @@ describe("which hint shows", () => {
   it("collecting the egg finishes the first two steps", () => {
     expect(afterEggClaimed([])).toEqual(["move", "egg"]);
     expect(afterEggClaimed(["feed"])).toEqual(["feed", "move", "egg"]);
+  });
+});
+
+describe("feed step", () => {
+  it("finishes on the first successful feed while the feed hint is showing", () => expect(feedFinishes("feed", 0, 1)).toBe(true));
+  it("ignores a feed made before the hint showed, or while another hint shows", () => {
+    expect(feedFinishes(null, 0, 1)).toBe(false);
+    expect(feedFinishes("move", 0, 1)).toBe(false);
+    expect(feedFinishes("egg", 0, 1)).toBe(false);
+  });
+  it("ignores a hint that was skipped (nothing shows) and an unchanged tick", () => {
+    expect(feedFinishes(null, 2, 3)).toBe(false);
+    expect(feedFinishes("feed", 3, 3)).toBe(false);
+  });
+  it("is done for good after the first feed: the hint never returns", () => {
+    const c = { ready: true, inGarden: true, nearEgg: false, eggPending: false, printNear: true, hasSnack: true, hasCreature: true, dismissed: [] };
+    expect(currentHint(["move", "egg"], c)).toBe("feed");
+    expect(currentHint(["move", "egg", "feed"], c)).toBeNull();
   });
 });
 

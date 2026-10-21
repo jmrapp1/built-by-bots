@@ -92,6 +92,10 @@ export function currentHint(done: readonly Step[], c: Ctx): Step | null {
 export const pointerOn = (done: readonly Step[], c: Pick<Ctx, "ready" | "inGarden" | "nearEgg" | "eggPending">): boolean =>
   c.ready && c.inGarden && c.eggPending && !c.nearEgg && !done.includes("egg");
 
+// A successful feed finishes the feed step only if the feed hint was the one on show when it landed.
+// A feed done before the hint ever appeared, or after it was skipped, leaves the step alone.
+export const feedFinishes = (shown: Step | null, prevTick: number, tick: number): boolean => shown === "feed" && tick > prevTick;
+
 export const hintText = (s: Step): string => {
   const k = guideKeys();
   return s === "move" ? GUIDE_TEXT.move(k.walk, k.act) : s === "egg" ? GUIDE_TEXT.egg(k.act) : GUIDE_TEXT.feed(k.act);
