@@ -90,7 +90,7 @@ describe("the zone", () => {
   it("the real wiring builds the room on enter and frees it on leave, and frees the garden door with the garden", () => {
     const w = src("../components/World.tsx");
     expect(w).toMatch(/\{ id: "home", enter: enterHomeZone, leave: leaveHomeZone \}/);
-    expect(w).toMatch(/const leaveHomeZone = \(\) => \{ room\?\.dispose\(\); room = null; \};/);
+    expect(w).toMatch(/const leaveHomeZone = \(\) => \{ decor\?\.dispose\(\); decor = null; decorShown = null; room\?\.dispose\(\); room = null; \};/);
     expect(w.match(/buildHomeScene\(/g)).toHaveLength(1); expect(w.match(/buildGardenDoor\(/g)).toHaveLength(1);
     const scene = src("../components/homeScene.ts");
     expect(scene).toMatch(/for \(const d of own\) d\.dispose\(\)/); expect(scene).toMatch(/group\.removeFromParent\(\)/);
