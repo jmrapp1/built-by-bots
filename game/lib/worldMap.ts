@@ -68,15 +68,22 @@ export function chunkContents(ix: number, iz: number, seed: number = WORLD.seed)
   const rnd = mulberry32(hash(ix, iz, seed));
   const w = x1 - x0, d = z1 - z0, area = w * d, dens = WORLD.density[region];
   const count = (p: number) => { const e = area * p; return Math.floor(e) + (rnd() < e - Math.floor(e) ? 1 : 0); };
-  const put = (list: Item[], n: number, sMin: number, sMax: number) => {
+  // P2: scenery density eases across the Glyph Quarter edge (z glyphZ) instead of stepping at the chunk edge. Chunks beside that edge draw at the busier density and thin each item by the eased local density.
+  const GB = 16, north0 = z1 === WORLD.glyphZ, near = north0 || z0 === WORLD.glyphZ;
+  const farD = near ? WORLD.density[regionAt(north0 ? WORLD.glyphZ : WORLD.glyphZ - 1, (x0 + x1) / 2)] : dens; // the density on the other side of the edge
+  const north = north0 ? dens : farD, south = north0 ? farD : dens;
+  const keepAt = (z: number, k: "tree" | "rock" | "bush") => { const t = Math.min(1, Math.max(0, (z - WORLD.glyphZ + GB) / (GB * 2))), u = t * t * (3 - 2 * t), here = north[k] + (south[k] - north[k]) * u; return here / Math.max(north[k], south[k]); };
+  const put = (list: Item[], n: number, sMin: number, sMax: number, k: "tree" | "rock" | "bush") => {
     for (let i = 0; i < n; i++) {
       const x = x0 + rnd() * w, z = z0 + rnd() * d, s = sMin + rnd() * (sMax - sMin), r = rnd() * Math.PI * 2;
+      if (near && rnd() > keepAt(z, k)) continue;
       if (!blocked(x, z)) list.push({ x, z, s, r });
     }
   };
-  put(out.trees, count(dens.tree), region === "inkwood" ? 1.0 : 0.8, region === "inkwood" ? 1.9 : 1.4);
-  put(out.rocks, count(dens.rock), 0.6, 1.6);
-  put(out.bushes, count(dens.bush), 0.7, 1.3);
+  const top = (k: "tree" | "rock" | "bush") => (near ? Math.max(north[k], south[k]) : dens[k]);
+  put(out.trees, count(top("tree")), region === "inkwood" ? 1.0 : 0.8, region === "inkwood" ? 1.9 : 1.4, "tree");
+  put(out.rocks, count(top("rock")), 0.6, 1.6, "rock");
+  put(out.bushes, count(top("bush")), 0.7, 1.3, "bush");
   out.landmarks = LANDMARKS.filter((l) => l.x >= x0 && l.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && l.z >= z0 && l.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
   out.posts = map.signposts.filter((p) => p.x >= x0 && p.x < x1 && p.z >= z0 && p.z < z1).map((p) => ({ x: p.x, z: p.z, r: POST_R }));
   return out;

@@ -101,7 +101,7 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
       const put = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, 1.6 + y, 0.06); o.rotation.z = rz; g.add(o); return o; };
       if (sp.icon === "leaf") { put(leaf, green, 0, 0, 0.5); put(stem, inkM, 0.02, -0.04, 0.5); }
       else if (sp.icon === "book") { put(page, inkM, -0.15, 0, 0.12); put(page, gold, 0.15, 0, -0.12); }
-      else if (sp.icon === "kite") { put(kiteG, L.kite, 0, 0.05, Math.PI / 4); put(stem, inkM, 0, -0.27, 0); put(kiteTail, L.kite, 0.06, -0.24, 0.5); put(kiteTail, L.kite, -0.05, -0.32, -0.5); }
+      else if (sp.icon === "kite") { put(kiteG, L.kite, 0, 0.05, Math.PI / 4); put(stem, inkM, 0, -0.27, 0); put(kiteTail, L.kite, 0.06, -0.24, 0.5); put(kiteTail, L.kite, -0.05, -0.32, -0.5); for (const o of g.children.slice(-4)) { const back = o.clone(); back.position.set(-o.position.x, o.position.y, -o.position.z); back.rotation.set(0, Math.PI, o.rotation.z); g.add(back); } } // P2: the kite also shows on the back of the board, tail and all
       else put(moon, gold, 0, 0, 2.2);
       group.add(g); return g;
     };
