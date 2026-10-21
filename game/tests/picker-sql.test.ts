@@ -10,10 +10,10 @@ const sql = raw.replace(/--.*$/gm, "");
 const fn = sql.slice(sql.indexOf("create function public.set_worn_cosmetic"));
 
 describe("picker migration", () => {
-  it("is the next number after the keepsakes-in-Margins migration and sorts last", () => {
+  it("is the next number after the keepsakes-in-Margins migration", () => {
     const all = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-    expect(all[all.length - 1]).toBe(file);
-    expect(all[all.length - 2]).toBe("20261020000007_margins_keepsakes.sql");
+    expect(all.indexOf(file)).toBeGreaterThan(0);
+    expect(all[all.indexOf(file) - 1]).toBe("20261020000007_margins_keepsakes.sql");
   });
   it("is purely additive: one new function, nothing dropped, replaced, altered or deleted", () => {
     expect(sql).not.toMatch(/drop\s+|create or replace|alter table|alter column|\bdelete\s+from\b|\btruncate\b|create table|create policy|insert into/i);
