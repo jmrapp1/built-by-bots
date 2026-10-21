@@ -2,6 +2,8 @@
 import { createZoneController } from "@/lib/zones";
 import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, npcSpotUsable, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
 import { buildNpc, type NpcScene } from "@/components/npcScene";
+import { buildSights, type SightScene } from "@/components/sightScene";
+import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
@@ -338,6 +340,21 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       }
       rebuildNpcCols();
     };
+    // T1: tonight's sights in the Margins (looks only). Trouble building them skips them; the world loads.
+    let sights: SightScene | null = null, sightLvl = 0;
+    const buildSightsIn = () => {
+      try {
+        sights = null;
+        if (!SIGHTS || !mLayout || !mg) return;
+        const L = mLayout, sp = mSpots.map((q) => ({ x: q.x, z: q.z })), np = live_npcs.map((n) => ({ x: n.at.x, z: n.at.z }));
+        for (const n of NPCS) for (const s of n.spots ?? []) np.push({ x: s.at[0], z: s.at[1] });
+        const tonight = sightsForDay(mDay, L, sp, np, SIGHTS);
+        sightLvl = sightLevel(hourNow, SIGHTS.window); // already the right level on arrival; only a moving clock fades
+        sights = buildSights(tonight, (x, z) => heightAt(x, z, L.hills));
+        mg.group.add(sights.group);
+      } catch { sights = null; }
+    };
+    const dropSights = () => { try { sights?.dispose(); } catch { /* nothing */ } sights = null; };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
     const wipe = document.createElement("div");
@@ -354,6 +371,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       openedByDay.set(mDay, opened);
       mg.setSpots(mSpots, opened);
       buildNpcsIn();
+      buildSightsIn();
       mActive = null; uHold = 0; uSpot = null; uPending = false; quietUntilNext = false;
       const myVisit = ++visit;
       serverReady = local; readFailed = false; downNoted = false;
@@ -376,6 +394,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     };
     const leaveMarginsZone = () => {
       dropNpcs();
+      dropSights();
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
@@ -1250,6 +1269,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           }
           if (live.current.npcClose !== npcClosed) { npcClosed = live.current.npcClose; for (const n of live_npcs) closeNpcTalk(n); }
           if (best && !mActive && !uSpot && !inGateZone(l, "home")) mNear = { id: `npc-${best.n.npc.id}`, kind: "npc", x: best.n.at.x + OFF, z: best.n.at.z, label: best.n.npc.prompt, prompt: best.n.npc.prompt };
+        }
+        if (sights) { // T1: the fade follows the hour (a plain short fade with reduced motion); the first time you come near one, its caption
+          try {
+            sightLvl = levelStep(sightLvl, sightLevel(hourNow, SIGHTS!.window), dt, reducedMotion);
+            const cap = sights.update({ t: t / 1000, dt, player: l, level: sightLvl, reduced: reducedMotion });
+            if (cap) cb.current.onMarginsNote?.(cap);
+          } catch { dropSights(); }
         }
         mg.update({ t: t / 1000, dt, player: l, hour: hourNow, reduced: reducedMotion, all: mo.all, opened, active: mActive ? { id: mActive.id, since: (t - mActive.since) / 1000 } : null, target: l, trail });
         if (uHold > 0 && uSpot) {

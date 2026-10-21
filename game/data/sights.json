@@ -1,0 +1,90 @@
+{
+  "note": "Night sights in the Margins (slice T1). Sights, not prizes: nothing is given, saved or sent. Edit points and captions here, no code change.",
+  "window": {
+    "inFrom": 18.5,
+    "inTo": 20.5,
+    "outFrom": 5.5,
+    "outTo": 7.5
+  },
+  "perNight": {
+    "min": 5,
+    "max": 7
+  },
+  "clear": {
+    "scenery": 1.6,
+    "pages": 1.5,
+    "npc": 3,
+    "gatePath": 3.5
+  },
+  "notice": {
+    "near": 3,
+    "far": 4.5
+  },
+  "captions": {
+    "moth": "A moth rests on the page.",
+    "ink": "The ink glows like a small lantern.",
+    "glint": "A ring of light, fading in the grass."
+  },
+  "points": [
+    {
+      "x": -40,
+      "z": 13,
+      "kind": "moth"
+    },
+    {
+      "x": -8,
+      "z": 40,
+      "kind": "ink"
+    },
+    {
+      "x": -10,
+      "z": -1,
+      "kind": "glint"
+    },
+    {
+      "x": -39,
+      "z": 40,
+      "kind": "moth"
+    },
+    {
+      "x": 40,
+      "z": 17,
+      "kind": "ink"
+    },
+    {
+      "x": 22,
+      "z": 40,
+      "kind": "glint"
+    },
+    {
+      "x": 13,
+      "z": 14,
+      "kind": "moth"
+    },
+    {
+      "x": 29,
+      "z": -2,
+      "kind": "ink"
+    },
+    {
+      "x": -40,
+      "z": -40,
+      "kind": "glint"
+    },
+    {
+      "x": 8,
+      "z": -40,
+      "kind": "moth"
+    },
+    {
+      "x": 40,
+      "z": -33,
+      "kind": "ink"
+    },
+    {
+      "x": -16,
+      "z": -28,
+      "kind": "glint"
+    }
+  ]
+}
