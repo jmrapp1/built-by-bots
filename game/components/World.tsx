@@ -78,6 +78,8 @@ type Props = {
   mapOpen?: boolean; // the map page is showing: the loop reports where the player stands
   onHome?: () => void; // the player entered the Home room
   onMapKey?: () => void; // M was pressed
+  onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
+  guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
   onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
   decorPlaced?: Placed | null; // the decorations by plot: from the server, or the ?decor=stub test ones (null = not shown)
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
@@ -228,13 +230,13 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome });
-  cb.current = { onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome };
+  const cb = useRef({ onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose });
+  cb.current = { onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced });
-  live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced };
+  const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
+  live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -242,7 +244,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     if (fedTick !== seenTick.current) { seenTick.current = fedTick; reactAt.current = performance.now(); }
   }, [fedTick]);
   const rebuild = useRef<() => void>(() => {});
-  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species]);
+  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species, guideGlow]);
 
   useEffect(() => {
     const el = mount.current!;
@@ -667,6 +669,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         egg.position.set(at.x, (phase === "in-nest" ? 0.2 : 0.55) + 0.57 * 0.6, at.z);
         egg.scale.multiplyScalar(0.6);
         dynamic.add(egg);
+        if (phase === "unclaimed" && live.current.guideGlow) { // first-run guide: a faint, still halo on the egg spot
+          const halo = new THREE.Mesh(
+            new THREE.SphereGeometry(0.62, 20, 14),
+            new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.16, depthWrite: false }),
+          );
+          halo.position.copy(egg.position);
+          dynamic.add(halo);
+        }
         if (phase === "daily") {
           // A gentle glow so today's egg is easy to spot: a soft golden halo and light, no animation needed.
           const glow = new THREE.Mesh(
@@ -684,6 +694,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     rebuild.current();
 
     const keys = new Set<string>();
+    let guideAt = 0, guideSent = false;
     const talkTo = (n: Live) => {
       if (live.current.locked || travel) return;
       for (const o of live_npcs) if (o !== n) closeNpcTalk(o, false); // never two strips at once
@@ -935,6 +946,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (live.current.walkKey !== null && storageKey(live.current.walkKey) !== walkedKey) { saveWalked(); walkedKey = storageKey(live.current.walkKey); readWalked(); } // signed in as someone else
       if (zones.is("garden") && !travel && reveal(walked, pos.x, pos.z)) walkDirty = true;
       if (walkDirty && t / 1000 - walkSaved > MAP.saveEvery) { walkSaved = t / 1000; saveWalked(); }
+      if (t - guideAt > 120) { // first-run guide: the garden pose, a few times a second (null away from the garden)
+        guideAt = t;
+        const gp = zones.is("garden") && !travel ? { x: pos.x, z: pos.z, yaw } : null;
+        if (gp || guideSent) cb.current.onGuidePose?.(gp);
+        guideSent = !!gp;
+      }
       if (live.current.mapOpen && t - poseAt > 200) { poseAt = t; cb.current.onMapPose?.(walked, zones.is("garden") ? { x: pos.x, z: pos.z, yaw } : null); }
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {

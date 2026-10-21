@@ -123,6 +123,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 
 .tag { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 10px 16px; animation: fade 180ms var(--ease) both; }
 .tag strong { font-weight: 700; }
+.guide-hint { position: absolute; left: 50%; bottom: 168px; transform: translateX(-50%); max-width: min(460px, 90vw); margin: 0; padding: 8px 16px; text-align: center; font-size: 15px; color: var(--ink); background: rgba(251, 248, 239, 0.82); border-radius: 12px; pointer-events: none; animation: fade 900ms var(--ease) both; }
+.guide-arrow { position: absolute; transform: translate(-50%, -50%); color: var(--ink); opacity: 0.45; pointer-events: none; animation: guide-pulse 3.2s ease-in-out infinite; }
+@keyframes guide-pulse { 50% { opacity: 0.2; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .toast { position: absolute; left: 50%; bottom: 104px; transform: translateX(-50%); max-width: min(440px, 90vw); padding: 12px 18px; text-align: center; animation: rise 220ms var(--ease) both; }
 .toast.bad { border-color: var(--berry); }
 
@@ -162,6 +166,7 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
   .card, .toast, .tray { animation-name: fade !important; }
   .card, .tag, .toast, .tray { transform-origin: center; }
+  .guide-hint, .guide-arrow { animation: none !important; }
   .btn:active, .food:hover { transform: none; }
   .bob, .fill, .input[aria-invalid="true"] { animation: none !important; }
 }
