@@ -168,7 +168,7 @@ describe("the client", () => {
   it("keepsake code never touches the network, and adds no rpc or text on screen", () => {
     for (const f of ["../lib/cosmetics.ts", "../lib/cosmeticsBuild.ts"]) expect(src(f)).not.toMatch(/supabase|\.rpc\(|fetch\(|localStorage|Date\.now|performance/);
     const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_worn_cosmetic"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_worn_cosmetic", "world_unfold"]);
     expect(src("../lib/cosmeticsBuild.ts")).not.toMatch(/FontLoader|TextGeometry|CanvasTexture|textures?\//);
   });
   it("the world reads the preview switch through cosmeticOverride", () => {

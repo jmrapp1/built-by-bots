@@ -89,7 +89,7 @@ describe("the shell and the garden wiring", () => {
   const world = src("../components/World.tsx"), shell = src("../components/worldShell.ts");
   it("the World is built by the garden zone and freed when it leaves, through the zone controller", () => {
     expect(world).toMatch(/\{ id: "garden", enter: enterGardenZone, leave: leaveGardenZone \}/);
-    expect(world).toMatch(/const leaveGardenZone = \(\) => \{ shell\?\.dispose\(\); shell = null; gdoor\?\.dispose\(\); gdoor = null; \};/);
+    expect(world).toMatch(/const leaveGardenZone = \(\) => \{ stopSpots\(\); shell\?\.dispose\(\); shell = null; gdoor\?\.dispose\(\); gdoor = null; \};/);
     expect(world.match(/buildWorldShell\(/g)).toHaveLength(1);
   });
   it("chunks stream at most buildsPerFrame at a time, and the first call may build all", () => {

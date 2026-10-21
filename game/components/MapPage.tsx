@@ -1,11 +1,11 @@
 "use client";
 // W4: the hand-inked map page, opened with M. Drawn on a canvas from the walked cells; unwalked parts stay blank paper. No text on it.
 import { useEffect, useRef } from "react";
-import { MAP, cellCentre, pageScale, pathRuns, pin, seenLandmarks, seenSignposts, toPage, type Walked } from "@/lib/map";
+import { MAP, cellCentre, isWalked, pageScale, pathRuns, pin, seenLandmarks, seenSignposts, toPage, type Walked } from "@/lib/map";
 import { CELLS_PX } from "@/lib/mapView";
 import { regionAt } from "@/lib/worldMap";
 
-export default function MapPage({ walked, pose, onClose }: { walked: Walked; pose: { x: number; z: number; yaw: number } | null; onClose: () => void }) {
+export default function MapPage({ walked, pose, opened = [], onClose }: { walked: Walked; opened?: { x: number; z: number }[]; pose: { x: number; z: number; yaw: number } | null; onClose: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current; if (!c) return;
@@ -34,13 +34,15 @@ export default function MapPage({ walked, pose, onClose }: { walked: Walked; pos
       g.stroke();
     }
     for (const s of seenSignposts(walked)) { const q = toPage(s.x, s.z, px); g.beginPath(); g.arc(q.x, q.z, 3.5, 0, Math.PI * 2); g.fill(); }
+    g.strokeStyle = L.ink; g.fillStyle = L.pin; g.lineWidth = 1.5; // W5: a small folded-page mark where a spot was opened today (only where you have been)
+    for (const o of opened) { if (!isWalked(walked, o.x, o.z)) continue; const q = toPage(o.x, o.z, px); g.beginPath(); g.moveTo(q.x - 4, q.z - 3); g.lineTo(q.x + 4, q.z - 3); g.lineTo(q.x + 4, q.z + 3); g.lineTo(q.x - 4, q.z + 3); g.closePath(); g.moveTo(q.x - 4, q.z - 3); g.lineTo(q.x, q.z + 1); g.lineTo(q.x + 4, q.z - 3); g.stroke(); }
     g.strokeStyle = L.ink; g.lineWidth = 3; g.strokeRect(1.5, 1.5, px - 3, px - 3);
     if (pose) { // the pin: a red arrow where you stand, pointing the way you face
       const p = pin(pose.x, pose.z, pose.yaw, px);
       g.save(); g.translate(p.x, p.z); g.rotate(p.angle); g.fillStyle = L.pin; g.strokeStyle = L.ink; g.lineWidth = 2;
       g.beginPath(); g.moveTo(11, 0); g.lineTo(-7, 7); g.lineTo(-3, 0); g.lineTo(-7, -7); g.closePath(); g.fill(); g.stroke(); g.restore();
     }
-  }, [walked, pose]);
+  }, [walked, pose, opened]);
   return (
     <div className="card tray mappage" role="dialog" aria-label="Map">
       <canvas ref={ref} width={CELLS_PX} height={CELLS_PX} aria-hidden="true" />

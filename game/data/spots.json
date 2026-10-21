@@ -1,0 +1,10 @@
+{
+  "note": "W5: daily spots across the World. Counts MUST equal game_spot_regions on the server (meadow 4, inkwood 8) or a drawn spot is refused. Positions are laid out from the day and the region only; what a spot gives is decided by the server.",
+  "counts": { "meadow": 4, "inkwood": 8 },
+  "edge": 8,
+  "minGap": 18,
+  "clear": 1.6,
+  "tries": 400,
+  "reach": 2.2,
+  "mark": { "paper": "#fbf3de", "ink": "#2b2f4a", "glow": "#f0c36a", "pillarHeight": 3.2, "popSeconds": 0.9 }
+}
