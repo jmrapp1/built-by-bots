@@ -13,6 +13,8 @@ import { PLAY, nextFood } from "@/lib/play";
 import MapPage from "@/components/MapPage";
 import { newWalked, type Walked } from "@/lib/map";
 import KeepsakePicker from "@/components/KeepsakePicker";
+import PickerStrip from "@/components/PickerStrip";
+import { decorPreview, decorStrip, withChoice, type Placed } from "@/lib/decor";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
@@ -84,7 +86,11 @@ export default function Page() {
   const shownSpecies = previewSpecies ?? creature?.species ?? "blotling";
   const shownGenes = creature ? (previewSpecies ? { ...creature.genes, hue: clampHue(creature.genes.hue, speciesById(previewSpecies)) } : creature.genes) : null;
   const [boardPage, setBoardPage] = useState(0);
-  const [menu, setMenu] = useState<null | "board" | "keepsakes">(null);
+  const [menu, setMenu] = useState<null | "board" | "keepsakes" | "decor">(null);
+  // ?decor=stub (dev only): test decorations on the Home plots, in memory only. Nothing is saved or sent.
+  const stubDecor = typeof window === "undefined" ? false : decorPreview(window.location.search, process.env.NODE_ENV === "production");
+  const [placed, setPlaced] = useState<Placed>({});
+  const [decorPlot, setDecorPlot] = useState<string | null>(null);
   const mp = useMapState();
   // The keepsake picker. Owned keepsakes are read only when it opens; a failed read just lists none. ?picker=stub (dev only) uses a stub and never calls the server.
   const stubPicker = typeof window === "undefined" ? false : pickerPreview(window.location.search, process.env.NODE_ENV === "production");
@@ -311,6 +317,7 @@ export default function Page() {
       else if (creature) setMsg("Your Print has hatched.");
       else setMsg("Collect your egg at the egg spot first.");
     }
+    else if (p.kind === "decor") { if (stubDecor) { setDecorPlot(p.id); setMenu("decor"); } }
     else if (p.kind === "notice") { setBoardPage(0); setMenu("board"); }
     else setMsg(p.label);
   };
@@ -370,7 +377,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : null} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -443,6 +450,9 @@ export default function Page() {
 
       {mp.open && <MapPage walked={mp.walked} pose={mp.pose} opened={mp.spotPts} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
+      {menu === "decor" && stubDecor && decorPlot && (
+        <PickerStrip {...decorStrip(decorPlot, placed)} busy={false} note={null} onPick={(id) => { setPlaced((o) => withChoice(decorPlot, o, id)); setMenu(null); }} onClose={() => setMenu(null)} />
+      )}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
           <h3>{pageAt(boardPage).title}</h3>

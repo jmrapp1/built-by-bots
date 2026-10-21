@@ -30,9 +30,6 @@ export const plotOf = (id: string): Plot | undefined => plotById.get(id);
 // ?decor=stub (dev only): plots, prompt and strip in the Home room, all in memory. Ignored in production.
 export const decorPreview = (search: string, isProduction: boolean): boolean => !isProduction && new URLSearchParams(search).get("decor") === "stub";
 
-/** Test decorations: all of them are "owned" in the stub. */
-export const STUB_STARTERS: Placed = Object.fromEntries(PLOTS.map((p) => [p.id, p.starter]));
-
 // ---- plots: where they are and which way they face
 const FACE_YAW: Record<string, number> = { south: 0, east: Math.PI / 2, west: -Math.PI / 2, north: Math.PI };
 export type PlotPose = { id: string; kind: PlotKind; x: number; z: number; yaw: number; reachX: number; reachZ: number };
