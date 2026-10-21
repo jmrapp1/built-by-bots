@@ -11,7 +11,7 @@ const binder = NPCS[0];
 
 describe("the data file", () => {
   it("has the Binder with 6 to 10 short lines and allowed icons", () => {
-    expect(NPCS.map((n) => n.id)).toEqual(["binder"]);
+    expect(NPCS.map((n) => n.id)).toContain("binder");
     expect(binder.hints.length).toBeGreaterThanOrEqual(6);
     expect(binder.hints.length).toBeLessThanOrEqual(10);
     for (const h of binder.hints) {
@@ -140,4 +140,60 @@ describe("talking", () => {
     expect(talkStillNear(s, binder.talkLeave + 0.1, binder).open).toBe(false);
   });
   it("does nothing with no hints", () => { expect(talk(TALK0, 0)).toBe(TALK0); });
+});
+
+describe("N2: a list of neighbours", () => {
+  const owl = NPCS.find((n) => n.id === "proofreader")!;
+  const layout2 = generateLayout();
+  it("has both, with distinct names, looks and greeting icons", () => {
+    expect(NPCS.map((n) => n.id)).toEqual(["binder", "proofreader"]);
+    expect(owl.look).not.toBe(binder.look);
+    expect(greetingIcons(owl, 12)[0]).toBe("book");
+    expect(greetingIcons(owl, 23)[0]).toBe("moon");
+    expect(greetingIcons(owl, 12)).toContain("question");
+    expect(owl.hints.length).toBeGreaterThanOrEqual(6);
+    for (const h of owl.hints) { expect(h.text.length).toBeLessThanOrEqual(MAX_LINE); expect(h.text).not.toMatch(/reward|errand|trade|gift|prize/i); }
+  });
+  it("the Binder is unchanged (same spot form, same numbers)", () => {
+    expect("from" in binder.spot).toBe(true);
+    expect(binder.noticeEnter).toBe(6); expect(binder.noticeLeave).toBe(7.5); expect(binder.talkEnter).toBe(3); expect(binder.talkLeave).toBe(4.2);
+    expect(binder.hints.length).toBe(8);
+  });
+  it("places the Proof-reader at a fixed point in Glyph Steps, clear of stacks, shelves, trees and the gate", () => {
+    const at = npcSpot(owl);
+    expect(at).toEqual({ x: -36, z: -18.5, face: owl.spot && "face" in owl.spot ? owl.spot.face : NaN });
+    const zone = MARGINS.zones.find((z) => z.id === "glyph-steps")!;
+    expect(at.x).toBeGreaterThan(zone.x0); expect(at.x).toBeLessThan(zone.x1);
+    expect(at.z).toBeGreaterThan(zone.z0); expect(at.z).toBeLessThan(zone.z1);
+    expect(insideAny(at, owl.radius + 1.2, layout2.cols)).toBe(false);
+    expect(insideAny(at, owl.radius + 0.4, { circles: gatePosts("home"), boxes: [] })).toBe(false);
+    expect(Math.hypot(at.x - npcSpot(binder).x, at.z - npcSpot(binder).z)).toBeGreaterThan(20);
+  });
+  it("is beside a shelf (within 3 m of one), off any walkway slot", () => {
+    const at = npcSpot(owl);
+    const d = Math.min(...layout2.shelves.map((b) => Math.hypot(Math.max(0, Math.abs(at.x - b.x) - b.w / 2), Math.max(0, Math.abs(at.z - b.z) - b.d / 2))));
+    expect(d).toBeLessThan(3);
+    expect(d).toBeGreaterThan(owl.radius + 0.5);
+  });
+  it("accepts the absolute spot form and rejects bad ones", () => {
+    const v = (f: (n: any) => void) => { const n = JSON.parse(JSON.stringify(raw.npcs[1])); f(n); return checkNpc(n); };
+    expect(v(() => {})).not.toBeNull();
+    expect(v((n) => { n.spot = { at: [1], face: 0 }; })).toBeNull();
+    expect(v((n) => { n.spot = { at: [1, "z"], face: 0 }; })).toBeNull();
+    expect(v((n) => { n.spot = { at: [500, 0], face: 0 }; })).toBeNull();
+    expect(v((n) => { n.spot = { at: [1, 1] }; })).toBeNull();
+    expect(v((n) => { n.spot = { foo: 1 }; })).toBeNull();
+    expect(v((n) => { n.look = "dragon"; })).toBeNull();
+  });
+  it("one broken entry skips only that neighbour", () => {
+    const bad = JSON.parse(JSON.stringify(raw.npcs[1])); bad.hints = [];
+    expect(checkNpcs({ npcs: [raw.npcs[0], bad] }).map((n) => n.id)).toEqual(["binder"]);
+    expect(checkNpcs({ npcs: [bad, raw.npcs[0], null] }).map((n) => n.id)).toEqual(["binder"]);
+  });
+  it("each keeps its own hint place", () => {
+    let a = TALK0, b = TALK0;
+    a = talk(a, binder.hints.length); a = talk(a, binder.hints.length);
+    b = talk(b, owl.hints.length);
+    expect(a.shown).toBe(1); expect(b.shown).toBe(0);
+  });
 });

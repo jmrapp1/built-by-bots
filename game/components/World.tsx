@@ -1,7 +1,7 @@
 "use client";
 import { createZoneController } from "@/lib/zones";
-import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcById, npcSpot, talk, talkStillNear, withinSlack, type Notice, type Talk } from "@/lib/npcs";
-import { buildBinder, type BinderScene } from "@/components/npcScene";
+import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
+import { buildNpc, type NpcScene } from "@/components/npcScene";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
@@ -319,22 +319,25 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       reportKey = k;
       cb.current.onMargins?.({ inside: zones.is("margins"), left: spotsLeft(mSpots, opened), total: mSpots.length, scraps });
     };
-    // N1: the Binder at the Margins gate. Any trouble with her data or her shapes skips her; the world carries on.
-    let binder: BinderScene | null = null, binderAt: (Vec & { face: number }) | null = null, binderNote: Notice = NOTICE0, binderTalk: Talk = TALK0, binderClosed = live.current.npcClose, binderT = 0;
-    const closeBinderTalk = () => { if (binderTalk.open) { binderTalk = closeTalk(binderTalk); cb.current.onNpcTalk?.(null); } };
-    const buildBinderIn = () => {
-      binder = null; binderAt = null; binderNote = NOTICE0; binderTalk = TALK0;
-      const npc = npcById("binder");
-      if (!npc) return;
-      try {
-        const b = buildBinder(npc), at = npcSpot(npc);
-        b.group.position.set(at.x, 0, at.z);
-        if (mg) mg.group.add(b.group);
-        binder = b; binderAt = at;
-        if (mLayout) mCols = { circles: [...mLayout.cols.circles, { x: at.x, z: at.z, r: npc.radius }], boxes: mLayout.cols.boxes }; // her own circle, off the walkway
-      } catch { binder = null; binderAt = null; }
+    // N1/N2: the neighbours of the Margins (the Binder, the Proof-reader). Trouble with one neighbour's data or shapes skips only that one.
+    type Live = { npc: Npc; scene: NpcScene; at: Vec & { face: number }; note: Notice; talk: Talk; t: number };
+    let live_npcs: Live[] = [], npcClosed = live.current.npcClose;
+    const closeNpcTalk = (n: Live, tell = true) => { if (n.talk.open) { n.talk = closeTalk(n.talk); if (tell) cb.current.onNpcTalk?.(null); } };
+    const rebuildNpcCols = () => { if (mLayout) mCols = { circles: [...mLayout.cols.circles, ...live_npcs.map((n) => ({ x: n.at.x, z: n.at.z, r: n.npc.radius }))], boxes: mLayout.cols.boxes }; };
+    const buildNpcsIn = () => {
+      live_npcs = [];
+      for (const npc of NPCS) {
+        try {
+          const scene = buildNpc(npc), at = npcSpot(npc);
+          scene.group.position.set(at.x, 0, at.z);
+          if (mg) mg.group.add(scene.group);
+          live_npcs.push({ npc, scene, at, note: NOTICE0, talk: TALK0, t: 0 });
+        } catch { /* skip only this neighbour */ }
+      }
+      rebuildNpcCols();
     };
-    const dropBinder = () => { if (binder) { binder.dispose(); binder = null; } binderAt = null; if (mLayout) mCols = mLayout.cols; closeBinderTalk(); binderNote = NOTICE0; };
+    const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
+    const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
     const wipe = document.createElement("div");
     wipe.className = "page-wipe";
     wipe.style.display = "none";
@@ -348,7 +351,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       opened = openedByDay.get(mDay) ?? new Set<number>();
       openedByDay.set(mDay, opened);
       mg.setSpots(mSpots, opened);
-      buildBinderIn();
+      buildNpcsIn();
       mActive = null; uHold = 0; uSpot = null; uPending = false; quietUntilNext = false;
       const myVisit = ++visit;
       serverReady = local; readFailed = false; downNoted = false;
@@ -370,7 +373,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       report();
     };
     const leaveMarginsZone = () => {
-      dropBinder();
+      dropNpcs();
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
@@ -622,12 +625,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     rebuild.current();
 
     const keys = new Set<string>();
-    const talkToBinder = () => {
-      const npc = npcById("binder");
-      if (!npc || !binder || live.current.locked || travel) return;
-      binderTalk = talk(binderTalk, npc.hints.length);
-      const h = npc.hints[binderTalk.shown];
-      if (h) cb.current.onNpcTalk?.({ name: npc.name, text: h.text, icons: h.icons });
+    const talkTo = (n: Live) => {
+      if (live.current.locked || travel) return;
+      for (const o of live_npcs) if (o !== n) closeNpcTalk(o, false); // never two strips at once
+      n.talk = talk(n.talk, n.npc.hints.length);
+      const h = n.npc.hints[n.talk.shown];
+      if (h) cb.current.onNpcTalk?.({ name: n.npc.name, text: h.text, icons: h.icons });
     };
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
@@ -643,7 +646,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         } else if (zones.is("home")) {
           if (nearby?.kind === "decor" && !live.current.locked) cb.current.onInteract(nearby); // ?decor=stub: open the strip for this plot
         } else if (nearby?.kind === "npc") {
-          talkToBinder();
+          const n = live_npcs.find((o) => `npc-${o.npc.id}` === nearby?.id);
+          if (n) talkTo(n);
         } else if (zones.is("margins")) {
           // unfolding is a hold, handled each frame
         } else if (hideFindable) {
@@ -675,13 +679,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const pu = (e: PointerEvent) => {
       dragging = false;
       const d = downAt; downAt = null;
-      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !binder || !binderAt || !zones.is("margins") || travel) return;
-      const npc = npcById("binder"); // a tap on her, close enough to talk, is the same as pressing E
-      const r = dom.getBoundingClientRect();
-      if (!npc || Math.hypot(pos.x - OFF - binderAt.x, pos.z - binderAt.z) > npc.talkLeave) return;
+      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !live_npcs.length || !zones.is("margins") || travel) return;
+      const r = dom.getBoundingClientRect(); // a tap on one, close enough to talk, is the same as pressing E
       const ray = new THREE.Raycaster();
       ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-      if (ray.intersectObject(binder.hit, true).length) talkToBinder();
+      for (const n of live_npcs) {
+        if (Math.hypot(pos.x - OFF - n.at.x, pos.z - n.at.z) > n.npc.talkLeave) continue;
+        if (ray.intersectObject(n.scene.hit, true).length) { talkTo(n); break; }
+      }
     };
     const pm = (e: PointerEvent) => {
       if (!dragging) return;
@@ -1227,18 +1232,22 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const A = MARGINS.arrows;
         const hereHome = pathLength(trailPath) < A.hideNear;
         const trail = hereHome ? [] : along(trailPath, A.startDist, A.spacing, A.count, reducedMotion ? 0 : ((t / 1000) * A.flowSpeed) % A.spacing);
-        if (binder && binderAt) { // N1: she notices you, turns, blooms her bubble; the hint strip closes when you walk off
-          try {
-            const npc = npcById("binder")!, dist = Math.hypot(l.x - binderAt.x, l.z - binderAt.z);
-            binderNote = noticeStep(binderNote, dist, npc.noticeEnter, npc.noticeLeave, dt, reducedMotion);
-            binderT += dt;
-            binder.update({ t: binderT, turn: binderNote.turn, bubble: binderNote.bubble, faceYaw: Math.atan2(l.x - binderAt.x, l.z - binderAt.z), restYaw: binderAt.face, reduced: reducedMotion, icons: greetingIcons(npc, hourNow) });
-            const was = binderTalk.open;
-            binderTalk = talkStillNear(binderTalk, dist, npc);
-            if (was && !binderTalk.open) cb.current.onNpcTalk?.(null);
-            if (live.current.npcClose !== binderClosed) { binderClosed = live.current.npcClose; closeBinderTalk(); }
-            if (!mActive && !uSpot && !inGateZone(l, "home") && withinSlack(dist, nearby?.kind === "npc", npc.talkEnter, npc.talkLeave)) mNear = { id: "npc-binder", kind: "npc", x: binderAt.x + OFF, z: binderAt.z, label: npc.prompt, prompt: npc.prompt };
-          } catch { dropBinder(); } // broken at runtime: skip her, keep the world
+        if (live_npcs.length) { // N1/N2: each notices you, turns, blooms its bubble; a strip closes when you walk off
+          let best: { n: Live; dist: number } | null = null;
+          for (const n of [...live_npcs]) {
+            try {
+              const dist = Math.hypot(l.x - n.at.x, l.z - n.at.z);
+              n.note = noticeStep(n.note, dist, n.npc.noticeEnter, n.npc.noticeLeave, dt, reducedMotion);
+              n.t += dt;
+              n.scene.update({ t: n.t, turn: n.note.turn, bubble: n.note.bubble, faceYaw: Math.atan2(l.x - n.at.x, l.z - n.at.z), restYaw: n.at.face, reduced: reducedMotion, icons: greetingIcons(n.npc, hourNow) });
+              const was = n.talk.open;
+              n.talk = talkStillNear(n.talk, dist, n.npc);
+              if (was && !n.talk.open) cb.current.onNpcTalk?.(null);
+              if (withinSlack(dist, nearby?.id === `npc-${n.npc.id}`, n.npc.talkEnter, n.npc.talkLeave) && (!best || dist < best.dist)) best = { n, dist };
+            } catch { dropNpc(n); } // broken at runtime: skip only this one, keep the world
+          }
+          if (live.current.npcClose !== npcClosed) { npcClosed = live.current.npcClose; for (const n of live_npcs) closeNpcTalk(n); }
+          if (best && !mActive && !uSpot && !inGateZone(l, "home")) mNear = { id: `npc-${best.n.npc.id}`, kind: "npc", x: best.n.at.x + OFF, z: best.n.at.z, label: best.n.npc.prompt, prompt: best.n.npc.prompt };
         }
         mg.update({ t: t / 1000, dt, player: l, hour: hourNow, reduced: reducedMotion, all: mo.all, opened, active: mActive ? { id: mActive.id, since: (t - mActive.since) / 1000 } : null, target: l, trail });
         if (uHold > 0 && uSpot) {
