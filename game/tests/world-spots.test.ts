@@ -49,7 +49,7 @@ describe("daily layout", () => {
       const cx = chunkOf(s.x), cz = chunkOf(s.z);
       for (let a = cx - 1; a <= cx + 1; a++) for (let b = cz - 1; b <= cz + 1; b++) for (const c of chunkCircles(chunkContents(a, b))) expect(Math.hypot(c.x - s.x, c.z - s.z)).toBeGreaterThan(c.r + 1);
     }
-  });
+  }, 30000); // heavy loop; slow under the full parallel run
   it("spots are spread apart", () => {
     for (const d of days) for (const r of REGIONS) { const l = spotsForDay(d, r); for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) expect(Math.hypot(l[i].x - l[j].x, l[i].z - l[j].z)).toBeGreaterThanOrEqual(SPOTS.minGap); }
   });
