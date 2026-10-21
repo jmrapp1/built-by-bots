@@ -22,7 +22,10 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const ease = (n: number) => { const t = clamp01(n); return t * t * (3 - 2 * t); };
 
 // Everything checked; a bad point is skipped on its own. Bad top-level data gives null (no sights, the world loads).
-export function checkSights(r: unknown): SightData | null {
+// `bounds` limits where a point may lie; the default is the Margins square (unchanged). The shore passes its own.
+export type SightBounds = { x0: number; x1: number; z0: number; z1: number };
+const marginsBounds = (): SightBounds => { const h = MARGINS.size / 2 - 2; return { x0: -h, x1: h, z0: -h, z1: h }; };
+export function checkSights(r: unknown, bounds: SightBounds = marginsBounds()): SightData | null {
   try {
     const d = r as Record<string, any>;
     if (!d || typeof d !== "object") return null;
@@ -35,9 +38,9 @@ export function checkSights(r: unknown): SightData | null {
     const caps = d.captions;
     if (!caps || !SIGHT_KINDS.every((k) => typeof caps[k] === "string" && caps[k].trim() && caps[k].length <= 60)) return null;
     if (!Array.isArray(d.points)) return null;
-    const half = MARGINS.size / 2 - 2, points: SightPoint[] = [];
+    const points: SightPoint[] = [];
     for (const q of d.points) {
-      if (q && isNum(q.x) && isNum(q.z) && SIGHT_KINDS.includes(q.kind) && Math.abs(q.x) <= half && Math.abs(q.z) <= half) points.push({ x: q.x, z: q.z, kind: q.kind });
+      if (q && isNum(q.x) && isNum(q.z) && SIGHT_KINDS.includes(q.kind) && q.x >= bounds.x0 && q.x <= bounds.x1 && q.z >= bounds.z0 && q.z <= bounds.z1) points.push({ x: q.x, z: q.z, kind: q.kind });
     }
     return { window: w, perNight: p, clear: c, notice: n, captions: { moth: caps.moth, ink: caps.ink, glint: caps.glint }, points };
   } catch { return null; }
@@ -59,14 +62,15 @@ export function levelStep(cur: number, target: number, dt: number, reduced: bool
 
 // Which points tonight: min..max of them by the UTC day number, with at least one per zone when possible.
 // The same day always gives the same set (a reload shows the same ones); nothing is stored.
-export function pickSights(day: string, points: SightPoint[], perNight: { min: number; max: number }): SightPoint[] {
+// `opts.salt` changes the seed (the default 0 keeps the Margins pick as it was); `opts.spread: false` drops the zone rule (one region).
+export function pickSights(day: string, points: SightPoint[], perNight: { min: number; max: number }, opts: { salt?: number; spread?: boolean } = {}): SightPoint[] {
   const n = dayNumber(day);
   if (n === null || !points.length) return [];
-  const rng = mulberry32(Math.imul(n + 1, 2654435761) >>> 0);
+  const rng = mulberry32((Math.imul(n + 1, 2654435761) ^ (opts.salt ?? 0)) >>> 0);
   const order = points.map((p, i) => ({ p, i, k: rng() })).sort((a, b) => a.k - b.k || a.i - b.i);
   const want = Math.min(points.length, perNight.min + Math.floor(rng() * (perNight.max - perNight.min + 1)));
   const out: SightPoint[] = [], zones = new Set<string>();
-  for (const o of order) { const z = zoneOf(o.p)?.id ?? "?"; if (!zones.has(z) && out.length < want) { zones.add(z); out.push(o.p); } }
+  if (opts.spread !== false) for (const o of order) { const z = zoneOf(o.p)?.id ?? "?"; if (!zones.has(z) && out.length < want) { zones.add(z); out.push(o.p); } }
   for (const o of order) if (out.length < want && !out.includes(o.p)) out.push(o.p);
   return out;
 }

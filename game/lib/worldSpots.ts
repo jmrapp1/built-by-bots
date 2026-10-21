@@ -35,7 +35,9 @@ function circlesNear(x: number, z: number) {
   }
   return out;
 }
-const free = (x: number, z: number) => !blocked(x, z) && circlesNear(x, z).every((c) => Math.hypot(c.x - x, c.z - z) > c.r + SPOTS.clear);
+// `margin` is the extra gap round scenery (the spots use SPOTS.clear); exported so other World pieces use the same test.
+export const freeAt = (x: number, z: number, margin: number = SPOTS.clear) => !blocked(x, z) && circlesNear(x, z).every((c) => Math.hypot(c.x - x, c.z - z) > c.r + margin);
+const free = (x: number, z: number) => freeAt(x, z);
 
 export function spotsForDay(day: string, region: RegionId): WorldSpot[] {
   const n = SPOTS.counts[region], R = regionRect(region), rnd = mulberry32(hashStr(`${day}:${region}:${WORLD.seed}`));
