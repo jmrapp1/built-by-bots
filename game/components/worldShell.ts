@@ -42,14 +42,15 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     cyl: keep(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
   };
-  const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter) };
-  for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter"] as const) Object.values(M[r]).forEach((m) => keep(m));
+  const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
+  for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
   const L = {
     paper: keep(new THREE.MeshToonMaterial({ color: "#f1dfae" })), ink: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })),
     red: keep(new THREE.MeshToonMaterial({ color: "#d9606b" })), leaf: keep(new THREE.MeshToonMaterial({ color: WORLD.look.inkwood.crown })),
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
     shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
+    water: keep(new THREE.MeshToonMaterial({ color: "#4d6a78" })), deck: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
     shelfDark: keep(new THREE.MeshToonMaterial({ color: "#5e4f3e" })), ledge: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
     spines: ["#c8605f", "#d9a15a", "#6f8fb0", "#6f9a6a", "#8b6fa8", "#e3d3a4", "#3f5f78", "#b5726b"].map((c) => keep(new THREE.MeshToonMaterial({ color: c }))),
   };
@@ -60,10 +61,11 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
   const BLEND = 16; // metres either side of a region edge
   const gg = keep(new THREE.PlaneGeometry(WORLD.size, WORLD.size, SEG, SEG));
   { // vertex colours: meadow in the south, inkwood in the north, blended over a band round the region edge
-    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), c = new THREE.Color();
+    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), sh = new THREE.Color(WORLD.look.pressmark_shore.ground), c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const wx = pos.getX(i), wz = -pos.getY(i), north = Math.min(1, Math.max(0, (WORLD.inkwoodZ + 14 - wz) / 28)), east = Math.min(1, Math.max(0, (wx - WORLD.paperDownsX + 14) / 28)), south = soft((wz - WORLD.glyphZ + BLEND) / (BLEND * 2));
-      c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, south); col.push(c.r, c.g, c.b);
+      const shore = soft((wx - WORLD.shoreX + BLEND) / (BLEND * 2)) * (1 - north) * (1 - south);
+      c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, south).lerp(sh, shore); col.push(c.r, c.g, c.b);
     }
     gg.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   }
@@ -155,6 +157,10 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
         }
         const lean = add(G.box, L.paper, 0.45, rowH * 0.8, D * 0.5, y0, 0); lean.position.set(-W / 2 + 2 + rnd(r + 90) * (W - 4), y0, D * 0.5 + 0.2); lean.rotation.z = 0.28 * (r % 2 ? 1 : -1); // one leaning book per row
       }
+    } else if (l.kind === "bridge") { // the Lantern Bridge: an arched deck over a pool of ink water, a lantern at each end, readable through fog
+      const wat = add(G.box, L.water, 22, 0.05, 40, 0.02); wat.castShadow = false;
+      for (let i = 0; i < 9; i++) { const t = i / 8 - 0.5, y = 3.2 * (1 - 4 * t * t) + 0.6; add(G.box, L.deck, 4, 0.5, 3.6, y, 0).position.z = t * 28; }
+      for (const s of [-1, 1]) { add(G.cyl, L.ink, 0.25, l.h * 0.5, 0.25, 0).position.z = s * 15; const lamp = add(G.lamp, L.glow, 1.4, 1.4, 1.4, l.h * 0.52); lamp.position.z = s * 15; lamp.castShadow = false; }
     } else if (l.kind === "hill") { // the Paper-Kite Hill: a broad folded hill with a red paper kite flying above it
       add(G.cone, L.hill, l.r * 2.2, l.h * 0.8, l.r * 2.2, 0, Math.PI / 4); add(G.cone, L.hill, l.r * 1.3, l.h * 0.95, l.r * 1.3, 0, 0.3);
       const kite = add(G.box, L.kite, 2.6, 2.6, 0.12, l.h * 1.0, 0); kite.rotation.z = Math.PI / 4; add(G.cyl, L.ink, 0.06, l.h * 0.12, 0.06, l.h * 0.86);

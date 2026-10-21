@@ -42,7 +42,7 @@ describe("world chunks", () => {
   it("tall landmarks are placed and are taller than any tree", () => {
     expect(WORLD.landmarks.length).toBeGreaterThanOrEqual(3);
     expect(Math.min(...WORLD.landmarks.map((l) => l.h))).toBeGreaterThan(12);
-    expect(new Set(WORLD.landmarks.map((l) => regionAt(l.z, l.x))).size).toBe(4); // every region has one
+    expect([...new Set(WORLD.landmarks.map((l) => regionAt(l.z, l.x)))].sort()).toEqual(["glyph_quarter", "inkwood", "paper_downs", "pressmark_shore"]); // every region but the Meadow (which has the garden) has one; the Page Tower at x 70 now stands on the Shore
   });
   it("the path leaves the garden edge, ends inside the world and is clear of trees", () => {
     const P = pathPoints();
