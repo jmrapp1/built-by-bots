@@ -2,10 +2,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const raw = readFileSync(new URL("../supabase/migrations/20261021000002_glyph_quarter_spots.sql", import.meta.url), "utf8");
+const raw = readFileSync(new URL("../supabase/migrations/20261021000003_glyph_quarter_spots.sql", import.meta.url), "utf8");
 const sql = raw.replace(/--.*$/gm, "").trim();
 
-describe("paper downs spots migration", () => {
+describe("glyph quarter spots migration", () => {
   it("says it is additive and not applied", () => {
     expect(raw).toMatch(/Purely additive/);
     expect(raw).toMatch(/NOT applied/);
