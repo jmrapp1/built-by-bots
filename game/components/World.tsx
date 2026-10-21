@@ -37,7 +37,7 @@ import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
-import { decorPreview, nearestPlot, type Placed } from "@/lib/decor";
+import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
@@ -68,9 +68,10 @@ type Props = {
   canOffer?: boolean; // something is in the pouch
   walkKey?: string | null; // whose map this browser keeps (W4); the walked cells never leave the browser
   mapOpen?: boolean; // the map page is showing: the loop reports where the player stands
+  onHome?: () => void; // the player entered the Home room
   onMapKey?: () => void; // M was pressed
   onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
-  decorPlaced?: Placed | null; // ?decor=stub only: the test decorations by plot (null = the feature is off)
+  decorPlaced?: Placed | null; // the decorations by plot: from the server, or the ?decor=stub test ones (null = not shown)
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
 
@@ -219,10 +220,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, decorPlaced = null }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, decorPlaced = null }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced });
   live.current = { genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced };
@@ -388,15 +389,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
-    const decorOn = decorPreview(window.location.search, process.env.NODE_ENV === "production");
-    let room: HomeScene | null = null;
+        let room: HomeScene | null = null;
     let decor: DecorScene | null = null, decorShown: Placed | null = null; // ?decor=stub only; built with the room, freed with it
     const roomCols = roomColliders();
     const enterHomeZone = () => {
       room = buildHomeScene(); room.group.position.x = ROOM_OFF; scene.add(room.group);
-      if (live.current.decorPlaced && decorOn) { decor = buildDecorScene(); room.group.add(decor.group); decorShown = live.current.decorPlaced; decor.snap(decorShown); }
+      if (live.current.decorPlaced) { decor = buildDecorScene(); room.group.add(decor.group); decorShown = live.current.decorPlaced; decor.snap(decorShown); }
       (scene.fog as THREE.Fog).near = HOME_ROOM.light.fog[0]; (scene.fog as THREE.Fog).far = HOME_ROOM.light.fog[1];
-      lightClock = 0; report();
+      lightClock = 0; report(); cb.current.onHome?.(); // the page claims and reads the Home decorations (once per sign-in)
     };
     const leaveHomeZone = () => { decor?.dispose(); decor = null; decorShown = null; room?.dispose(); room = null; };
     // The one enter/leave path (W1): the garden is the home zone; each other zone builds and frees its own scene objects.
@@ -1282,7 +1282,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const cs = canPlayerSplash(hourNow);
       if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
 
-      if (decor) { // the test decorations: a change in the page's placements plays its motion on the frame clock
+      if (!decor && room && zones.is("home") && live.current.decorPlaced) { decor = buildDecorScene(); room.group.add(decor.group); decorShown = live.current.decorPlaced; decor.snap(decorShown); } // the server answer can arrive after the room is built
+      if (decor) { // the decorations: a change in the page's placements plays its motion on the frame clock
         const want = live.current.decorPlaced;
         if (want && want !== decorShown) { decorShown = want; decor.show(want, t / 1000); }
         decor.update(t / 1000, reducedMotion, nearby?.kind === "decor" ? nearby.id : null);

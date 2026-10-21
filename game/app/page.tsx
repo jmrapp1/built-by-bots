@@ -15,6 +15,7 @@ import { newWalked, type Walked } from "@/lib/map";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import PickerStrip from "@/components/PickerStrip";
 import { decorPreview, decorStrip, withChoice, type Placed } from "@/lib/decor";
+import { loadHomeDecor, runPlace, settlePlaced } from "@/lib/decor-server";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
@@ -91,6 +92,11 @@ export default function Page() {
   const stubDecor = typeof window === "undefined" ? false : decorPreview(window.location.search, process.env.NODE_ENV === "production");
   const [placed, setPlaced] = useState<Placed>({});
   const [decorPlot, setDecorPlot] = useState<string | null>(null);
+  // Server mode: null until the claim and reads on entering Home have worked. A failed read leaves it null (nothing shown, no prompt).
+  const [homeDecor, setHomeDecor] = useState<{ owned: string[]; placed: Placed } | null>(null);
+  const [decorNote, setDecorNote] = useState<string | null>(null);
+  const [decorBusy, setDecorBusy] = useState(false);
+  const decorTried = useRef<string | null>(null); // the account whose starters were claimed this page load
   const mp = useMapState();
   // The keepsake picker. Owned keepsakes are read only when it opens; a failed read just lists none. ?picker=stub (dev only) uses a stub and never calls the server.
   const stubPicker = typeof window === "undefined" ? false : pickerPreview(window.location.search, process.env.NODE_ENV === "production");
@@ -181,6 +187,28 @@ export default function Page() {
     const s = settlePick(out, creature.worn_cosmetic);
     setPickNote(s.note);
     if (out.ok) setCreatures((cs) => cs.map((c) => (c.id === creature.id ? { ...c, worn_cosmetic: s.worn } : c)));
+  };
+  // Entering Home: claim the starter pieces once (the server ignores repeats), then read what is owned and placed. ?decor=stub never calls the server.
+  const enterHome = () => {
+    if (stubDecor || !userId || decorTried.current === userId) return;
+    decorTried.current = userId;
+    const sb = supabase(), me = userId;
+    loadHomeDecor(
+      async () => sb.rpc("claim_starter_decorations"),
+      async () => sb.from("owned_decorations").select("decoration"),
+      async () => sb.from("home_decorations").select("plot,decoration"),
+    ).then((r) => { if (r) setHomeDecor(r); else if (decorTried.current === me) decorTried.current = null; }); // a failed read is quiet; the next visit to Home tries again
+  };
+  useEffect(() => { setHomeDecor(null); decorTried.current = null; }, [userId]); // another account never sees this one's room
+  // Place or clear one plot through set_home_decoration. The room changes only when the server confirms.
+  const placeDecor = async (choice: string | null) => {
+    if (!decorPlot || decorBusy) return;
+    if (stubDecor) { setPlaced((o) => withChoice(decorPlot, o, choice)); setMenu(null); return; }
+    if (!homeDecor) return;
+    setDecorBusy(true); setDecorNote(null);
+    const out = await runPlace(async (a) => supabase().rpc("set_home_decoration", a), decorPlot, choice);
+    setDecorBusy(false);
+    if (out.ok) { setHomeDecor((h) => (h ? { ...h, placed: settlePlaced(h.placed, out) } : h)); setMenu(null); } else setDecorNote(out.note);
   };
   const signOut = () => supabase().auth.signOut();
 
@@ -317,7 +345,7 @@ export default function Page() {
       else if (creature) setMsg("Your Print has hatched.");
       else setMsg("Collect your egg at the egg spot first.");
     }
-    else if (p.kind === "decor") { if (stubDecor) { setDecorPlot(p.id); setMenu("decor"); } }
+    else if (p.kind === "decor") { if (stubDecor || homeDecor) { setDecorNote(null); setDecorPlot(p.id); setMenu("decor"); } }
     else if (p.kind === "notice") { setBoardPage(0); setMenu("board"); }
     else setMsg(p.label);
   };
@@ -377,7 +405,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : null} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -450,8 +478,8 @@ export default function Page() {
 
       {mp.open && <MapPage walked={mp.walked} pose={mp.pose} opened={mp.spotPts} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
-      {menu === "decor" && stubDecor && decorPlot && (
-        <PickerStrip {...decorStrip(decorPlot, placed)} busy={false} note={null} onPick={(id) => { setPlaced((o) => withChoice(decorPlot, o, id)); setMenu(null); }} onClose={() => setMenu(null)} />
+      {menu === "decor" && (stubDecor || homeDecor) && decorPlot && (
+        <PickerStrip {...(stubDecor ? decorStrip(decorPlot, placed) : decorStrip(decorPlot, homeDecor?.placed ?? {}, homeDecor?.owned ?? []))} busy={decorBusy} note={decorNote} onPick={placeDecor} onClose={() => setMenu(null)} />
       )}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
