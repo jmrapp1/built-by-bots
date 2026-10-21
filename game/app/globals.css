@@ -187,3 +187,5 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .page-pip.done { background: #f2b632; border-color: var(--ink); }
 .scrap-count { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; font-weight: 700; }
 .scrap-icon { width: 12px; height: 15px; background: #fffaf0; border: 2px solid var(--ink); transform: rotate(8deg); border-radius: 1px 4px 1px 1px; }
+.tray.mappage { width: min(500px, 94vw); }
+.mappage canvas { width: 100%; height: auto; aspect-ratio: 1; border: var(--border); border-radius: var(--radius-control); display: block; }

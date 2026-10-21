@@ -1,0 +1,39 @@
+{
+  "note": "W4: the map page and picture signposts. Cells are square (metres) over the whole World. Walking reveals cells within `reveal` metres; unwalked parts stay blank paper. No text on the map or the signs.",
+  "cell": 16,
+  "reveal": 22,
+  "saveEvery": 5,
+  "storageKey": "bbb.walked.v1",
+  "key": "KeyM",
+  "signposts": [
+    {
+      "id": "post-leaf",
+      "icon": "leaf",
+      "x": -14.2,
+      "z": -25,
+      "yaw": 1.5708
+    },
+    {
+      "id": "post-book",
+      "icon": "book",
+      "x": -14.5,
+      "z": -46,
+      "yaw": 1.5708
+    },
+    {
+      "id": "post-moon",
+      "icon": "moon",
+      "x": -7,
+      "z": -67,
+      "yaw": 1.5708
+    }
+  ],
+  "look": {
+    "paper": "#f4ecd6",
+    "ink": "#2b2a33",
+    "meadow": "#cfe0b4",
+    "inkwood": "#9db3a2",
+    "path": "#3a3456",
+    "pin": "#d9606b"
+  }
+}
