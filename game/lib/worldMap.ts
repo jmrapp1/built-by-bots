@@ -1,6 +1,7 @@
 // W2: the World around the garden, as pure functions. No three.js and no clock: the same chunk always has the same
 // contents (a function of the seed and its coordinates), in any order, so nothing is stored. Rendering is in components/worldShell.ts.
 import world from "@/data/world.json";
+import map from "@/data/map.json";
 import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
 
@@ -8,7 +9,7 @@ export const WORLD = world;
 export type RegionId = "meadow" | "inkwood";
 export type Item = { x: number; z: number; s: number; r: number };
 export type Landmark = { id: string; kind: "tower" | "spire" | "bigtree" | "lamp"; x: number; z: number; r: number; h: number };
-export type Contents = { region: RegionId; trees: Item[]; rocks: Item[]; bushes: Item[]; landmarks: Landmark[] };
+export type Contents = { region: RegionId; trees: Item[]; rocks: Item[]; bushes: Item[]; landmarks: Landmark[]; posts: Circle[] };
 
 export const HALF = WORLD.size / 2;
 export const CHUNKS = Math.ceil(WORLD.size / WORLD.chunk);
@@ -50,13 +51,14 @@ const LANDMARKS = WORLD.landmarks as Landmark[];
 export const blocked = (x: number, z: number): boolean =>
   (Math.abs(x) < KEEP_GARDEN && Math.abs(z) < KEEP_GARDEN) ||
   distToPath(x, z) < WORLD.path.keepOut ||
-  LANDMARKS.some((l) => Math.hypot(l.x - x, l.z - z) < l.r + 5);
+  LANDMARKS.some((l) => Math.hypot(l.x - x, l.z - z) < l.r + 5) ||
+  map.signposts.some((p) => Math.hypot(p.x - x, p.z - z) < 2.5); // W4: nothing grows on a picture signpost
 
 export function chunkBounds(ix: number, iz: number) {
   const x0 = -HALF + ix * WORLD.chunk, z0 = -HALF + iz * WORLD.chunk;
   return { x0, z0, x1: Math.min(HALF, x0 + WORLD.chunk), z1: Math.min(HALF, z0 + WORLD.chunk) };
 }
-const EMPTY = (region: RegionId): Contents => ({ region, trees: [], rocks: [], bushes: [], landmarks: [] });
+const EMPTY = (region: RegionId): Contents => ({ region, trees: [], rocks: [], bushes: [], landmarks: [], posts: [] });
 
 export function chunkContents(ix: number, iz: number, seed: number = WORLD.seed): Contents {
   if (!inRange(ix, iz)) return EMPTY("meadow");
@@ -76,9 +78,11 @@ export function chunkContents(ix: number, iz: number, seed: number = WORLD.seed)
   put(out.rocks, count(dens.rock), 0.6, 1.6);
   put(out.bushes, count(dens.bush), 0.7, 1.3);
   out.landmarks = LANDMARKS.filter((l) => l.x >= x0 && l.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && l.z >= z0 && l.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
+  out.posts = map.signposts.filter((p) => p.x >= x0 && p.x < x1 && p.z >= z0 && p.z < z1).map((p) => ({ x: p.x, z: p.z, r: POST_R }));
   return out;
 }
 
+export const POST_R = 0.35;
 export const TREE_R = 0.55, ROCK_R = 0.7, BUSH_R = 0.8; // collision radius per unit of scale
 export function chunkCircles(c: Contents): Circle[] {
   return [
@@ -86,6 +90,7 @@ export function chunkCircles(c: Contents): Circle[] {
     ...c.rocks.map((t) => ({ x: t.x, z: t.z, r: ROCK_R * t.s })),
     ...c.bushes.map((t) => ({ x: t.x, z: t.z, r: BUSH_R * t.s })),
     ...c.landmarks.map((l) => ({ x: l.x, z: l.z, r: l.r })),
+    ...c.posts,
   ];
 }
 export const instanceCount = (c: Contents) => c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length;

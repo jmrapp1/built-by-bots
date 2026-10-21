@@ -2,6 +2,7 @@
 // A shell is built when the player is in the garden zone and fully disposed when they leave it (same path as every zone).
 import * as THREE from "three";
 import type { Circle } from "@/lib/world";
+import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import {
   CHUNKS, HALF, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
   type Contents, type RegionId,
@@ -74,6 +75,25 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     const geo = keep(new THREE.BufferGeometry()); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, keep(new THREE.MeshBasicMaterial({ color: WORLD.look.path, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })));
     m.frustumCulled = false; group.add(m);
+  }
+
+  // ---- W4: picture signposts (a leaf, a book, a moon; no words). A few small meshes each, made once with the shell and freed with it. ----
+  { const wood = keep(new THREE.MeshToonMaterial({ color: "#6b5a44" })), board = keep(new THREE.MeshToonMaterial({ color: "#f1dfae" }));
+    const green = keep(new THREE.MeshToonMaterial({ color: "#5e9c76" })), inkM = L.ink, gold = keep(new THREE.MeshToonMaterial({ color: "#e3b64f" }));
+    const pole = keep(new THREE.CylinderGeometry(0.07, 0.09, 1.9, 6).translate(0, 0.95, 0)), plate = keep(new THREE.BoxGeometry(0.9, 0.7, 0.07));
+    const leaf = keep(new THREE.SphereGeometry(0.26, 8, 6).scale(0.55, 1, 0.25)), page = keep(new THREE.BoxGeometry(0.26, 0.36, 0.03));
+    const stem = keep(new THREE.BoxGeometry(0.03, 0.3, 0.02)), moon = keep(new THREE.TorusGeometry(0.22, 0.06, 6, 14, Math.PI * 1.45));
+    const sign = (sp: Signpost) => {
+      const g = new THREE.Group(); g.position.set(sp.x, 0, sp.z); g.rotation.y = sp.yaw; // the board faces along +z of the group
+      g.add(new THREE.Mesh(pole, wood));
+      const b = new THREE.Mesh(plate, board); b.position.y = 1.6; g.add(b);
+      const put = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, 1.6 + y, 0.06); o.rotation.z = rz; g.add(o); return o; };
+      if (sp.icon === "leaf") { put(leaf, green, 0, 0, 0.5); put(stem, inkM, 0.02, -0.04, 0.5); }
+      else if (sp.icon === "book") { put(page, inkM, -0.15, 0, 0.12); put(page, gold, 0.15, 0, -0.12); }
+      else put(moon, gold, 0, 0, 2.2);
+      group.add(g); return g;
+    };
+    for (const sp of SIGNPOSTS) sign(sp);
   }
 
   // ---- paper-fold horizons: three jagged ridge rings that follow the player; fogged, tinted from the sky ----

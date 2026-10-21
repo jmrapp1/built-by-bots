@@ -30,6 +30,8 @@ import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
+import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
+import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
@@ -57,6 +59,10 @@ type Props = {
   onKeepsake?: (id: string) => void; // the server gave a keepsake: the page sets it as worn // a quiet line for a refusal or a found egg
   worn?: string | null; // the keepsake worn (6d-3 will pass the server's answer; nothing sends it yet)
   canOffer?: boolean; // something is in the pouch
+  walkKey?: string | null; // whose map this browser keeps (W4); the walked cells never leave the browser
+  mapOpen?: boolean; // the map page is showing: the loop reports where the player stands
+  onMapKey?: () => void; // M was pressed
+  onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
 
@@ -205,13 +211,13 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, worn = null, canOffer = true }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, onMapKey, onMapPose });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, onMapKey, onMapPose };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn });
-  live.current = { genes, eggPhase, stage, species, locked, canOffer, worn };
+  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey });
+  live.current = { genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -557,6 +563,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
+      if (opensMap(e.code, e.target as HTMLElement) && !e.repeat) { cb.current.onMapKey?.(); return; }
       if (e.code === PLAY.keys.hold && !e.repeat) {
         if (travel) {
           // walking through a gate: nothing else to do
@@ -662,6 +669,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const atWorld = atOverride(window.location.search, process.env.NODE_ENV === "production"); // dev-only: ?at=x,z looks at the far parts of the World
     if (atWorld && zones.is("garden")) { pos = atWorld; }
     if (zones.is("garden")) showShell(); // the garden zone starts entered, so its World is built here (and again on every return)
+    // W4: the cells walked so far, kept in this browser only. Revealing is by position; saving is throttled and also happens on leaving.
+    let walkedKey = storageKey(live.current.walkKey), walked: Walked = newWalked(), walkDirty = false, walkSaved = 0, poseAt = 0;
+    const readWalked = () => { walked = loadWalked(walkedKey); };
+    const saveWalked = () => { if (!walkDirty) return; walkDirty = false; saveWalkedCells(walkedKey, walked); };
+    readWalked();
     let last = performance.now();
     let raf = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -736,6 +748,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         dt, GARDEN.player.radius, gardenCols(), WORLD.size,
       );
       pos = res.pos;
+      if (live.current.walkKey !== null && storageKey(live.current.walkKey) !== walkedKey) { saveWalked(); walkedKey = storageKey(live.current.walkKey); readWalked(); } // signed in as someone else
+      if (zones.is("garden") && !travel && reveal(walked, pos.x, pos.z)) walkDirty = true;
+      if (walkDirty && t / 1000 - walkSaved > MAP.saveEvery) { walkSaved = t / 1000; saveWalked(); }
+      if (live.current.mapOpen && t - poseAt > 200) { poseAt = t; cb.current.onMapPose?.(walked, zones.is("garden") ? { x: pos.x, z: pos.z, yaw } : null); }
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;
@@ -1174,6 +1190,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     return () => {
       cancelAnimationFrame(raf);
+      saveWalked();
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);

@@ -10,6 +10,8 @@ import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/speci
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
 import { PLAY, nextFood } from "@/lib/play";
+import MapPage from "@/components/MapPage";
+import { newWalked, type Walked } from "@/lib/map";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
@@ -21,6 +23,13 @@ import type { Genes } from "@/lib/creature";
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
 type Egg = { id: string; kind?: string; hatch_at: string; hatched_at: string | null };
+function useMapState() {
+  const [open, setOpen] = useState(false);
+  const [walked, setWalked] = useState<Walked>(() => newWalked());
+  const [pose, setPose] = useState<{ x: number; z: number; yaw: number } | null>(null);
+  return { open, setOpen, walked, pose, onPose: (w: Walked, p: { x: number; z: number; yaw: number } | null) => { setWalked(new Set(w)); setPose(p); } };
+}
+
 type Creature = { id: string; species?: string; worn_cosmetic?: string | null; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
 
 export default function Page() {
@@ -37,6 +46,7 @@ export default function Page() {
   const [msg, setMsg] = useState("");
 
   const [session, setSession] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null); // whose map this browser keeps (the world is the player's, not a Print's)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"in" | "up">("in");
@@ -73,6 +83,7 @@ export default function Page() {
   const shownGenes = creature ? (previewSpecies ? { ...creature.genes, hue: clampHue(creature.genes.hue, speciesById(previewSpecies)) } : creature.genes) : null;
   const [boardPage, setBoardPage] = useState(0);
   const [menu, setMenu] = useState<null | "board" | "keepsakes">(null);
+  const mp = useMapState();
   // The keepsake picker. Owned keepsakes are read only when it opens; a failed read just lists none. ?picker=stub (dev only) uses a stub and never calls the server.
   const stubPicker = typeof window === "undefined" ? false : pickerPreview(window.location.search, process.env.NODE_ENV === "production");
   const [owned, setOwned] = useState<string[]>([]);
@@ -125,8 +136,8 @@ export default function Page() {
   // Supabase and is never stored or logged here.
   useEffect(() => {
     const sb = supabase();
-    sb.auth.getSession().then(({ data }) => setSession(!!data.session));
-    const { data } = sb.auth.onAuthStateChange((_e, s) => setSession(!!s));
+    sb.auth.getSession().then(({ data }) => { setSession(!!data.session); setUserId(data.session?.user?.id ?? null); });
+    const { data } = sb.auth.onAuthStateChange((_e, s) => { setSession(!!s); setUserId(s?.user?.id ?? null); });
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
@@ -205,7 +216,7 @@ export default function Page() {
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.code === "Escape") { setMenu(null); setMenuOpen(false); }
+      if (e.code === "Escape") { setMenu(null); setMenuOpen(false); mp.setOpen(false); }
       // Q swaps the food in hand.
       if (e.code === PLAY.keys.swap && !e.repeat && (e.target as HTMLElement)?.tagName !== "INPUT") setFood((f) => { const have = carried(pouchRef.current, foodIds); return have.length ? nextFood(inHand(pouchRef.current, f, foodIds)!, have) : f; });
     };
@@ -336,7 +347,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -349,6 +360,7 @@ export default function Page() {
             <dt><KeyCap>E</KeyCap></dt><dd style={{ margin: 0 }}>Do the thing nearby. Hold it near your Print to share a snack</dd>
             <dt><KeyCap>Q</KeyCap></dt><dd style={{ margin: 0 }}>Change the snack in hand</dd>
             <dt><KeyCap>R</KeyCap></dt><dd style={{ margin: 0 }}>Hold to stroke your Print</dd>
+            <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
@@ -406,6 +418,7 @@ export default function Page() {
         </div>
       )}
 
+      {mp.open && <MapPage walked={mp.walked} pose={mp.pose} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>
