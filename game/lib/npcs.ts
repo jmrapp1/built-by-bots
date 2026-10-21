@@ -26,6 +26,8 @@ export type Look = (typeof LOOKS)[number];
 // Two ways to place a neighbour: beside the Margins gate, or at a fixed point in the Margins (with a rest facing).
 export type Spot = { from: "gate"; out: number; side: number } | { at: [number, number]; face: number };
 export type Hint = { text: string; icons: IconName[] };
+// N4: the words for the one-time gift (the server decides whether it is given; these are only the lines).
+export type GiftWords = { line: string; thanks: string; icons: IconName[] };
 export type AtSpot = { at: [number, number]; face: number };
 export const MAX_DAY_SPOTS = 5, MIN_DAY_SPOTS = 3;
 export type Npc = {
@@ -35,6 +37,7 @@ export type Npc = {
   noticeEnter: number; noticeLeave: number; talkEnter: number; talkLeave: number;
   timeIcons: { from: number; to: number; icon: IconName }[]; otherwise: IconName; extra: IconName[];
   hints: Hint[];
+  gift: GiftWords | null; // null: this neighbour has no gift words, so none is asked for
 };
 export const TIMES = { turn: 0.4, bloom: 0.3, fade: 0.25, reducedFade: 0.15, bloomAfter: 0.15, stripFade: 0.2 };
 
@@ -84,8 +87,14 @@ export function checkNpc(raw: unknown): Npc | null {
       if (!icons || typeof h.text !== "string" || !h.text.trim() || h.text.length > MAX_LINE) return null;
       hints.push({ text: h.text, icons });
     }
+    let gift: GiftWords | null = null;
+    if (r.gift !== undefined) {
+      const w = r.gift, icons = w ? iconList(w.icons, 1) : null;
+      const okLine = (t: unknown) => typeof t === "string" && !!t.trim() && t.length <= MAX_LINE;
+      if (icons && okLine(w.line) && okLine(w.thanks)) gift = { line: w.line, thanks: w.thanks, icons }; // bad gift words: no gift, the neighbour still works
+    }
     return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot, spots,
-      noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints };
+      noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints, gift };
   } catch { return null; }
 }
 

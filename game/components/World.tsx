@@ -64,7 +64,7 @@ type Props = {
   onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
   onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
   onMarginsNote?: (text: string) => void;
-  onNpcTalk?: (line: { name: string; text: string; icons: string[] } | null) => void; // N1: the hint strip for the neighbour being talked to (null = closed)
+  onNpcTalk?: (line: { id: string; name: string; text: string; icons: string[]; last: boolean } | null) => void; // N1: the hint strip for the neighbour being talked to (null = closed)
   npcClose?: number; // N1: the page bumps this when "Thanks" closes the strip
   onWorldUnfold?: (region: string, spot: number, layoutDay: string) => Promise<Outcome>; // W5: ask the server what is inside a World spot
   onLoadWorldOpened?: (day: string) => Promise<string[] | null>; // W5: World spots this player already opened today (keys "region:spot")
@@ -651,7 +651,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       for (const o of live_npcs) if (o !== n) closeNpcTalk(o, false); // never two strips at once
       n.talk = talk(n.talk, n.npc.hints.length);
       const h = n.npc.hints[n.talk.shown];
-      if (h) cb.current.onNpcTalk?.({ name: n.npc.name, text: h.text, icons: h.icons });
+      if (h) cb.current.onNpcTalk?.({ id: n.npc.id, name: n.npc.name, text: h.text, icons: h.icons, last: n.talk.shown === n.npc.hints.length - 1 });
     };
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;

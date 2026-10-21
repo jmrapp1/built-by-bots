@@ -80,7 +80,7 @@ describe("the wiring", () => {
     for (const t of tables) expect(["creatures", "eggs", "margins_claims", "daily_egg_claims", "game_stages", "game_foods", "game_species", "game_rules", "game_daily_pool", "owned_cosmetics", "owned_decorations", "home_decorations"]).toContain(t);
     expect(tables.has("owned_cosmetics")).toBe(true); // 6e-2: the picker reads the player's own keepsakes once, when it opens (pinned in picker.test.ts)
     const calls = [...page.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
   });
   it("a keepsake from the server sets the first Print's worn id, as the server does", () => {
     expect(page).toMatch(/setCreatures\(\(cs\) => cs\.map\(\(c, i\) => \(i === 0 \? \{ \.\.\.c, worn_cosmetic: id \} : c\)\)\)/);
