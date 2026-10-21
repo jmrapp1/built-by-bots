@@ -62,8 +62,8 @@ describe("page placement and pin", () => {
 });
 
 describe("picture signposts", () => {
-  it("are three, each with a picture, and are beside the path inside the World", () => {
-    expect(SIGNPOSTS.map((s) => s.icon).sort()).toEqual(["book", "leaf", "moon"]);
+  it("are four, each with a picture, and are beside the path inside the World", () => {
+    expect(SIGNPOSTS.map((s) => s.icon).sort()).toEqual(["book", "kite", "leaf", "moon"]);
     for (const s of SIGNPOSTS) {
       expect(Math.abs(s.x)).toBeLessThan(HALF); expect(Math.abs(s.z)).toBeLessThan(HALF);
       expect(distToPath(s.x, s.z)).toBeGreaterThan(WORLD.path.width / 2 + POST_R); // not on the ink

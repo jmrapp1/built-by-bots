@@ -12,10 +12,11 @@ const sql = src("../supabase/migrations/20261021000001_world_spots.sql");
 const days = Array.from({ length: 40 }, (_, i) => new Date(Date.UTC(2026, 9, 21 + i)).toISOString().slice(0, 10));
 
 describe("spot counts match the server's table", () => {
-  it("meadow 4 and inkwood 8, exactly as seeded in the migration", () => {
-    expect(SPOTS.counts).toEqual({ meadow: 4, inkwood: 8 });
+  it("meadow 4, inkwood 8 and paper_downs 8, exactly as seeded in the migrations", () => {
+    expect(SPOTS.counts).toEqual({ meadow: 4, inkwood: 8, paper_downs: 8 });
+    expect(src("../supabase/migrations/20261021000002_paper_downs_spots.sql")).toMatch(/values \('paper_downs', 8\)/);
     expect(sql).toMatch(/values \('margins', 12\), \('meadow', 4\), \('inkwood', 8\)/);
-    expect(REGIONS).toEqual(["meadow", "inkwood"]);
+    expect(REGIONS).toEqual(["meadow", "inkwood", "paper_downs"]);
   });
 });
 
@@ -34,7 +35,7 @@ describe("daily layout", () => {
       for (const s of list) {
         expect(s.x).toBeGreaterThanOrEqual(R.x0); expect(s.x).toBeLessThanOrEqual(R.x1);
         expect(s.z).toBeGreaterThanOrEqual(R.z0); expect(s.z).toBeLessThanOrEqual(R.z1);
-        expect(regionAt(s.z)).toBe(r);
+        expect(regionAt(s.z, s.x)).toBe(r);
       }
     }
   });
