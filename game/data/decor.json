@@ -1,0 +1,62 @@
+{
+  "note": "Slice 2 (client only): test decorations on the fixed plots of the Home room. Plot ids are the anchor ids in home.json. Colours are a palette key, a home.json look key, or a hex. Sizes in metres; parts sit on the floor (y 0) or, for wall pieces, on the wall face (z 0 is the wall, +z comes into the room).",
+  "reach": 1.8,
+  "palette": { "ink": "#2a2438", "wood": "#c9a56b", "blue": "#7a8fb8", "rose": "#c98a8a", "leaf": "#8fae8b", "bloom": "#e7a8b4", "sun": "#f0d27a", "cream": "#fffdf5" },
+  "motion": {
+    "dropHeight": 1.6, "fall": 0.5, "settle": 0.12, "squash": 0.18, "dropsLife": 0.5, "dropsSpread": 0.35, "dropsRise": 0.25, "dropSize": 0.06,
+    "clear": 0.4, "clearLift": 0.55, "clearArc": 0.3, "clearShrink": 0.8,
+    "markerIn": 0.3, "pulsePeriod": 2.4, "pulseScale": 0.05, "markerRest": 0.3, "markerPeak": 0.6, "markerSteady": 0.35,
+    "reducedFade": 0.3
+  },
+  "plots": [
+    { "id": "north-left",  "kind": "floor", "starter": "lantern-post" },
+    { "id": "north-mid",   "kind": "floor", "starter": "bench" },
+    { "id": "north-right", "kind": "floor", "starter": "books" },
+    { "id": "floor-left",  "kind": "floor", "starter": "ink-rug" },
+    { "id": "floor-right", "kind": "floor", "starter": "flower-patch" },
+    { "id": "west-wall",   "kind": "wall",  "starter": "framed-page" }
+  ],
+  "decorations": [
+    { "id": "lantern-post", "name": "Paper lantern post", "fits": "floor", "footprint": [0.3, 0.3], "parts": [
+      { "t": "cyl", "s": [0.15, 0.18, 0.08], "p": [0, 0.04, 0], "c": "ink" },
+      { "t": "cyl", "s": [0.04, 0.05, 1.5], "p": [0, 0.83, 0], "c": "ink" },
+      { "t": "box", "s": [0.3, 0.36, 0.3], "p": [0, 1.7, 0], "c": "window", "glow": 0.55 },
+      { "t": "cyl", "s": [0.03, 0.24, 0.14], "p": [0, 1.95, 0], "c": "ink" }
+    ] },
+    { "id": "bench", "name": "Bench", "fits": "floor", "footprint": [0.55, 0.28], "parts": [
+      { "t": "box", "s": [1.1, 0.08, 0.46], "p": [0, 0.42, 0.02], "c": "wood" },
+      { "t": "box", "s": [1.1, 0.34, 0.05], "p": [0, 0.76, -0.22], "c": "wood" },
+      { "t": "box", "s": [0.08, 0.4, 0.08], "p": [-0.47, 0.2, 0.15], "c": "ink" },
+      { "t": "box", "s": [0.08, 0.4, 0.08], "p": [0.47, 0.2, 0.15], "c": "ink" },
+      { "t": "box", "s": [0.08, 0.4, 0.08], "p": [-0.47, 0.2, -0.15], "c": "ink" },
+      { "t": "box", "s": [0.08, 0.4, 0.08], "p": [0.47, 0.2, -0.15], "c": "ink" }
+    ] },
+    { "id": "books", "name": "Stack of books", "fits": "floor", "footprint": [0.3, 0.3], "parts": [
+      { "t": "box", "s": [0.5, 0.1, 0.36], "p": [0, 0.05, 0], "c": "blue" },
+      { "t": "box", "s": [0.44, 0.09, 0.32], "p": [0.02, 0.145, 0], "c": "rose", "ry": 0.15 },
+      { "t": "box", "s": [0.38, 0.08, 0.28], "p": [-0.02, 0.23, 0], "c": "leaf", "ry": -0.2 }
+    ] },
+    { "id": "ink-rug", "name": "Ink-blot rug", "fits": "floor", "footprint": [0.55, 0.55], "parts": [
+      { "t": "disc", "s": [0.5], "p": [0, 0.014, 0], "c": "ink" },
+      { "t": "disc", "s": [0.2], "p": [0.32, 0.014, 0.15], "c": "ink" },
+      { "t": "disc", "s": [0.16], "p": [-0.33, 0.014, -0.2], "c": "ink" },
+      { "t": "disc", "s": [0.32], "p": [0, 0.02, 0], "c": "frame" }
+    ] },
+    { "id": "flower-patch", "name": "Flower patch", "fits": "floor", "footprint": [0.5, 0.5], "parts": [
+      { "t": "disc", "s": [0.46], "p": [0, 0.014, 0], "c": "leaf" },
+      { "t": "cyl", "s": [0.01, 0.01, 0.3], "p": [-0.18, 0.15, 0.05], "c": "leaf" },
+      { "t": "sphere", "s": [0.08], "p": [-0.18, 0.32, 0.05], "c": "bloom" },
+      { "t": "cyl", "s": [0.01, 0.01, 0.4], "p": [0.1, 0.2, -0.12], "c": "leaf" },
+      { "t": "sphere", "s": [0.09], "p": [0.1, 0.42, -0.12], "c": "sun" },
+      { "t": "cyl", "s": [0.01, 0.01, 0.26], "p": [0.2, 0.13, 0.18], "c": "leaf" },
+      { "t": "sphere", "s": [0.07], "p": [0.2, 0.28, 0.18], "c": "cream" }
+    ] },
+    { "id": "framed-page", "name": "Framed page", "fits": "wall", "footprint": [0.5, 0.1], "parts": [
+      { "t": "box", "s": [0.9, 1.2, 0.05], "p": [0, 1.7, 0.03], "c": "ink" },
+      { "t": "box", "s": [0.76, 1.06, 0.02], "p": [0, 1.7, 0.06], "c": "cream" },
+      { "t": "box", "s": [0.5, 0.025, 0.01], "p": [0, 1.95, 0.075], "c": "rule" },
+      { "t": "box", "s": [0.5, 0.025, 0.01], "p": [0, 1.7, 0.075], "c": "rule" },
+      { "t": "box", "s": [0.5, 0.025, 0.01], "p": [0, 1.45, 0.075], "c": "rule" }
+    ] }
+  ]
+}

@@ -67,3 +67,10 @@ export function pickerPreview(search: string, isProduction: boolean): boolean {
   return !isProduction && new URLSearchParams(search).get("picker") === "stub";
 }
 export const STUB_OWNED = ["ribbon", "paper_crown", "lantern"];
+
+// What the shared strip shows. Keepsakes and decorations both produce one; the strip itself only draws it.
+export type StripChoice = { id: string | null; label: string; current: boolean; disabled?: boolean };
+export type StripView = { title: string; emptyText: string | null; choices: StripChoice[]; currentSuffix: string };
+export function keepsakeStrip(owned: string[], worn: string | null | undefined): StripView {
+  return { title: PICKER_TITLE, emptyText: owned.length === 0 ? PICKER_EMPTY : null, choices: choicesFor(owned, worn), currentSuffix: "worn" };
+}
