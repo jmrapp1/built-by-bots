@@ -99,3 +99,15 @@ describe("shape of the change", () => {
     expect(page).toMatch(/setUserId\(s\?\.user\?\.id \?\? null\)/);
   });
 });
+
+describe("the map card in a short window", () => {
+  it("is truly centred (fade, not rise) and its square canvas is capped by the window height, so Close stays on screen", () => {
+    const css = src("../app/globals.css");
+    expect(css.match(/^\.tray\.mappage\s*\{[^}]*animation-name:\s*fade/m)).not.toBeNull();
+    const canvas = css.match(/^\.mappage canvas\s*\{[^}]*\}/m)?.[0] ?? "";
+    expect(canvas).toMatch(/width:\s*min\(100%, calc\(100dvh - \d+px\)\)/);
+    expect(canvas).toMatch(/aspect-ratio:\s*1/);
+    expect(css).toMatch(/^\.tray\s*\{[^}]*translate\(-50%, -50%\)/m); // the tray's centring itself is unchanged
+    expect(css.match(/^\.tray\.mappage\s*\{/gm)).toHaveLength(1);
+  });
+});
