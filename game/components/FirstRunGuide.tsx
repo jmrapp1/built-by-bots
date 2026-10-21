@@ -3,7 +3,8 @@
 // Never takes focus or blocks input. Progress is kept in local storage only (see lib/guide.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
-import { GUIDE_TEXT, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, hasMoved, hintText, markDone, pointerOn, readDone, writeDone, type Step } from "@/lib/guide";
+import { PLAY } from "@/lib/play";
+import { GUIDE_TEXT, PREVIEW_DONE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, hasMoved, hintText, markDone, pointerOn, readDone, writeDone, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -17,9 +18,13 @@ export type GuideProps = {
   fedTick: number;
   pose: { x: number; z: number; yaw: number } | null; // null away from the garden
   onGlow: (on: boolean) => void;
+  preview?: boolean; // dev-only ?guide=feed: fake state, nothing saved; pressing the hold key stands in for a feed
 };
 
-export default function FirstRunGuide(p: GuideProps) {
+export default function FirstRunGuide(raw: GuideProps) {
+  const pv = !!raw.preview;
+  const [pvTick, setPvTick] = useState(0);
+  const p: GuideProps = pv ? { ...raw, loaded: true, existing: false, eggClaimed: true, nearEgg: false, printNear: true, hasSnack: true, hasCreature: true, fedTick: pvTick } : raw;
   const [done, setDone] = useState<Step[]>([]);
   const [read, setRead] = useState(false);
   const [dismissed, setDismissed] = useState<Step[]>([]);
@@ -31,10 +36,17 @@ export default function FirstRunGuide(p: GuideProps) {
 
   const finish = (steps: Step[]) => setDone((d) => { const n = steps.reduce(markDone, d); if (n.length !== d.length) writeDone(store.current, n); return n; });
 
-  useEffect(() => { store.current = browserStore(); setDone(readDone(store.current)); setRead(true); }, []);
+  useEffect(() => { store.current = pv ? null : browserStore(); setDone(pv ? [...PREVIEW_DONE] : readDone(store.current)); setRead(true); }, []);
   useEffect(() => { if (read && p.loaded && p.existing) finish(["move", "egg", "feed"]); }, [read, p.loaded, p.existing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (read && p.loaded && p.eggClaimed) setDone((d) => { const n = afterEggClaimed(d); if (n.length !== d.length) writeDone(store.current, n); return n; }); }, [read, p.loaded, p.eggClaimed]);
   useEffect(() => { if (feedFinishes(shown.current, fed0.current, p.fedTick)) finish(["feed"]); fed0.current = p.fedTick; }, [p.fedTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { // preview only: a press of the hold key counts as one feed
+    if (!pv) return;
+    const k = (e: KeyboardEvent) => { if (e.code === PLAY.keys.hold && !e.repeat) setPvTick((t) => t + 1); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [pv]);
 
   const ready = read && p.loaded && !p.existing && p.clear && !!p.pose;
   useEffect(() => { // walking finishes the first step
