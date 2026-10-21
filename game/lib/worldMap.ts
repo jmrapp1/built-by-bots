@@ -6,14 +6,14 @@ import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
 
 export const WORLD = world;
-export type RegionId = "meadow" | "inkwood" | "paper_downs";
+export type RegionId = "meadow" | "inkwood" | "paper_downs" | "glyph_quarter";
 export type Item = { x: number; z: number; s: number; r: number };
-export type Landmark = { id: string; kind: "tower" | "spire" | "bigtree" | "lamp" | "hill"; x: number; z: number; r: number; h: number };
+export type Landmark = { id: string; kind: "tower" | "spire" | "bigtree" | "lamp" | "hill" | "shelves"; x: number; z: number; r: number; h: number };
 export type Contents = { region: RegionId; trees: Item[]; rocks: Item[]; bushes: Item[]; landmarks: Landmark[]; posts: Circle[] };
 
 export const HALF = WORLD.size / 2;
 export const CHUNKS = Math.ceil(WORLD.size / WORLD.chunk);
-export const regionAt = (z: number, x: number = -1): RegionId => (z < WORLD.inkwoodZ ? (x >= WORLD.paperDownsX ? "paper_downs" : "inkwood") : "meadow");
+export const regionAt = (z: number, x: number = -1): RegionId => (z < WORLD.inkwoodZ ? (x >= WORLD.paperDownsX ? "paper_downs" : "inkwood") : z >= WORLD.glyphZ ? "glyph_quarter" : "meadow");
 export const chunkKey = (ix: number, iz: number) => `${ix},${iz}`;
 export const chunkOf = (v: number) => Math.min(CHUNKS - 1, Math.max(0, Math.floor((v + HALF) / WORLD.chunk)));
 const inRange = (ix: number, iz: number) => ix >= 0 && iz >= 0 && ix < CHUNKS && iz < CHUNKS;

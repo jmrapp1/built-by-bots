@@ -8,7 +8,7 @@ import { mulberry32 } from "./margins";
 
 export const SPOTS = spots;
 export type WorldSpot = { region: RegionId; id: number; x: number; z: number };
-export const REGIONS: RegionId[] = ["meadow", "inkwood", "paper_downs"];
+export const REGIONS: RegionId[] = ["meadow", "inkwood", "paper_downs", "glyph_quarter"];
 export const spotKey = (region: string, id: number) => `${region}:${id}`;
 
 const hashStr = (s: string): number => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
@@ -18,7 +18,8 @@ export function regionRect(region: RegionId) {
   const e = SPOTS.edge, lo = -HALF + e, hi = HALF - e;
   if (region === "inkwood") return { x0: lo, x1: WORLD.paperDownsX - e, z0: lo, z1: WORLD.inkwoodZ - e };
   if (region === "paper_downs") return { x0: WORLD.paperDownsX + e, x1: hi, z0: lo, z1: WORLD.inkwoodZ - e };
-  return { x0: lo, x1: hi, z0: WORLD.inkwoodZ + e, z1: hi };
+  if (region === "glyph_quarter") return { x0: lo, x1: hi, z0: WORLD.glyphZ + e, z1: hi };
+  return { x0: lo, x1: hi, z0: WORLD.inkwoodZ + e, z1: WORLD.glyphZ - e };
 }
 
 const circleCache = new Map<string, { x: number; z: number; r: number }[]>();

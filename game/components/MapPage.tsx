@@ -17,7 +17,7 @@ export default function MapPage({ walked, pose, opened = [], onClose }: { walked
     for (let y = 24; y < px; y += 24) { g.beginPath(); g.moveTo(0, y); g.lineTo(px, y); g.stroke(); }
     for (const i of walked) { // a walked cell is washed in the colour of its region, a little bigger so neighbours join up
       const p = cellCentre(i), q = toPage(p.x, p.z, px);
-      const rg = regionAt(p.z, p.x); g.fillStyle = rg === "inkwood" ? L.inkwood : rg === "paper_downs" ? L.paper_downs : L.meadow; g.globalAlpha = 0.85;
+      const rg = regionAt(p.z, p.x); g.fillStyle = rg === "inkwood" ? L.inkwood : rg === "paper_downs" ? L.paper_downs : rg === "glyph_quarter" ? L.glyph_quarter : L.meadow; g.globalAlpha = 0.85;
       g.fillRect(q.x - cell / 2 - 0.5, q.z - cell / 2 - 0.5, cell + 1, cell + 1);
     }
     g.globalAlpha = 1;
@@ -30,6 +30,7 @@ export default function MapPage({ walked, pose, opened = [], onClose }: { walked
       if (l.kind === "tower") g.rect(q.x - 4, q.z - 9, 8, 14);
       else if (l.kind === "spire") { g.moveTo(q.x, q.z - 11); g.lineTo(q.x - 4, q.z + 4); g.lineTo(q.x + 4, q.z + 4); g.closePath(); }
       else if (l.kind === "bigtree") { g.moveTo(q.x, q.z - 10); g.lineTo(q.x - 8, q.z + 2); g.lineTo(q.x + 8, q.z + 2); g.closePath(); }
+      else if (l.kind === "shelves") { g.rect(q.x - 10, q.z - 6, 20, 10); g.moveTo(q.x - 3, q.z - 6); g.lineTo(q.x - 3, q.z + 4); g.moveTo(q.x + 4, q.z - 6); g.lineTo(q.x + 4, q.z + 4); }
       else if (l.kind === "hill") { g.moveTo(q.x - 10, q.z + 4); g.quadraticCurveTo(q.x, q.z - 12, q.x + 10, q.z + 4); g.closePath(); }
       else g.arc(q.x, q.z - 4, 5, 0, Math.PI * 2);
       g.stroke();
