@@ -93,4 +93,9 @@ describe("shape of the change", () => {
     expect(src("../lib/mapStore.ts")).toContain("localStorage.setItem"); expect(src("../lib/mapStore.ts")).not.toMatch(/fetch\(|supabase/);
     expect(src("../app/page.tsx")).not.toContain("localStorage");
   });
+  it("the map is kept per signed-in player, not per Print, so switching Prints keeps one map", () => {
+    const page = src("../app/page.tsx");
+    expect(page).toMatch(/walkKey=\{userId\}/); expect(page).not.toMatch(/walkKey=\{creatureId/);
+    expect(page).toMatch(/setUserId\(s\?\.user\?\.id \?\? null\)/);
+  });
 });
