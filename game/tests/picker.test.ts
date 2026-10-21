@@ -95,3 +95,15 @@ describe("pins on the wiring", () => {
     expect(src("../components/KeepsakePicker.tsx")).not.toMatch(/<input|<textarea/);
   });
 });
+
+describe("the card in a short window", () => {
+  it("is capped to the window height and scrolls inside itself, so Close stays reachable", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    const rule = css.match(/^\.picker\s*\{[^}]*\}/m)?.[0] ?? "";
+    expect(rule).toMatch(/max-height:\s*calc\(100dvh - \d+px\)/);
+    expect(rule).toMatch(/overflow-y:\s*auto/);
+    expect(css.match(/^\.picker\s*\{/gm)).toHaveLength(1);
+    expect(css).toMatch(/^\.tray\s*\{[^}]*translate\(-50%, -50%\)/m); // still the same centred card at normal heights
+  });
+});

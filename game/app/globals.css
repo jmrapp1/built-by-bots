@@ -140,6 +140,10 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .board-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .tray { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, 90vw); display: grid; gap: 14px; text-align: center; }
 .tray h3 { font-size: 22px; }
+/* Short windows. The tray card hangs down from the window's middle (the rise animation ends with transform: none, so the centring
+   translate no longer applies), so it only has half the window height. Cap it to that and scroll inside itself, so Close stays
+   reachable. No effect when it already fits, and its position is unchanged. */
+.picker { max-height: calc(50vh - 12px); max-height: calc(50dvh - 12px); overflow-y: auto; overscroll-behavior: contain; }
 .picker-list { display: grid; gap: 8px; }
 .picker-list .btn.current { opacity: 1; cursor: default; box-shadow: inset 0 0 0 2px var(--ink); }
 .foods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
