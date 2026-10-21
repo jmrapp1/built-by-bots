@@ -1,5 +1,5 @@
 {
-  "note": "W2: the World around the garden. Sizes in metres. Chunk contents are a pure function of (seed, chunk), so nothing is stored. Regions: the Home Meadow (the garden and the land round it), Inkwood Edge to the north-west (z below inkwoodZ, x below paperDownsX) and Paper Downs to the north-east (z below inkwoodZ, x from paperDownsX). Glyph Quarter is the far south (z from glyphZ). All edges are chunk edges.",
+  "note": "W2: the World around the garden. Sizes in metres. Chunk contents are a pure function of (seed, chunk), so nothing is stored. Regions: the Home Meadow (the garden and the land round it), Inkwood Edge to the north-west (z below inkwoodZ, x below paperDownsX) and Paper Downs to the north-east (z below inkwoodZ, x from paperDownsX). Glyph Quarter is the far south (z from glyphZ). Pressmark Shore is the east side of the middle band (x from shoreX). All edges are chunk edges.",
   "size": 256,
   "chunk": 64,
   "seed": 11,
@@ -10,11 +10,13 @@
   "inkwoodZ": -64,
   "paperDownsX": 0,
   "glyphZ": 64,
+  "shoreX": 64,
   "density": {
     "meadow":  { "tree": 0.0038, "rock": 0.002,  "bush": 0.0034 },
     "inkwood": { "tree": 0.0165, "rock": 0.0028, "bush": 0.005 },
     "paper_downs": { "tree": 0.0016, "rock": 0.0036, "bush": 0.0042 },
-    "glyph_quarter": { "tree": 0.0012, "rock": 0.0062, "bush": 0.0016 }
+    "glyph_quarter": { "tree": 0.0012, "rock": 0.0062, "bush": 0.0016 },
+    "pressmark_shore": { "tree": 0.0014, "rock": 0.0022, "bush": 0.0078 }
   },
   "path": { "width": 2.6, "keepOut": 3.4, "points": [[-10, -17], [-12, -40], [-6, -62], [8, -80], [10, -100], [-4, -118]] },
   "landmarks": [
@@ -23,13 +25,15 @@
     { "id": "great-ink-tree", "kind": "bigtree", "x": -30, "z": -96,  "r": 2.2, "h": 28 },
     { "id": "lantern-post",   "kind": "lamp",    "x": 56,  "z": -108, "r": 0.9, "h": 20 },
     { "id": "paper-kite-hill", "kind": "hill",    "x": 48,  "z": -84,  "r": 7.0, "h": 24 },
-    { "id": "bookshelf-wall",  "kind": "shelves", "x": 20,  "z": 104,  "r": 5.0, "h": 22 }
+    { "id": "bookshelf-wall",  "kind": "shelves", "x": 20,  "z": 104,  "r": 5.0, "h": 22 },
+    { "id": "lantern-bridge",   "kind": "bridge",  "x": 100, "z": -8,   "r": 1.2, "h": 14 }
   ],
   "look": {
     "meadow":  { "ground": "#cfe0b4", "crown": "#6f9a6a", "trunk": "#2a2438", "rock": "#bdb8ad", "bush": "#7fae82" },
     "inkwood": { "ground": "#9db3a2", "crown": "#2f5559", "trunk": "#1d1b2b", "rock": "#6d7080", "bush": "#3f6a63" },
     "paper_downs": { "ground": "#e3dcc0", "crown": "#8fa58a", "trunk": "#4a4258", "rock": "#cfc8b4", "bush": "#a9b98f" },
     "glyph_quarter": { "ground": "#c9c2cf", "crown": "#7d8aa0", "trunk": "#3b3550", "rock": "#a39db0", "bush": "#8b9bab" },
+    "pressmark_shore": { "ground": "#bdd0cc", "crown": "#5f8f8a", "trunk": "#2f3a4a", "rock": "#9aa8ad", "bush": "#7fa89a" },
     "path": "#3a3456"
   }
 }
