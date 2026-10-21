@@ -1,5 +1,5 @@
 {
-  "note": "Neighbours in the world (slice N1). Authored lines only; edit text here, no code change. Nothing is saved or sent.",
+  "note": "Neighbours in the world (slices N1 to N3). Authored lines only; edit text here, no code change. Nothing is saved or sent.",
   "npcs": [
     {
       "id": "binder",
@@ -174,6 +174,113 @@
           "text": "Your Print likes it here. Look back and see how it follows.",
           "icons": [
             "leaf"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wanderer",
+      "name": "The Wanderer",
+      "look": "traveller",
+      "area": "margins",
+      "spots": [
+        {
+          "at": [
+            -36,
+            30
+          ],
+          "face": 2.27
+        },
+        {
+          "at": [
+            -3,
+            16
+          ],
+          "face": 2.96
+        },
+        {
+          "at": [
+            18,
+            -7
+          ],
+          "face": -1.2
+        },
+        {
+          "at": [
+            34,
+            -3
+          ],
+          "face": -1.48
+        }
+      ],
+      "radius": 0.55,
+      "noticeEnter": 6,
+      "noticeLeave": 7.5,
+      "talkEnter": 3,
+      "talkLeave": 4.2,
+      "greeting": {
+        "timeIcons": [
+          {
+            "from": 6,
+            "to": 19,
+            "icon": "trail"
+          }
+        ],
+        "otherwise": "moon",
+        "extra": [
+          "question"
+        ]
+      },
+      "prompt": "Talk to the Wanderer",
+      "hints": [
+        {
+          "text": "I never stay long in one place. Tomorrow you will find me somewhere else.",
+          "icons": [
+            "trail"
+          ]
+        },
+        {
+          "text": "The Margins have three corners. I like to visit each in turn.",
+          "icons": [
+            "trail",
+            "book"
+          ]
+        },
+        {
+          "text": "Under the trees, glyph crumbs. Under the shelves, a few more.",
+          "icons": [
+            "crumb"
+          ]
+        },
+        {
+          "text": "Walk slowly and watch the ground for a glint.",
+          "icons": [
+            "question"
+          ]
+        },
+        {
+          "text": "At night the pages look different. I walk by lantern light.",
+          "icons": [
+            "moon"
+          ]
+        },
+        {
+          "text": "Your Print follows well. Mine only follows the road.",
+          "icons": [
+            "leaf"
+          ]
+        },
+        {
+          "text": "The gate home is always where you left it.",
+          "icons": [
+            "house"
+          ]
+        },
+        {
+          "text": "The map under the M key remembers where you have walked. I only wish mine did.",
+          "icons": [
+            "trail",
+            "question"
           ]
         }
       ]

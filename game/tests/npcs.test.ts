@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import raw from "@/data/npcs.json";
 import {
-  ICON_NAMES, MAX_LINE, NOTICE0, NPCS, TALK0, TIMES, bubbleLook, checkNpc, checkNpcs, closeTalk, greetingIcons, noticeStep, npcSpot, sway, talk, talkStillNear, withinSlack,
+  ICON_NAMES, MAX_LINE, NOTICE0, NPCS, TALK0, TIMES, bubbleLook, checkNpc, checkNpcs, closeTalk, dayNumber, daySpotIndex, npcSpotUsable, greetingIcons, noticeStep, npcSpot, sway, talk, talkStillNear, withinSlack,
 } from "@/lib/npcs";
-import { MARGINS, generateLayout, gatePosts, inGateZone } from "@/lib/margins";
+import { MARGINS, buildField, generateLayout, gatePosts, inGateZone, reachable, spotsForDay } from "@/lib/margins";
 import { insideAny } from "@/lib/world";
 
 const good = () => JSON.parse(JSON.stringify(raw.npcs[0]));
@@ -146,7 +146,7 @@ describe("N2: a list of neighbours", () => {
   const owl = NPCS.find((n) => n.id === "proofreader")!;
   const layout2 = generateLayout();
   it("has both, with distinct names, looks and greeting icons", () => {
-    expect(NPCS.map((n) => n.id)).toEqual(["binder", "proofreader"]);
+    expect(NPCS.map((n) => n.id)).toEqual(["binder", "proofreader", "wanderer"]);
     expect(owl.look).not.toBe(binder.look);
     expect(greetingIcons(owl, 12)[0]).toBe("book");
     expect(greetingIcons(owl, 23)[0]).toBe("moon");
@@ -195,5 +195,76 @@ describe("N2: a list of neighbours", () => {
     a = talk(a, binder.hints.length); a = talk(a, binder.hints.length);
     b = talk(b, owl.hints.length);
     expect(a.shown).toBe(1); expect(b.shown).toBe(0);
+  });
+});
+
+describe("N3, the Wanderer", () => {
+  const w = NPCS.find((n) => n.id === "wanderer")!;
+  const layout = generateLayout(), field = buildField(layout.cols);
+  const at = (i: number) => ({ x: w.spots![i].at[0], z: w.spots![i].at[1] });
+  it("is loaded with the traveller look and 3 to 5 spots", () => {
+    expect(w).toBeTruthy();
+    expect(w.look).toBe("traveller");
+    expect(w.spots!.length).toBeGreaterThanOrEqual(3);
+    expect(w.spots!.length).toBeLessThanOrEqual(5);
+    expect(w.hints).toHaveLength(8);
+    for (const h of w.hints) expect(h.text).not.toMatch(/reward|errand|trade|gift|pay|coin|prize/i);
+  });
+  it("has at least one spot in each Margins zone", () => {
+    for (const z of MARGINS.zones) expect(w.spots!.some((s) => s.at[0] >= z.x0 && s.at[0] < z.x1 && s.at[1] >= z.z0 && s.at[1] < z.z1)).toBe(true);
+  });
+  it("every spot is clear, reachable, off the gate path, away from the owl and from every page spot", () => {
+    const owl = npcSpot(NPCS.find((n) => n.id === "proofreader")!), bind = npcSpot(NPCS.find((n) => n.id === "binder")!);
+    const g = MARGINS.gate.margins, o = MARGINS.gate.out;
+    const pages: { x: number; z: number }[] = [];
+    for (let i = 0; i < 730; i++) pages.push(...spotsForDay(new Date(Date.UTC(2026, 9, 1) + i * 864e5).toISOString().slice(0, 10), layout, field));
+    w.spots!.forEach((_, i) => {
+      const p = at(i);
+      expect(npcSpotUsable(p, w.radius, layout.cols, [{ x: owl.x, z: owl.z, r: 0.55 }, { x: bind.x, z: bind.z, r: 0.55 }])).toBe(true);
+      expect(insideAny(p, w.radius + 1.5, layout.cols)).toBe(false);
+      expect(reachable(field, p)).toBe(true);
+      expect(Math.hypot(p.x - owl.x, p.z - owl.z)).toBeGreaterThan(8);
+      let wd = Infinity; for (let t = 0; t <= 25; t += 0.5) wd = Math.min(wd, Math.hypot(p.x - (g.x + o[0] * t), p.z - (g.z + o[1] * t)));
+      expect(wd).toBeGreaterThan(3);
+      expect(Math.min(...pages.map((s) => Math.hypot(s.x - p.x, s.z - p.z)))).toBeGreaterThan(1.5);
+    });
+  });
+  it("picks the spot from the day number, the same all day, and moves on the next day", () => {
+    expect(dayNumber("1970-01-02")).toBe(1);
+    expect(dayNumber("nope")).toBeNull();
+    expect(daySpotIndex("2026-10-21", 4)).toBe(daySpotIndex("2026-10-21", 4));
+    expect(daySpotIndex("2026-10-22", 4)).toBe((daySpotIndex("2026-10-21", 4) + 1) % 4);
+    const seen = new Set<string>();
+    for (let d = 1; d <= w.spots!.length; d++) { const p = npcSpot(w, `2026-11-0${d}`); seen.add(`${p.x},${p.z}`); }
+    expect(seen.size).toBe(w.spots!.length);
+    expect(daySpotIndex("garbage", 4)).toBe(0);
+  });
+  it("rejects bad spot lists and bad looks without throwing", () => {
+    const raw0 = JSON.parse(JSON.stringify(raw.npcs.find((n: any) => n.id === "wanderer")));
+    const bad = (f: (n: any) => void) => { const n = JSON.parse(JSON.stringify(raw0)); f(n); return checkNpc(n); };
+    expect(bad(() => {})).not.toBeNull();
+    expect(bad((n) => { n.spots = n.spots.slice(0, 2); })).toBeNull();
+    expect(bad((n) => { n.spots = [...n.spots, ...n.spots]; })).toBeNull();
+    expect(bad((n) => { n.spots[0].at = [999, 0]; })).toBeNull();
+    expect(bad((n) => { n.spots[1] = null; })).toBeNull();
+    expect(bad((n) => { n.spots = "x"; })).toBeNull();
+    expect(bad((n) => { n.look = "ghost"; })).toBeNull();
+    expect(checkNpcs({ npcs: [{ id: "x" }, raw0] }).map((n) => n.id)).toEqual(["wanderer"]);
+  });
+  it("skips a day's spot that is blocked, without throwing", () => {
+    const tree = layout.trees[0];
+    expect(npcSpotUsable({ x: tree.x, z: tree.z }, 0.55, layout.cols, [])).toBe(false);
+    expect(npcSpotUsable(at(0), 0.55, layout.cols, [{ x: at(0).x + 0.5, z: at(0).z, r: 0.55 }])).toBe(false);
+    expect(npcSpotUsable(at(0), 0.55, undefined, [])).toBe(false);
+  });
+  it("leaves the Binder and the Proof-reader as they were", () => {
+    expect(npcSpot(binder)).toEqual(npcSpot(binder, "2026-10-21"));
+    const owl = NPCS.find((n) => n.id === "proofreader")!;
+    expect(npcSpot(owl, "2026-10-22")).toEqual({ x: -36, z: -18.5, face: 3.14 });
+    expect(owl.spots).toBeNull(); expect(binder.spots).toBeNull();
+  });
+  it("greets with a trail by day, a moon at night, plus a question", () => {
+    expect(greetingIcons(w, 12)).toEqual(["trail", "question"]);
+    expect(greetingIcons(w, 23)).toEqual(["moon", "question"]);
   });
 });
