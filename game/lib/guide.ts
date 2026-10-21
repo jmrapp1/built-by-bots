@@ -114,3 +114,9 @@ export function eggBearing(pose: { x: number; z: number; yaw: number }, egg: { x
 // Has the player walked? (A small step from where they started.)
 export const hasMoved = (from: { x: number; z: number } | null, to: { x: number; z: number }, min = 0.3): boolean =>
   !!from && Math.hypot(to.x - from.x, to.z - from.z) >= min;
+
+// ?guide=feed (dev only, ignored in production builds): shows the feed hint without real data.
+// Move and egg count as done, a Print is near and a snack is in hand. Nothing is read, saved or sent.
+export const PREVIEW_DONE: readonly Step[] = ["move", "egg"];
+export const guideOverride = (search: string, isProduction: boolean): "feed" | null =>
+  !isProduction && new URLSearchParams(search).get("guide") === "feed" ? "feed" : null;

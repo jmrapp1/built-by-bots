@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_KEY, GUIDE_TEXT, STEPS, afterEggClaimed, currentHint, eggBearing, feedFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Store } from "@/lib/guide";
+import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Store } from "@/lib/guide";
 
 const mem = (): Store & { data: Record<string, string> } => {
   const data: Record<string, string> = {};
@@ -137,5 +137,18 @@ describe("wording", () => {
   it("names the real bound keys", () => {
     expect(hintText("move")).toContain("W A S D");
     expect(hintText("egg")).toContain("E");
+  });
+});
+
+describe("?guide=feed preview switch", () => {
+  it("is on in dev only for the exact value", () => {
+    expect(guideOverride("?guide=feed", false)).toBe("feed");
+    expect(guideOverride("?area=home&guide=feed", false)).toBe("feed");
+    expect(guideOverride("?guide=feed", true)).toBeNull();
+    for (const bad of ["", "?guide=", "?guide=move", "?guide=FEED"]) expect(guideOverride(bad, false)).toBeNull();
+  });
+  it("puts the feed hint on screen when a Print and snack are in hand", () => {
+    expect(PREVIEW_DONE).toEqual(["move", "egg"]);
+    expect(currentHint(PREVIEW_DONE, ctx({ eggPending: false, printNear: true, hasSnack: true, hasCreature: true }))).toBe("feed");
   });
 });
