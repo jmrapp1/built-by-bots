@@ -6,7 +6,7 @@ import { HALF, WORLD, pathPoints, regionAt, type Landmark, type RegionId } from 
 import { GARDEN, type Vec } from "./world";
 
 export const MAP = map;
-export type Icon = "leaf" | "book" | "moon";
+export type Icon = "leaf" | "book" | "moon" | "kite";
 export type Signpost = { id: string; icon: Icon; x: number; z: number; yaw: number };
 export const SIGNPOSTS = map.signposts as Signpost[];
 
@@ -61,7 +61,7 @@ export function pathRuns(w: Walked): Vec[][] {
 }
 export const seenLandmarks = (w: Walked): Landmark[] => (WORLD.landmarks as Landmark[]).filter((l) => isWalked(w, l.x, l.z));
 export const seenSignposts = (w: Walked): Signpost[] => SIGNPOSTS.filter((s) => isWalked(w, s.x, s.z));
-export const regionOfCell = (i: number): RegionId => regionAt(cellCentre(i).z);
+export const regionOfCell = (i: number): RegionId => regionAt(cellCentre(i).z, cellCentre(i).x);
 
 /** The pin: where the player stands on the page and which way they face (yaw as the game keeps it: at 0 the player faces -z, up the page). */
 export function pin(x: number, z: number, yaw: number, px: number) {

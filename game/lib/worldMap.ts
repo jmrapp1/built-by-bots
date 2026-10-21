@@ -6,14 +6,14 @@ import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
 
 export const WORLD = world;
-export type RegionId = "meadow" | "inkwood";
+export type RegionId = "meadow" | "inkwood" | "paper_downs";
 export type Item = { x: number; z: number; s: number; r: number };
-export type Landmark = { id: string; kind: "tower" | "spire" | "bigtree" | "lamp"; x: number; z: number; r: number; h: number };
+export type Landmark = { id: string; kind: "tower" | "spire" | "bigtree" | "lamp" | "hill"; x: number; z: number; r: number; h: number };
 export type Contents = { region: RegionId; trees: Item[]; rocks: Item[]; bushes: Item[]; landmarks: Landmark[]; posts: Circle[] };
 
 export const HALF = WORLD.size / 2;
 export const CHUNKS = Math.ceil(WORLD.size / WORLD.chunk);
-export const regionAt = (z: number): RegionId => (z < WORLD.inkwoodZ ? "inkwood" : "meadow");
+export const regionAt = (z: number, x: number = -1): RegionId => (z < WORLD.inkwoodZ ? (x >= WORLD.paperDownsX ? "paper_downs" : "inkwood") : "meadow");
 export const chunkKey = (ix: number, iz: number) => `${ix},${iz}`;
 export const chunkOf = (v: number) => Math.min(CHUNKS - 1, Math.max(0, Math.floor((v + HALF) / WORLD.chunk)));
 const inRange = (ix: number, iz: number) => ix >= 0 && iz >= 0 && ix < CHUNKS && iz < CHUNKS;
@@ -63,7 +63,7 @@ const EMPTY = (region: RegionId): Contents => ({ region, trees: [], rocks: [], b
 export function chunkContents(ix: number, iz: number, seed: number = WORLD.seed): Contents {
   if (!inRange(ix, iz)) return EMPTY("meadow");
   const { x0, z0, x1, z1 } = chunkBounds(ix, iz);
-  const region = regionAt((z0 + z1) / 2);
+  const region = regionAt((z0 + z1) / 2, (x0 + x1) / 2);
   const out = EMPTY(region);
   const rnd = mulberry32(hash(ix, iz, seed));
   const w = x1 - x0, d = z1 - z0, area = w * d, dens = WORLD.density[region];

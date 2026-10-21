@@ -26,6 +26,13 @@
       "x": -7,
       "z": -67,
       "yaw": 1.5708
+    },
+    {
+      "id": "post-kite",
+      "icon": "kite",
+      "x": 13,
+      "z": -88,
+      "yaw": -1.5708
     }
   ],
   "look": {
@@ -33,6 +40,7 @@
     "ink": "#2b2a33",
     "meadow": "#cfe0b4",
     "inkwood": "#9db3a2",
+    "paper_downs": "#e3dcc0",
     "path": "#3a3456",
     "pin": "#d9606b"
   }
