@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import raw from "@/data/npcs.json";
 import {
-  ICON_NAMES, MAX_LINE, NOTICE0, NPCS, TALK0, TIMES, bubbleLook, checkNpc, checkNpcs, closeTalk, dayNumber, daySpotIndex, npcSpotUsable, greetingIcons, noticeStep, npcSpot, sway, talk, talkStillNear, withinSlack,
+  ICON_NAMES, MAX_DAY_SPOTS, MAX_LINE, NOTICE0, NPCS, TALK0, TIMES, bubbleLook, checkNpc, checkNpcs, closeTalk, dayNumber, daySpotIndex, npcSpotUsable, greetingIcons, noticeStep, npcSpot, sway, talk, talkStillNear, withinSlack,
 } from "@/lib/npcs";
 import { MARGINS, buildField, generateLayout, gatePosts, inGateZone, reachable, spotsForDay } from "@/lib/margins";
 import { insideAny } from "@/lib/world";
@@ -202,11 +202,13 @@ describe("N3, the Wanderer", () => {
   const w = NPCS.find((n) => n.id === "wanderer")!;
   const layout = generateLayout(), field = buildField(layout.cols);
   const at = (i: number) => ({ x: w.spots![i].at[0], z: w.spots![i].at[1] });
-  it("is loaded with the traveller look and 3 to 5 spots", () => {
+  it("is loaded with the traveller look and 3 to MAX_DAY_SPOTS spots, 8 or 9 of them", () => {
     expect(w).toBeTruthy();
     expect(w.look).toBe("traveller");
     expect(w.spots!.length).toBeGreaterThanOrEqual(3);
-    expect(w.spots!.length).toBeLessThanOrEqual(5);
+    expect(w.spots!.length).toBeLessThanOrEqual(MAX_DAY_SPOTS);
+    expect(MAX_DAY_SPOTS).toBe(9);
+    expect([8, 9]).toContain(w.spots!.length); // not a divisor of 7: she does not land on the same place every week
     expect(w.hints).toHaveLength(8);
     for (const h of w.hints) expect(h.text).not.toMatch(/reward|errand|trade|gift|pay|coin|prize/i);
   });
@@ -229,6 +231,21 @@ describe("N3, the Wanderer", () => {
       expect(Math.min(...pages.map((s) => Math.hypot(s.x - p.x, s.z - p.z)))).toBeGreaterThan(1.5);
     });
   });
+  it("keeps the first four spots as they were, in order", () => {
+    expect(w.spots!.slice(0, 4).map((s) => [...s.at, s.face])).toEqual([[-36, 30, 2.27], [-3, 16, 2.96], [18, -7, -1.2], [34, -3, -1.48]]);
+  });
+  it("every two spots are at least 6 apart", () => {
+    for (let i = 0; i < w.spots!.length; i++) for (let j = i + 1; j < w.spots!.length; j++) expect(Math.hypot(at(i).x - at(j).x, at(i).z - at(j).z), `${i}-${j}`).toBeGreaterThanOrEqual(6);
+  });
+  it("crosses zones: no two days in a row (across a full cycle, wrapping) are in the same zone, and each zone has 2 or more", () => {
+    const zoneOfSpot = (i: number) => MARGINS.zones.find((z) => at(i).x >= z.x0 && at(i).x < z.x1 && at(i).z >= z.z0 && at(i).z < z.z1)?.id;
+    const n = w.spots!.length;
+    for (let i = 0; i < n; i++) expect(zoneOfSpot(i), `${i}`).not.toBe(zoneOfSpot((i + 1) % n));
+    for (const z of MARGINS.zones) expect(w.spots!.filter((_, i) => zoneOfSpot(i) === z.id).length).toBeGreaterThanOrEqual(2);
+    // and the real day walk: a run of days over two cycles
+    let last: string | undefined;
+    for (let d = 0; d < n * 2; d++) { const day = new Date(Date.UTC(2026, 9, 1) + d * 864e5).toISOString().slice(0, 10); const z = zoneOfSpot(daySpotIndex(day, n)); if (last) expect(z).not.toBe(last); last = z; }
+  });
   it("picks the spot from the day number, the same all day, and moves on the next day", () => {
     expect(dayNumber("1970-01-02")).toBe(1);
     expect(dayNumber("nope")).toBeNull();
@@ -244,7 +261,9 @@ describe("N3, the Wanderer", () => {
     const bad = (f: (n: any) => void) => { const n = JSON.parse(JSON.stringify(raw0)); f(n); return checkNpc(n); };
     expect(bad(() => {})).not.toBeNull();
     expect(bad((n) => { n.spots = n.spots.slice(0, 2); })).toBeNull();
-    expect(bad((n) => { n.spots = [...n.spots, ...n.spots]; })).toBeNull();
+    expect(bad((n) => { n.spots = [...n.spots, ...n.spots]; })).toBeNull(); // 16 spots
+    expect(bad((n) => { n.spots = [...n.spots, ...n.spots].slice(0, MAX_DAY_SPOTS + 1); })).toBeNull(); // 10 spots
+    expect(bad((n) => { n.spots = [...n.spots, ...n.spots].slice(0, MAX_DAY_SPOTS); })).not.toBeNull(); // 9 spots
     expect(bad((n) => { n.spots[0].at = [999, 0]; })).toBeNull();
     expect(bad((n) => { n.spots[1] = null; })).toBeNull();
     expect(bad((n) => { n.spots = "x"; })).toBeNull();

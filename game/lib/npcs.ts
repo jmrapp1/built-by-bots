@@ -29,7 +29,7 @@ export type Hint = { text: string; icons: IconName[] };
 // N4: the words for the one-time gift (the server decides whether it is given; these are only the lines).
 export type GiftWords = { line: string; thanks: string; icons: IconName[] };
 export type AtSpot = { at: [number, number]; face: number };
-export const MAX_DAY_SPOTS = 5, MIN_DAY_SPOTS = 3;
+export const MAX_DAY_SPOTS = 9, MIN_DAY_SPOTS = 3;
 export type Npc = {
   id: string; name: string; look: Look; area: "margins"; prompt: string; radius: number;
   spot: Spot; // where she stands (for a neighbour with `spots`, the first of them)
