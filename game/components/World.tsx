@@ -1,5 +1,7 @@
 "use client";
 import { createZoneController } from "@/lib/zones";
+import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcById, npcSpot, talk, talkStillNear, withinSlack, type Notice, type Talk } from "@/lib/npcs";
+import { buildBinder, type BinderScene } from "@/components/npcScene";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
@@ -60,6 +62,8 @@ type Props = {
   onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
   onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
   onMarginsNote?: (text: string) => void;
+  onNpcTalk?: (line: { name: string; text: string; icons: string[] } | null) => void; // N1: the hint strip for the neighbour being talked to (null = closed)
+  npcClose?: number; // N1: the page bumps this when "Thanks" closes the strip
   onWorldUnfold?: (region: string, spot: number, layoutDay: string) => Promise<Outcome>; // W5: ask the server what is inside a World spot
   onLoadWorldOpened?: (day: string) => Promise<string[] | null>; // W5: World spots this player already opened today (keys "region:spot")
   onSpotsOpened?: (points: { x: number; z: number }[]) => void; // W5: where today's opened spots are, for the map page
@@ -220,13 +224,13 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, decorPlaced = null }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome };
+  const cb = useRef({ onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome });
+  cb.current = { onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced });
-  live.current = { genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced };
+  const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced });
+  live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -315,6 +319,22 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       reportKey = k;
       cb.current.onMargins?.({ inside: zones.is("margins"), left: spotsLeft(mSpots, opened), total: mSpots.length, scraps });
     };
+    // N1: the Binder at the Margins gate. Any trouble with her data or her shapes skips her; the world carries on.
+    let binder: BinderScene | null = null, binderAt: (Vec & { face: number }) | null = null, binderNote: Notice = NOTICE0, binderTalk: Talk = TALK0, binderClosed = live.current.npcClose, binderT = 0;
+    const closeBinderTalk = () => { if (binderTalk.open) { binderTalk = closeTalk(binderTalk); cb.current.onNpcTalk?.(null); } };
+    const buildBinderIn = () => {
+      binder = null; binderAt = null; binderNote = NOTICE0; binderTalk = TALK0;
+      const npc = npcById("binder");
+      if (!npc) return;
+      try {
+        const b = buildBinder(npc), at = npcSpot(npc);
+        b.group.position.set(at.x, 0, at.z);
+        if (mg) mg.group.add(b.group);
+        binder = b; binderAt = at;
+        if (mLayout) mCols = { circles: [...mLayout.cols.circles, { x: at.x, z: at.z, r: npc.radius }], boxes: mLayout.cols.boxes }; // her own circle, off the walkway
+      } catch { binder = null; binderAt = null; }
+    };
+    const dropBinder = () => { if (binder) { binder.dispose(); binder = null; } binderAt = null; if (mLayout) mCols = mLayout.cols; closeBinderTalk(); binderNote = NOTICE0; };
     const wipe = document.createElement("div");
     wipe.className = "page-wipe";
     wipe.style.display = "none";
@@ -328,6 +348,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       opened = openedByDay.get(mDay) ?? new Set<number>();
       openedByDay.set(mDay, opened);
       mg.setSpots(mSpots, opened);
+      buildBinderIn();
       mActive = null; uHold = 0; uSpot = null; uPending = false; quietUntilNext = false;
       const myVisit = ++visit;
       serverReady = local; readFailed = false; downNoted = false;
@@ -349,6 +370,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       report();
     };
     const leaveMarginsZone = () => {
+      dropBinder();
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
@@ -600,6 +622,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     rebuild.current();
 
     const keys = new Set<string>();
+    const talkToBinder = () => {
+      const npc = npcById("binder");
+      if (!npc || !binder || live.current.locked || travel) return;
+      binderTalk = talk(binderTalk, npc.hints.length);
+      const h = npc.hints[binderTalk.shown];
+      if (h) cb.current.onNpcTalk?.({ name: npc.name, text: h.text, icons: h.icons });
+    };
     const down = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
@@ -613,6 +642,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           startTravel(zones.is("home") ? "garden" : "home", pos); // the Home door in either direction
         } else if (zones.is("home")) {
           if (nearby?.kind === "decor" && !live.current.locked) cb.current.onInteract(nearby); // ?decor=stub: open the strip for this plot
+        } else if (nearby?.kind === "npc") {
+          talkToBinder();
         } else if (zones.is("margins")) {
           // unfolding is a hold, handled each frame
         } else if (hideFindable) {
@@ -639,8 +670,19 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     let dragging = false;
     const dom = renderer.domElement;
-    const pd = (e: PointerEvent) => { dragging = true; dom.setPointerCapture(e.pointerId); };
-    const pu = () => { dragging = false; };
+    const pd = (e: PointerEvent) => { dragging = true; downAt = { x: e.clientX, y: e.clientY }; dom.setPointerCapture(e.pointerId); };
+    let downAt: { x: number; y: number } | null = null;
+    const pu = (e: PointerEvent) => {
+      dragging = false;
+      const d = downAt; downAt = null;
+      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !binder || !binderAt || !zones.is("margins") || travel) return;
+      const npc = npcById("binder"); // a tap on her, close enough to talk, is the same as pressing E
+      const r = dom.getBoundingClientRect();
+      if (!npc || Math.hypot(pos.x - OFF - binderAt.x, pos.z - binderAt.z) > npc.talkLeave) return;
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      if (ray.intersectObject(binder.hit, true).length) talkToBinder();
+    };
     const pm = (e: PointerEvent) => {
       if (!dragging) return;
       yaw -= e.movementX * GARDEN.camera.turnSpeed;
@@ -1185,6 +1227,19 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const A = MARGINS.arrows;
         const hereHome = pathLength(trailPath) < A.hideNear;
         const trail = hereHome ? [] : along(trailPath, A.startDist, A.spacing, A.count, reducedMotion ? 0 : ((t / 1000) * A.flowSpeed) % A.spacing);
+        if (binder && binderAt) { // N1: she notices you, turns, blooms her bubble; the hint strip closes when you walk off
+          try {
+            const npc = npcById("binder")!, dist = Math.hypot(l.x - binderAt.x, l.z - binderAt.z);
+            binderNote = noticeStep(binderNote, dist, npc.noticeEnter, npc.noticeLeave, dt, reducedMotion);
+            binderT += dt;
+            binder.update({ t: binderT, turn: binderNote.turn, bubble: binderNote.bubble, faceYaw: Math.atan2(l.x - binderAt.x, l.z - binderAt.z), restYaw: binderAt.face, reduced: reducedMotion, icons: greetingIcons(npc, hourNow) });
+            const was = binderTalk.open;
+            binderTalk = talkStillNear(binderTalk, dist, npc);
+            if (was && !binderTalk.open) cb.current.onNpcTalk?.(null);
+            if (live.current.npcClose !== binderClosed) { binderClosed = live.current.npcClose; closeBinderTalk(); }
+            if (!mActive && !uSpot && !inGateZone(l, "home") && withinSlack(dist, nearby?.kind === "npc", npc.talkEnter, npc.talkLeave)) mNear = { id: "npc-binder", kind: "npc", x: binderAt.x + OFF, z: binderAt.z, label: npc.prompt, prompt: npc.prompt };
+          } catch { dropBinder(); } // broken at runtime: skip her, keep the world
+        }
         mg.update({ t: t / 1000, dt, player: l, hour: hourNow, reduced: reducedMotion, all: mo.all, opened, active: mActive ? { id: mActive.id, since: (t - mActive.since) / 1000 } : null, target: l, trail });
         if (uHold > 0 && uSpot) {
           const v = new THREE.Vector3(uSpot.x + OFF, 0.5 + heightAt(uSpot.x, uSpot.z, mLayout.hills), uSpot.z).project(camera);

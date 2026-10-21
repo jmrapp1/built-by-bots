@@ -180,6 +180,12 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .slot.full { border-style: solid; border-color: var(--ink); background: var(--paper-shade); }
 .slot.held { box-shadow: 0 0 0 3px rgba(227, 168, 59, 0.55); }
 
+/* N1: the neighbour's hint strip */
+.npc-strip { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(420px, 92vw); display: grid; gap: 10px; justify-items: center; text-align: center; padding: 14px 18px; animation: fade 200ms var(--ease) both; }
+.npc-strip p { margin: 0; line-height: 1.4; }
+.npc-icons { display: flex; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .npc-strip { animation-duration: 150ms !important; } }
+
 /* The Margins (slice 6a): the page-turn wipe, the finds row and the scrap count */
 .page-wipe { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: #f4ecd6; box-shadow: -14px 0 0 -2px #e8dcc0, -26px 0 30px rgba(42, 36, 56, 0.18); }
 .finds { position: absolute; left: 24px; top: 24px; display: flex; align-items: center; gap: 6px; padding: 8px 14px; }

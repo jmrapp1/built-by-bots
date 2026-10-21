@@ -1,0 +1,36 @@
+{
+  "note": "Neighbours in the world (slice N1). Authored lines only; edit text here, no code change. Nothing is saved or sent.",
+  "npcs": [
+    {
+      "id": "binder",
+      "name": "The Binder",
+      "area": "margins",
+      "spot": { "from": "gate", "out": 3.4, "side": 2.7 },
+      "radius": 0.55,
+      "noticeEnter": 6,
+      "noticeLeave": 7.5,
+      "talkEnter": 3,
+      "talkLeave": 4.2,
+      "greeting": {
+        "timeIcons": [
+          { "from": 5.5, "to": 7.5, "icon": "drop" },
+          { "from": 7.5, "to": 18.5, "icon": "leaf" },
+          { "from": 18.5, "to": 20.5, "icon": "drop" }
+        ],
+        "otherwise": "moon",
+        "extra": ["question"]
+      },
+      "prompt": "Talk to the Binder",
+      "hints": [
+        { "text": "The Margins are the pages beside the garden. Come through the gate any time.", "icons": ["book"] },
+        { "text": "Prints like to follow a trail. Walk on, and see where yours goes.", "icons": ["trail"] },
+        { "text": "Glyph crumbs lie in the grass under the trees. Prints are fond of them.", "icons": ["crumb"] },
+        { "text": "Night changes what you can find. Come back when the lanterns are lit.", "icons": ["moon"] },
+        { "text": "Folded pages hide in the Margins. Hold E beside one to unfold it.", "icons": ["book", "leaf"] },
+        { "text": "Home has little plots for small things. Go through the door and see.", "icons": ["house"] },
+        { "text": "The map lives under the M key. It remembers where you have walked.", "icons": ["trail", "question"] },
+        { "text": "Ink puddles gather by the inkwell. Your pouch only holds a few.", "icons": ["drop"] }
+      ]
+    }
+  ]
+}

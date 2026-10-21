@@ -41,6 +41,7 @@ export function promptFor(place: Place, s: PromptState): string | null {
     case "door": return place.prompt; // the Home door, in the gate's plain style
     case "decor": return place.prompt; // a Home plot (?decor=stub)
     case "unfold": return place.prompt;
+    case "npc": return place.prompt; // a neighbour to talk to
     case "rest": return place.prompt || "Sit and rest";
     case "scenery": return null; // the inkwell is decoration only
     case "notice": return "Read the board";
