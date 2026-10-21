@@ -140,7 +140,7 @@ export function pondPose(s: PondState, reduced = false): PondPose {
 }
 
 // --- Splashes: rings and drops ---------------------------------------------------------------
-export type Splash = { start: number; x: number; z: number; big: boolean };
+export type Splash = { start: number; x: number; z: number; big: boolean; ringOnly?: boolean }; // ringOnly: a skipped page's landing (a ring, no drops)
 export const splashLife = (big: boolean, reduced: boolean) => (big ? POND.ring.bigLife : POND.ring.life) * (reduced ? POND.ring.reducedSlow : 1);
 
 // A ring starts small at the splash and spreads across the pond. Its radius passes the far edge so the

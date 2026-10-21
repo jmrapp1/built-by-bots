@@ -1,3 +1,4 @@
+import pond from "@/data/pond.json";
 // Small pure helpers for UI text, so they can be tested.
 import type { Place } from "@/lib/world";
 import { DAILY } from "@/lib/daily";
@@ -52,6 +53,8 @@ export function promptFor(place: Place, s: PromptState): string | null {
 
 // Shown while the Print hides and the player is within reach. No numbers.
 export const FOUND_PROMPT = "Found you?";
+// The second pond line (a flat page and this): shown by day beside the pond. Fixed text from data/pond.json.
+export const SKIP_PROMPT = pond.skip.prompt;
 
 // Short human sentences instead of raw auth errors.
 export function friendlyAuthError(message: string): string {
@@ -93,3 +96,5 @@ export function friendlyFeedError(message: string): string {
 }
 // Feed confirmations and feed errors are short-lived toasts.
 export const isFeedMessage = (m: string): boolean => m === FED_MESSAGE || (Object.values(FEED_ERRORS) as string[]).includes(m);
+
+export const keyLabel = (code: string): string => code.replace(/^Key/, "");

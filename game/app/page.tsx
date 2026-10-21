@@ -9,6 +9,7 @@ import { BOARD_PAGES, BOARD_TITLE, nextPage, pageAt, pageLabel, prevPage } from 
 import { clampHue, isFavourite, speciesById, speciesOverride } from "@/lib/species";
 import { DAILY, dailyAvailable, friendlyDailyError, utcDay, activeIndex } from "@/lib/daily";
 import { progressToNext, stageById, stageChanged } from "@/lib/growth";
+import { SKIP } from "@/lib/skip";
 import { PLAY, nextFood } from "@/lib/play";
 import MapPage from "@/components/MapPage";
 import { newWalked, type Walked } from "@/lib/map";
@@ -21,8 +22,8 @@ import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
-import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
-import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace } from "@/components/ui";
+import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
+import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
@@ -462,6 +463,11 @@ export default function Page() {
           {!feedTag && nearby?.kind === "egg" && <EggIcon />}
           <strong>{feedTag && (feeding || reacting) ? "Munching…" : tag}</strong>
           {(feedTag || nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+        </div>
+      )}
+      {nearby?.kind === "pond" && canSplash && !menu && !npcLine && !feedTag && !findable && (
+        <div className="card tag" role="status" style={{ bottom: 92 }}>
+          <PageIcon /><strong>{SKIP_PROMPT.line}</strong><KeyCap>{keyLabel(SKIP.key)}</KeyCap>
         </div>
       )}
       {margins.inside && (

@@ -22,6 +22,7 @@ import {
   phaseSeconds, playerGestureSeconds, playerLean, playerSplashLanded, pondAdvance, pondBusy, pondOverride, pondPose, pondStart, retryDelay,
   ringAt, ringCount, ringDelay, shorePoint, splashLife, splashSpot, tapsBetween, towardPond, type PondState, type Splash,
 } from "@/lib/pond";
+import { SKIP, canSkip, handPoint, printWatches, skipFrame, skipLandings, skipPlan, skipWorld, watcherHop, type SkipPlan } from "@/lib/skip";
 import {
   HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
   hideStart, nextGameDelay, pickSpot, previewSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
@@ -561,7 +562,31 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let pondLeg = 0;
     let pondNextAt = firstVisitDelay(Math.random());
     let pondPreview = pondOverride(window.location.search, process.env.NODE_ENV === "production");
-    let pgStart = -1, pgLanded = false;
+    let pgStart = -1, pgLanded = false, pgSkip = false;
+    // Page-skipping (lib/skip.ts): one folded page at a time, built on the throw and disposed when it has soaked in.
+    let sk: { plan: SkipPlan; start: number; from: Vec; hand: { along: number; side: number }; landed: number; cancelAt: number; mesh: THREE.Group | null } | null = null;
+    let skAge = -1, skAt: Vec | null = null;
+    const endSkip = () => {
+      if (!sk) return;
+      if (sk.mesh) {
+        scene.remove(sk.mesh);
+        sk.mesh.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); if (m.material) (m.material as THREE.Material).dispose(); });
+      }
+      for (let i = splashes.length - 1; i >= 0; i--) if (splashes[i].ringOnly) splashes.splice(i, 1); // no ring is left behind
+      sk = null; skAge = -1; skAt = null;
+    };
+    const buildPage = () => {
+      const g = new THREE.Group();
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute([-0.17, 0.035, -0.12, 0, 0, -0.12, 0.17, 0.035, -0.12, -0.17, 0.035, 0.12, 0, 0, 0.12, 0.17, 0.035, 0.12], 3));
+      geo.setIndex([0, 3, 1, 1, 3, 4, 1, 4, 2, 2, 4, 5]);
+      geo.computeVertexNormals();
+      const paper = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf6efe0, side: THREE.DoubleSide, transparent: true }));
+      const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 1), new THREE.LineBasicMaterial({ color: 0x2b3560, transparent: true }));
+      g.add(paper, edge);
+      g.renderOrder = 4;
+      return g;
+    };
     const splashes: Splash[] = [];
     const ringPool: THREE.Mesh[] = [];
     for (let i = 0; i < POND.maxSplashes * 2; i++) {
@@ -582,8 +607,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       scene.add(m);
       splashDrops.push(m);
     }
-    const addSplash = (x: number, z: number, big: boolean, at: number) => {
-      splashes.push({ start: at, x, z, big });
+    const addSplash = (x: number, z: number, big: boolean, at: number, ringOnly = false) => {
+      splashes.push({ start: at, x, z, big, ringOnly });
       while (splashes.length > POND.maxSplashes) splashes.shift();
     };
     // Hide and seek: the Print stops, dashes behind a tree and peeks out until the player finds it (lib/hide.ts).
@@ -670,6 +695,15 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if ((e.target as HTMLElement)?.tagName === "INPUT") return;
       keys.add(e.code);
       if (opensMap(e.code, e.target as HTMLElement) && !e.repeat) { cb.current.onMapKey?.(); return; }
+      if (e.code === SKIP.key && !e.repeat) {
+        const idle = pgStart < 0 && holdStart < 0 && strokeStart < 0 && !(reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000);
+        if (nearby && nearby.id === "pond" && zones.is("garden") && !travel && !live.current.locked && !live.current.mapOpen && sit.phase === "standing" && idle && canSkip(hourNow, { flying: !!sk })) {
+          const now = performance.now();
+          sk = { plan: skipPlan(Math.floor(now), window.matchMedia("(prefers-reduced-motion: reduce)").matches), start: now, from: { x: pos.x, z: pos.z }, hand: handPoint(pos), landed: 0, cancelAt: -1, mesh: null };
+          pgStart = now; pgLanded = true; pgSkip = true; // the lean over the water, without the splash
+        }
+        return;
+      }
       if (e.code === PLAY.keys.hold && !e.repeat) {
         if (travel) {
           // walking through a gate: nothing else to do
@@ -697,7 +731,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if (was === "standing" && sit.phase === "going") sitFrom = pos;
         } else if (nearby?.kind === "pond") {
           // No lean and no ring in the dark: the pond follows the Print's own day window.
-          if (pgStart < 0 && canPlayerSplash(hourNow)) { pgStart = performance.now(); pgLanded = false; } // lean over and splash
+          if (pgStart < 0 && canPlayerSplash(hourNow)) { pgStart = performance.now(); pgLanded = false; pgSkip = false; } // lean over and splash
         } else if (nearby) cb.current.onInteract(nearby);
       }
     };
@@ -830,6 +864,35 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             const ph0 = sleepPhase(hourNow);
             const next = answerTo(pondS, wander ?? pos, hourNow, ph0 === "awake" && bed === "none");
             if (next !== pondS && !hideBusy(hideS)) { pondS = next; pondRoute = []; pondLeg = 0; }
+          }
+        }
+      }
+      // The skipped page. Anything that interrupts it fades it out in a moment and clears it away.
+      if (sk && sk.cancelAt < 0) {
+        const eng = holdStart >= 0 || strokeStart >= 0 || (reactAt.current >= 0 && performance.now() - reactAt.current < PLAY.reactionSeconds * 1000);
+        if (eng || travel || !zones.is("garden") || live.current.locked || live.current.mapOpen || sit.phase !== "standing" || !canPlayerSplash(hourNow)) {
+          sk.cancelAt = t;
+          if (pgSkip) pgStart = -1;
+        }
+      }
+      skAge = -1; skAt = null;
+      if (sk) {
+        const reducedS = reducedMotion, age = (t - sk.start) / 1000 - SKIP.release;
+        if (sk.cancelAt >= 0) {
+          if ((t - sk.cancelAt) / 1000 >= SKIP.cancelSeconds) endSkip();
+          else if (sk.mesh) sk.mesh.traverse((o) => { const m = o as THREE.Mesh | THREE.LineSegments; if (m.material) (m.material as THREE.Material).opacity = Math.max(0, 1 - (t - sk!.cancelAt) / 1000 / SKIP.cancelSeconds) * (m.material as THREE.Material).opacity; });
+        } else if (age >= 0) {
+          const f = skipFrame(sk.plan, age, sk.hand, reducedS);
+          if (f.done) endSkip();
+          else {
+            if (!sk.mesh) { sk.mesh = buildPage(); scene.add(sk.mesh); }
+            const w = skipWorld(f.at, sk.from), head = Math.atan2(skipWorld({ along: 1, side: 0 }, sk.from).x - skipWorld({ along: 0, side: 0 }, sk.from).x, skipWorld({ along: 1, side: 0 }, sk.from).z - skipWorld({ along: 0, side: 0 }, sk.from).z);
+            sk.mesh.position.set(w.x, f.y, w.z);
+            sk.mesh.rotation.set(0, head + f.spin, 0);
+            sk.mesh.scale.set(1, f.squash, 1);
+            sk.mesh.traverse((o) => { const m = o as THREE.Mesh | THREE.LineSegments; if (m.material) (m.material as THREE.Material).opacity = f.opacity; });
+            for (const i of skipLandings(sk.plan, Math.max(0, age - dt), age)) { const lw = skipWorld(sk.plan.landings[i], sk.from); addSplash(lw.x, lw.z, false, t / 1000, true); }
+            skAge = age; skAt = w;
           }
         }
       }
@@ -1048,14 +1111,16 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
         const reactPose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
         const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? hidePoseV ?? reactPose;
-        const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : wander.heading;
+        const watching = !engaged && skAt !== null && sk !== null && printWatches(awakeNow, wander);
+        const watchHop = watching && sk ? watcherHop(sk.plan, skAge, reducedMotion) : 0;
+        const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : watching && skAt ? Math.atan2(skAt.x - wander.x, skAt.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
         let dy = faceTarget + (hidePoseV && !engaged ? hidePoseV.spin : 0) - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
         printMesh.rotation.x = pose.lean;
         printMesh.rotation.z = !engaged ? (pondPoseV?.shake ?? hidePoseV?.shake ?? 0) : 0;
-        printMesh.position.set(wander.x + hideDir.x * HIDE.peekOut * hideSide, (owned || holdStill || pondOwned || hideOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + yBase, wander.z + hideDir.z * HIDE.peekOut * hideSide);
+        printMesh.position.set(wander.x + hideDir.x * HIDE.peekOut * hideSide, (owned || holdStill || pondOwned || hideOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + watchHop + yBase, wander.z + hideDir.z * HIDE.peekOut * hideSide);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
@@ -1140,7 +1205,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             m.scale.setScalar(Math.max(0.01, r.radius));
             (m.material as THREE.MeshBasicMaterial).opacity = r.opacity;
           }
-          for (const d of dropsAt(age, sp.big, reducedMotion)) {
+          for (const d of sp.ringOnly ? [] : dropsAt(age, sp.big, reducedMotion)) {
             if (di >= splashDrops.length) break;
             const m = splashDrops[di++];
             m.visible = true;
@@ -1409,6 +1474,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     return () => {
       cancelAnimationFrame(raf);
+      endSkip();
       saveWalked();
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
