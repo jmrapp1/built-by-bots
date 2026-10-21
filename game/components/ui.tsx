@@ -75,3 +75,8 @@ export function NpcIcon({ name, size = 28 }: { name: string; size?: number }) {
   if (!d) return null;
   return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...S} style={{ color: name === "question" ? "#3b4a8c" : "#2b2a33" }}><path d={d} /></svg>;
 }
+
+// A flat folded page: the picture on the pond's skip prompt.
+export const PageIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M3 14 L12 11 L21 14 L12 17 Z M3 14 L3 15.5 L12 18.5 L21 15.5 L21 14" /></svg>
+);
