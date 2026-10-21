@@ -50,16 +50,20 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
     shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
+    shelfDark: keep(new THREE.MeshToonMaterial({ color: "#5e4f3e" })), ledge: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
+    spines: ["#c8605f", "#d9a15a", "#6f8fb0", "#6f9a6a", "#8b6fa8", "#e3d3a4", "#3f5f78", "#b5726b"].map((c) => keep(new THREE.MeshToonMaterial({ color: c }))),
   };
 
   // ---- ground: a soft blend from meadow to inkwood, plus a plain skirt beyond the edge ----
-  const SEG = 32;
+  const SEG = 128; // 2 m cells, so the blend below is smooth rather than stepped
+  const soft = (t: number) => { const u = Math.min(1, Math.max(0, t)); return u * u * (3 - 2 * u); }; // smoothstep: no visible start or end line
+  const BLEND = 16; // metres either side of a region edge
   const gg = keep(new THREE.PlaneGeometry(WORLD.size, WORLD.size, SEG, SEG));
   { // vertex colours: meadow in the south, inkwood in the north, blended over a band round the region edge
     const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
-      const wx = pos.getX(i), wz = -pos.getY(i), north = Math.min(1, Math.max(0, (WORLD.inkwoodZ + 14 - wz) / 28)), east = Math.min(1, Math.max(0, (wx - WORLD.paperDownsX + 14) / 28));
-      c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, Math.min(1, Math.max(0, (wz - WORLD.glyphZ + 14) / 28))); col.push(c.r, c.g, c.b);
+      const wx = pos.getX(i), wz = -pos.getY(i), north = Math.min(1, Math.max(0, (WORLD.inkwoodZ + 14 - wz) / 28)), east = Math.min(1, Math.max(0, (wx - WORLD.paperDownsX + 14) / 28)), south = soft((wz - WORLD.glyphZ + BLEND) / (BLEND * 2));
+      c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, south); col.push(c.r, c.g, c.b);
     }
     gg.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   }
@@ -136,10 +140,21 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     } else if (l.kind === "bigtree") { // the Great Ink Tree
       add(G.cyl, L.ink, l.r * 0.7, l.h * 0.4, l.r * 0.7);
       for (const [y, s] of [[0.3, 3.4], [0.5, 2.6], [0.68, 1.8], [0.84, 1]] as const) add(G.cone, L.leaf, l.r * s, l.h * 0.3, l.r * s, l.h * y, 0.3 * s);
-    } else if (l.kind === "shelves") { // the Bookshelf Wall: a long wall of shelves with leaning books, readable through fog
-      add(G.box, L.shelf, l.r * 4, l.h * 0.9, l.r * 0.5, 0, 0);
-      for (const [y, c] of [[0.2, L.book], [0.45, L.red], [0.7, L.book]] as const) add(G.box, c, l.r * 3.6, l.h * 0.08, l.r * 0.7, l.h * y);
-      for (const x of [-1.4, -0.2, 1.1]) { const b = add(G.box, L.paper, l.r * 0.5, l.h * 0.22, l.r * 0.5, l.h * 0.9); b.position.x = x * l.r; b.rotation.z = 0.25; }
+    } else if (l.kind === "shelves") { // the Bookshelf Wall: a long wall of shelves, rows of book spines of varied colour and height, ledges, both faces
+      const W = l.r * 4, D = l.r * 0.5, rows = 6, rowH = (l.h * 0.88) / rows, rnd = (i: number) => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+      add(G.box, L.shelfDark, W, l.h * 0.9, D * 0.8, 0, 0); // dark back panel, slightly set in, so the spines read against it
+      add(G.box, L.shelf, 0.5, l.h * 0.92, D * 1.15, 0).position.x = -W / 2; add(G.box, L.shelf, 0.5, l.h * 0.92, D * 1.15, 0).position.x = W / 2; // side posts
+      for (let r = 0; r <= rows; r++) { const y = r * rowH; add(G.box, L.ledge, W + 0.6, 0.35, D * 1.5, y - 0.1).position.z = 0; } // a ledge under every row, standing out of both faces
+      let n = 0;
+      for (let r = 0; r < rows; r++) {
+        const y0 = r * rowH + 0.25; let x = -W / 2 + 0.6;
+        while (x < W / 2 - 0.9) {
+          const w = 0.45 + rnd(n + 1) * 0.5, h = rowH * (0.6 + rnd(n + 2) * 0.36), mat = L.spines[Math.floor(rnd(n + 3) * L.spines.length)], gap = rnd(n + 4) < 0.12 ? 0.9 : 0.06; // the odd gap
+          for (const side of [1, -1]) { const b = add(G.box, mat, w, h, D * 0.5, y0, 0); b.position.x = x + w / 2; b.position.z = side * (D * 0.5 + rnd(n + 5 + side) * 0.18); } // each spine sits a little proud, by its own amount
+          x += w + gap; n += 6;
+        }
+        const lean = add(G.box, L.paper, 0.45, rowH * 0.8, D * 0.5, y0, 0); lean.position.set(-W / 2 + 2 + rnd(r + 90) * (W - 4), y0, D * 0.5 + 0.2); lean.rotation.z = 0.28 * (r % 2 ? 1 : -1); // one leaning book per row
+      }
     } else if (l.kind === "hill") { // the Paper-Kite Hill: a broad folded hill with a red paper kite flying above it
       add(G.cone, L.hill, l.r * 2.2, l.h * 0.8, l.r * 2.2, 0, Math.PI / 4); add(G.cone, L.hill, l.r * 1.3, l.h * 0.95, l.r * 1.3, 0, 0.3);
       const kite = add(G.box, L.kite, 2.6, 2.6, 0.12, l.h * 1.0, 0); kite.rotation.z = Math.PI / 4; add(G.cyl, L.ink, 0.06, l.h * 0.12, 0.06, l.h * 0.86);
