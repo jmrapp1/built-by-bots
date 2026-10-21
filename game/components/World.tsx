@@ -1,6 +1,6 @@
 "use client";
 import { createZoneController } from "@/lib/zones";
-import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
+import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, npcSpotUsable, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
 import { buildNpc, type NpcScene } from "@/components/npcScene";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
@@ -328,7 +328,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       live_npcs = [];
       for (const npc of NPCS) {
         try {
-          const scene = buildNpc(npc), at = npcSpot(npc);
+          const at = npcSpot(npc, mDay);
+          if (npc.spots && !npcSpotUsable(at, npc.radius, mLayout?.cols, live_npcs.map((o) => ({ x: o.at.x, z: o.at.z, r: o.npc.radius })))) continue; // a bad day's spot: skip her today
+          const scene = buildNpc(npc);
           scene.group.position.set(at.x, 0, at.z);
           if (mg) mg.group.add(scene.group);
           live_npcs.push({ npc, scene, at, note: NOTICE0, talk: TALK0, t: 0 });

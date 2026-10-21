@@ -2,8 +2,8 @@
 // timings and the hint cycle. No three.js, clock or server here. Lines live in data/npcs.json.
 // Missing or malformed data skips the neighbour; it never throws.
 import npcData from "@/data/npcs.json";
-import { MARGINS, gateFrame } from "@/lib/margins";
-import type { Vec } from "@/lib/world";
+import { MARGINS, gateFrame, gatePosts, inGateZone } from "@/lib/margins";
+import { insideAny, type Colliders, type Vec } from "@/lib/world";
 
 // Icons are drawn from these paths (24 x 24, stroked) both in the page (SVG) and in the world (canvas).
 export const ICON_PATHS = {
@@ -21,14 +21,17 @@ export const ICON_NAMES = Object.keys(ICON_PATHS) as IconName[];
 export const MAX_LINE = 90;
 export const MAX_ICONS = 3;
 
-export const LOOKS = ["moth", "owl"] as const;
+export const LOOKS = ["moth", "owl", "traveller"] as const;
 export type Look = (typeof LOOKS)[number];
 // Two ways to place a neighbour: beside the Margins gate, or at a fixed point in the Margins (with a rest facing).
 export type Spot = { from: "gate"; out: number; side: number } | { at: [number, number]; face: number };
 export type Hint = { text: string; icons: IconName[] };
+export type AtSpot = { at: [number, number]; face: number };
+export const MAX_DAY_SPOTS = 5, MIN_DAY_SPOTS = 3;
 export type Npc = {
   id: string; name: string; look: Look; area: "margins"; prompt: string; radius: number;
-  spot: Spot;
+  spot: Spot; // where she stands (for a neighbour with `spots`, the first of them)
+  spots: AtSpot[] | null; // N3: a short list; the day picks one (null for the others)
   noticeEnter: number; noticeLeave: number; talkEnter: number; talkLeave: number;
   timeIcons: { from: number; to: number; icon: IconName }[]; otherwise: IconName; extra: IconName[];
   hints: Hint[];
@@ -46,14 +49,23 @@ export function checkNpc(raw: unknown): Npc | null {
     const r = raw as Record<string, any>;
     if (!r || typeof r !== "object") return null;
     if (typeof r.id !== "string" || !r.id || typeof r.name !== "string" || typeof r.prompt !== "string" || !r.prompt) return null;
-    if (r.area !== "margins" || !r.spot || typeof r.spot !== "object" || !LOOKS.includes(r.look)) return null;
-    let spot: Spot;
-    if (r.spot.from === "gate") { if (!isNum(r.spot.out) || !isNum(r.spot.side)) return null; spot = { from: "gate", out: r.spot.out, side: r.spot.side }; }
-    else if (Array.isArray(r.spot.at)) {
-      const [x, z] = r.spot.at;
-      if (r.spot.at.length !== 2 || !isNum(x) || !isNum(z) || !isNum(r.spot.face) || Math.abs(x) > MARGINS.size / 2 - 2 || Math.abs(z) > MARGINS.size / 2 - 2) return null;
-      spot = { at: [x, z], face: r.spot.face };
-    } else return null;
+    if (r.area !== "margins" || !LOOKS.includes(r.look)) return null;
+    const half = MARGINS.size / 2 - 2;
+    const atSpot = (v: any): AtSpot | null => {
+      if (!v || typeof v !== "object" || !Array.isArray(v.at) || v.at.length !== 2) return null;
+      const [x, z] = v.at;
+      if (!isNum(x) || !isNum(z) || !isNum(v.face) || Math.abs(x) > half || Math.abs(z) > half) return null;
+      return { at: [x, z], face: v.face };
+    };
+    let spot: Spot, spots: AtSpot[] | null = null;
+    if (r.spots !== undefined) { // N3: a list of places, one per day
+      if (!Array.isArray(r.spots) || r.spots.length < MIN_DAY_SPOTS || r.spots.length > MAX_DAY_SPOTS) return null;
+      const list = r.spots.map(atSpot);
+      if (list.some((v: AtSpot | null) => !v)) return null;
+      spots = list as AtSpot[]; spot = spots[0];
+    } else if (!r.spot || typeof r.spot !== "object") return null;
+    else if (r.spot.from === "gate") { if (!isNum(r.spot.out) || !isNum(r.spot.side)) return null; spot = { from: "gate", out: r.spot.out, side: r.spot.side }; }
+    else { const a = atSpot(r.spot); if (!a) return null; spot = a; }
     for (const k of ["radius", "noticeEnter", "noticeLeave", "talkEnter", "talkLeave"]) if (!isNum(r[k]) || r[k] <= 0) return null;
     if (r.noticeLeave <= r.noticeEnter || r.talkLeave <= r.talkEnter || r.talkEnter > r.noticeEnter) return null; // slack must be real
     const g = r.greeting;
@@ -72,7 +84,7 @@ export function checkNpc(raw: unknown): Npc | null {
       if (!icons || typeof h.text !== "string" || !h.text.trim() || h.text.length > MAX_LINE) return null;
       hints.push({ text: h.text, icons });
     }
-    return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot,
+    return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot, spots,
       noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints };
   } catch { return null; }
 }
@@ -90,13 +102,35 @@ export function checkNpcs(raw: unknown): Npc[] {
 export const NPCS: Npc[] = checkNpcs(npcData);
 export const npcById = (id: string, list: Npc[] = NPCS): Npc | null => list.find((n) => n.id === id) ?? null;
 
-// Where she stands (local to the Margins): beside the walkway, a little way out from the Margins gate.
-export function npcSpot(n: Npc): Vec & { face: number } {
-  if ("at" in n.spot) return { x: n.spot.at[0], z: n.spot.at[1], face: n.spot.face };
+// The day number from a YYYY-MM-DD string (the game's UTC day), or null when it is not a day.
+export function dayNumber(day: string): number | null {
+  const t = /^\d{4}-\d{2}-\d{2}$/.test(day) ? Date.parse(`${day}T00:00:00Z`) : NaN;
+  return Number.isNaN(t) ? null : Math.floor(t / 86400000);
+}
+// Which of her places today: the day number mod the count. The same all day, nothing stored.
+export function daySpotIndex(day: string, count: number): number {
+  const n = dayNumber(day);
+  return n === null || count < 1 ? 0 : ((n % count) + count) % count;
+}
+
+// Where she stands (local to the Margins): beside the walkway, a little way out from the Margins gate,
+// or at a fixed point; a neighbour with a `spots` list stands at the one the day picks.
+export function npcSpot(n: Npc, day?: string): Vec & { face: number } {
+  const sp = n.spots ? n.spots[day ? daySpotIndex(day, n.spots.length) : 0] : n.spot;
+  if ("at" in sp) return { x: sp.at[0], z: sp.at[1], face: sp.face };
   const { g, d } = gateFrame("home"), out = { x: -d.x, z: -d.z }, side = { x: -out.z, z: out.x };
-  const x = g.x + out.x * n.spot.out + side.x * n.spot.side, z = g.z + out.z * n.spot.out + side.z * n.spot.side;
-  const walk = { x: g.x + out.x * n.spot.out, z: g.z + out.z * n.spot.out }; // she rests facing the walkway
+  const x = g.x + out.x * sp.out + side.x * sp.side, z = g.z + out.z * sp.out + side.z * sp.side;
+  const walk = { x: g.x + out.x * sp.out, z: g.z + out.z * sp.out }; // she rests facing the walkway
   return { x, z, face: Math.atan2(walk.x - x, walk.z - z) };
+}
+
+// A day's spot is fine when it is clear of the scenery and of the neighbours already placed.
+export function npcSpotUsable(at: Vec, radius: number, cols: Colliders | undefined, others: { x: number; z: number; r: number }[]): boolean {
+  if (!cols) return false;
+  const half = MARGINS.size / 2 - 2;
+  if (Math.abs(at.x) > half || Math.abs(at.z) > half) return false;
+  if (inGateZone(at, "home") || insideAny(at, radius + 0.4, { circles: gatePosts("home"), boxes: [] }) || insideAny(at, radius, cols)) return false;
+  return !others.some((o) => Math.hypot(o.x - at.x, o.z - at.z) < o.r + radius + 0.6);
 }
 
 // Notice with slack: in at `enter`, out only past `leave`, so she does not flicker at the edge.
