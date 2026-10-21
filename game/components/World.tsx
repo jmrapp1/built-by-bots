@@ -755,6 +755,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       pos = { x: g.x - d.x * 1.8, z: g.z - d.z * 1.8 };
       yaw = arrivalYaw("margins");
     }
+    { const tp = new URLSearchParams(window.location.search).get("tp"); if (tp && zones.is("margins")) { const [tx, tz] = tp.split(",").map(Number); pos = { x: tx + OFF, z: tz }; } } // TEMP
     const atWorld = atOverride(window.location.search, process.env.NODE_ENV === "production"); // dev-only: ?at=x,z looks at the far parts of the World
     if (atWorld && zones.is("garden")) { pos = atWorld; }
     if (zones.is("garden")) showShell(); // the garden zone starts entered, so its World is built here (and again on every return)
