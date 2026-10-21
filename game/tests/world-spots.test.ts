@@ -119,9 +119,9 @@ describe("wiring", () => {
     expect(page).toMatch(/\.eq\("region", region\)\.eq\("spot", spot\)\.eq\("day", day\)/);
     expect(page).toMatch(/\.eq\("day", day\)\.neq\("region", "margins"\)/);
   });
-  it("the old Margins reads are unchanged (no region filter, still the same two)", () => {
-    expect(page).toMatch(/from\("margins_claims"\)\.select\("spot"\)\.eq\("spot", spot\)\.eq\("day", day\)/);
-    expect(page).toMatch(/from\("margins_claims"\)\.select\("spot,result,day"\)\.eq\("day", day\);/);
+  it("the Margins reads are still the same two, now filtered to region margins", () => {
+    expect(page).toMatch(/from\("margins_claims"\)\.select\("spot"\)\.eq\("region", "margins"\)\.eq\("spot", spot\)\.eq\("day", day\)/);
+    expect(page).toMatch(/from\("margins_claims"\)\.select\("spot,result,day"\)\.eq\("region", "margins"\)\.eq\("day", day\);/);
   });
   it("no network or storage in the world, scene or libs", () => {
     for (const f of ["../components/World.tsx", "../components/spotsScene.ts", "../lib/worldSpots.ts", "../lib/spots-server.ts"]) expect(strip(src(f))).not.toMatch(/supabase|\.rpc\(|fetch\(|localStorage/);
