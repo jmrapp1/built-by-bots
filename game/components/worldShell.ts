@@ -42,23 +42,24 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     cyl: keep(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
   };
-  const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs) };
-  for (const r of ["meadow", "inkwood", "paper_downs"] as const) Object.values(M[r]).forEach((m) => keep(m));
+  const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter) };
+  for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter"] as const) Object.values(M[r]).forEach((m) => keep(m));
   const L = {
     paper: keep(new THREE.MeshToonMaterial({ color: "#f1dfae" })), ink: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })),
     red: keep(new THREE.MeshToonMaterial({ color: "#d9606b" })), leaf: keep(new THREE.MeshToonMaterial({ color: WORLD.look.inkwood.crown })),
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
+    shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
   };
 
   // ---- ground: a soft blend from meadow to inkwood, plus a plain skirt beyond the edge ----
   const SEG = 32;
   const gg = keep(new THREE.PlaneGeometry(WORLD.size, WORLD.size, SEG, SEG));
   { // vertex colours: meadow in the south, inkwood in the north, blended over a band round the region edge
-    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), c = new THREE.Color();
+    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
       const wx = pos.getX(i), wz = -pos.getY(i), north = Math.min(1, Math.max(0, (WORLD.inkwoodZ + 14 - wz) / 28)), east = Math.min(1, Math.max(0, (wx - WORLD.paperDownsX + 14) / 28));
-      c.copy(a).lerp(b, north).lerp(d, north * east); col.push(c.r, c.g, c.b);
+      c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, Math.min(1, Math.max(0, (wz - WORLD.glyphZ + 14) / 28))); col.push(c.r, c.g, c.b);
     }
     gg.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
   }
@@ -135,6 +136,10 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     } else if (l.kind === "bigtree") { // the Great Ink Tree
       add(G.cyl, L.ink, l.r * 0.7, l.h * 0.4, l.r * 0.7);
       for (const [y, s] of [[0.3, 3.4], [0.5, 2.6], [0.68, 1.8], [0.84, 1]] as const) add(G.cone, L.leaf, l.r * s, l.h * 0.3, l.r * s, l.h * y, 0.3 * s);
+    } else if (l.kind === "shelves") { // the Bookshelf Wall: a long wall of shelves with leaning books, readable through fog
+      add(G.box, L.shelf, l.r * 4, l.h * 0.9, l.r * 0.5, 0, 0);
+      for (const [y, c] of [[0.2, L.book], [0.45, L.red], [0.7, L.book]] as const) add(G.box, c, l.r * 3.6, l.h * 0.08, l.r * 0.7, l.h * y);
+      for (const x of [-1.4, -0.2, 1.1]) { const b = add(G.box, L.paper, l.r * 0.5, l.h * 0.22, l.r * 0.5, l.h * 0.9); b.position.x = x * l.r; b.rotation.z = 0.25; }
     } else if (l.kind === "hill") { // the Paper-Kite Hill: a broad folded hill with a red paper kite flying above it
       add(G.cone, L.hill, l.r * 2.2, l.h * 0.8, l.r * 2.2, 0, Math.PI / 4); add(G.cone, L.hill, l.r * 1.3, l.h * 0.95, l.r * 1.3, 0, 0.3);
       const kite = add(G.box, L.kite, 2.6, 2.6, 0.12, l.h * 1.0, 0); kite.rotation.z = Math.PI / 4; add(G.cyl, L.ink, 0.06, l.h * 0.12, 0.06, l.h * 0.86);

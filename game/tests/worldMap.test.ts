@@ -42,7 +42,7 @@ describe("world chunks", () => {
   it("tall landmarks are placed and are taller than any tree", () => {
     expect(WORLD.landmarks.length).toBeGreaterThanOrEqual(3);
     expect(Math.min(...WORLD.landmarks.map((l) => l.h))).toBeGreaterThan(12);
-    expect(new Set(WORLD.landmarks.map((l) => regionAt(l.z))).size).toBe(2); // both regions have one
+    expect(new Set(WORLD.landmarks.map((l) => regionAt(l.z, l.x))).size).toBe(4); // every region has one
   });
   it("the path leaves the garden edge, ends inside the world and is clear of trees", () => {
     const P = pathPoints();
