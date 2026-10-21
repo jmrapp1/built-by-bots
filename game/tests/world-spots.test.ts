@@ -144,3 +144,16 @@ describe("wiring", () => {
     expect(src("../components/MapPage.tsx")).toMatch(/isWalked\(walked, o\.x, o\.z\)\) continue/);
   });
 });
+
+describe("the Margins gate reads stay on the margins region", () => {
+  const page = strip(src("../app/page.tsx"));
+  it("wasOpen and loadOpened filter by region margins", () => {
+    expect(page).toContain('.select("spot").eq("region", "margins").eq("spot", spot).eq("day", day)');
+    expect(page).toContain('.select("spot,result,day").eq("region", "margins").eq("day", day)');
+  });
+  it("no margins_claims read lacks a region filter", () => {
+    const reads = page.split('from("margins_claims")').slice(1).map((r) => r.slice(0, 160));
+    expect(reads.length).toBeGreaterThanOrEqual(4);
+    for (const r of reads) expect(r).toMatch(/\.(eq|neq)\("region"/);
+  });
+});

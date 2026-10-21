@@ -238,7 +238,7 @@ export default function Page() {
   // Does the server already hold a claim row for this page and day? Null when it can't say.
   const wasOpen = async (spot: number, day: string): Promise<boolean | null> => {
     try {
-      const { data, error } = await supabase().from("margins_claims").select("spot").eq("spot", spot).eq("day", day);
+      const { data, error } = await supabase().from("margins_claims").select("spot").eq("region", "margins").eq("spot", spot).eq("day", day);
       return error || !Array.isArray(data) ? null : data.length > 0;
     } catch {
       return null;
@@ -268,7 +268,7 @@ export default function Page() {
   // The pages this player already opened on this day, from their own rows. Null when the server can't say.
   const loadOpened = async (day: string): Promise<number[] | null> => {
     try {
-      const { data, error } = await supabase().from("margins_claims").select("spot,result,day").eq("day", day);
+      const { data, error } = await supabase().from("margins_claims").select("spot,result,day").eq("region", "margins").eq("day", day);
       return error ? null : [...openedFromClaims(data, day)];
     } catch {
       return null;
