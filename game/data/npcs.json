@@ -1,5 +1,5 @@
 {
-  "note": "Neighbours in the world (slices N1 to N3). Authored lines only; edit text here, no code change. Nothing is saved or sent.",
+  "note": "Neighbours in the world (slices N1 to N3). Authored lines only; edit text here, no code change. Nothing is saved or sent here; the one-time gift (slice N4) is granted by the server, these are only the words.",
   "npcs": [
     {
       "id": "binder",
@@ -91,7 +91,15 @@
           ]
         }
       ],
-      "look": "moth"
+      "look": "moth",
+      "gift": {
+        "line": "A bookmark for you, to mark the page you like best. Hang it on the wall at Home.",
+        "thanks": "Thank you for visiting. The ribbon is yours to keep.",
+        "icons": [
+          "book",
+          "house"
+        ]
+      }
     },
     {
       "id": "proofreader",
@@ -176,7 +184,15 @@
             "leaf"
           ]
         }
-      ]
+      ],
+      "gift": {
+        "line": "A little quill stand, for your Home. It has been waiting for a neighbour.",
+        "thanks": "Thank you for visiting. The quill stand is yours already.",
+        "icons": [
+          "book",
+          "house"
+        ]
+      }
     },
     {
       "id": "wanderer",
@@ -283,7 +299,15 @@
             "question"
           ]
         }
-      ]
+      ],
+      "gift": {
+        "line": "A travelling lantern. It has seen many roads. Set it down at Home.",
+        "thanks": "Thank you for walking with me. The lantern is yours already.",
+        "icons": [
+          "trail",
+          "house"
+        ]
+      }
     }
   ]
 }

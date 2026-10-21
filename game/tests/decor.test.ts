@@ -19,9 +19,9 @@ describe("plots and decorations (data)", () => {
     }
     expect(PLOTS.some((p) => p.id === "east-wall")).toBe(false);
   });
-  it("floor plots take the five floor pieces and the wall plot only the framed page", () => {
-    for (const p of PLOTS.filter((q) => q.kind === "floor")) expect(fitting(p.id).length).toBe(5);
-    expect(fitting("west-wall").map((d) => d.id)).toEqual(["framed-page"]);
+  it("floor plots take the seven floor pieces and the wall plot the framed page and the ribbon", () => {
+    for (const p of PLOTS.filter((q) => q.kind === "floor")) expect(fitting(p.id).length).toBe(7);
+    expect(fitting("west-wall").map((d) => d.id)).toEqual(["framed-page", "bookmark-ribbon"]);
     expect(fitting("nope")).toEqual([]);
   });
   it("plots are inside the room, clear of the door zone and of each other, and pieces stay on their footprint", () => {
@@ -57,7 +57,7 @@ describe("choices and placement rules", () => {
   it("Clear first and disabled when nothing is placed; the placed one is marked", () => {
     const c = decorChoicesFor("floor-left", {});
     expect(c[0]).toMatchObject({ id: null, label: CLEAR, disabled: true });
-    expect(c.length).toBe(6); expect(c.every((x) => !x.current)).toBe(true);
+    expect(c.length).toBe(8); expect(c.every((x) => !x.current)).toBe(true);
     const d = decorChoicesFor("floor-left", { "floor-left": "bench" });
     expect(d[0].disabled).toBe(false); expect(d.filter((x) => x.current).map((x) => x.id)).toEqual(["bench"]);
   });

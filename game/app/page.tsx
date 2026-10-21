@@ -15,7 +15,8 @@ import { newWalked, type Walked } from "@/lib/map";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import PickerStrip from "@/components/PickerStrip";
 import { decorPreview, decorStrip, withChoice, type Placed } from "@/lib/decor";
-import { loadHomeDecor, runPlace, settlePlaced } from "@/lib/decor-server";
+import { loadHomeDecor, ownedFromDecorRows, runPlace, settlePlaced } from "@/lib/decor-server";
+import { giftNpc, giftStrip, runClaimGift, withOwned } from "@/lib/gifts";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
@@ -81,7 +82,9 @@ export default function Page() {
   const [printNear, setPrintNear] = useState(false);
   const [findable, setFindable] = useState(false);
   const [canSplash, setCanSplash] = useState(true);
-  const [npcLine, setNpcLine] = useState<{ name: string; text: string; icons: string[] } | null>(null); // N1: the neighbour's hint strip
+  const [npcLine, setNpcLine] = useState<{ id: string; name: string; text: string; icons: string[]; last: boolean; note?: string } | null>(null); // N1: the neighbour's hint strip (N4: `last` = the final hint, where a gift is offered)
+  const [giftBusy, setGiftBusy] = useState(false);
+  const [giftTaken, setGiftTaken] = useState<string[]>([]); // neighbours whose gift was answered this sign-in (the server still decides)
   const [npcClose, setNpcClose] = useState(0);
   const [margins, setMargins] = useState({ inside: false, left: 0, total: 0, scraps: 0 });
   // Dev-only look at another species (?species=leaflet). Display only; ignored in production builds.
@@ -201,7 +204,7 @@ export default function Page() {
       async () => sb.from("home_decorations").select("plot,decoration"),
     ).then((r) => { if (r) setHomeDecor(r); else if (decorTried.current === me) decorTried.current = null; }); // a failed read is quiet; the next visit to Home tries again
   };
-  useEffect(() => { setHomeDecor(null); decorTried.current = null; }, [userId]); // another account never sees this one's room
+  useEffect(() => { setHomeDecor(null); decorTried.current = null; setGiftTaken([]); }, [userId]); // another account never sees this one's room
   // Place or clear one plot through set_home_decoration. The room changes only when the server confirms.
   const placeDecor = async (choice: string | null) => {
     if (!decorPlot || decorBusy) return;
@@ -211,6 +214,24 @@ export default function Page() {
     const out = await runPlace(async (a) => supabase().rpc("set_home_decoration", a), decorPlot, choice);
     setDecorBusy(false);
     if (out.ok) { setHomeDecor((h) => (h ? { ...h, placed: settlePlaced(h.placed, out) } : h)); setMenu(null); } else setDecorNote(out.note);
+  };
+  // N4: take a neighbour's gift. Only the neighbour's id goes to the server; the strip changes only on its answer.
+  const takeGift = async () => {
+    const line = npcLine, n = line ? giftNpc(line.id) : null;
+    if (!line || !n || !userId || stubDecor || giftBusy) return;
+    setGiftBusy(true);
+    const sb = supabase(), out = await runClaimGift(async (a) => sb.rpc("claim_npc_gift", a), n.id);
+    if (out.ok) {
+      const s = giftStrip(n, out);
+      if (s) setNpcLine({ id: n.id, ...s, last: line.last });
+      setGiftTaken((g) => (g.includes(n.id) ? g : [...g, n.id]));
+      if (homeDecor) { // the Home picker lists what the server says we own: read it again, else add this one
+        const r = await sb.from("owned_decorations").select("decoration");
+        const owned = r.error ? withOwned(homeDecor.owned, out.decoration) : ownedFromDecorRows(r.data);
+        setHomeDecor((h) => (h ? { ...h, owned } : h));
+      }
+    } else setNpcLine((l) => (l && l.id === n.id ? { ...l, note: out.note } : l));
+    setGiftBusy(false);
   };
   const signOut = () => supabase().auth.signOut();
 
@@ -431,6 +452,8 @@ export default function Page() {
         <div className="card npc-strip" role="dialog" aria-label={npcLine.name}>
           <div className="npc-icons">{npcLine.icons.map((n, i) => <NpcIcon key={i} name={n} />)}</div>
           <p><strong>{npcLine.name}</strong><br />{npcLine.text}</p>
+          {npcLine.note && <p className="note" role="status">{npcLine.note}</p>}
+          {npcLine.last && userId && !stubDecor && giftNpc(npcLine.id) && !giftTaken.includes(npcLine.id) && <button className="btn" disabled={giftBusy} onClick={takeGift}>Take it</button>}
           <button className="btn" onClick={() => { setNpcLine(null); setNpcClose((n) => n + 1); }}>Thanks</button>
         </div>
       )}
