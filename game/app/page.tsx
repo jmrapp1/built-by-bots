@@ -15,6 +15,7 @@ import { newWalked, type Walked } from "@/lib/map";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
+import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, MenuIcon, MoodFace } from "@/components/ui";
@@ -27,7 +28,8 @@ function useMapState() {
   const [open, setOpen] = useState(false);
   const [walked, setWalked] = useState<Walked>(() => newWalked());
   const [pose, setPose] = useState<{ x: number; z: number; yaw: number } | null>(null);
-  return { open, setOpen, walked, pose, onPose: (w: Walked, p: { x: number; z: number; yaw: number } | null) => { setWalked(new Set(w)); setPose(p); } };
+  const [spotPts, setSpotPts] = useState<{ x: number; z: number }[]>([]);
+  return { open, setOpen, walked, pose, spotPts, onSpots: setSpotPts, onPose: (w: Walked, p: { x: number; z: number; yaw: number } | null) => { setWalked(new Set(w)); setPose(p); } };
 }
 
 type Creature = { id: string; species?: string; worn_cosmetic?: string | null; genes: Genes; fullness: number; mood: number; stage?: string; care?: number; age_seconds?: number };
@@ -236,8 +238,29 @@ export default function Page() {
   // Does the server already hold a claim row for this page and day? Null when it can't say.
   const wasOpen = async (spot: number, day: string): Promise<boolean | null> => {
     try {
-      const { data, error } = await supabase().from("margins_claims").select("spot").eq("spot", spot).eq("day", day);
+      const { data, error } = await supabase().from("margins_claims").select("spot").eq("region", "margins").eq("spot", spot).eq("day", day);
       return error || !Array.isArray(data) ? null : data.length > 0;
+    } catch {
+      return null;
+    }
+  };
+  // W5: the spots across the World. The server decides what is inside (world_unfold); the client sends a region name and a spot number.
+  const unfoldWorld = (region: string, spot: number, layoutDay: string): Promise<Outcome> =>
+    runWorldUnfold(async (r, n) => supabase().rpc("world_unfold", { p_region: r, p_spot: n }), region, spot, layoutDay, (r, n) => wasWorldOpen(r, n, layoutDay));
+  // Does the server already hold a claim row for this region, spot and day? Null when it can't say. A list read, never .single().
+  const wasWorldOpen = async (region: string, spot: number, day: string): Promise<boolean | null> => {
+    try {
+      const { data, error } = await supabase().from("margins_claims").select("spot").eq("region", region).eq("spot", spot).eq("day", day);
+      return error || !Array.isArray(data) ? null : data.length > 0;
+    } catch {
+      return null;
+    }
+  };
+  // The World spots this player already opened on this day ("region:spot"), from their own rows. Null when the server can't say.
+  const loadWorldOpened = async (day: string): Promise<string[] | null> => {
+    try {
+      const { data, error } = await supabase().from("margins_claims").select("region,spot,result,day").eq("day", day).neq("region", "margins");
+      return error ? null : openedWorldFromClaims(data, day);
     } catch {
       return null;
     }
@@ -245,7 +268,7 @@ export default function Page() {
   // The pages this player already opened on this day, from their own rows. Null when the server can't say.
   const loadOpened = async (day: string): Promise<number[] | null> => {
     try {
-      const { data, error } = await supabase().from("margins_claims").select("spot,result,day").eq("day", day);
+      const { data, error } = await supabase().from("margins_claims").select("spot,result,day").eq("region", "margins").eq("day", day);
       return error ? null : [...openedFromClaims(data, day)];
     } catch {
       return null;
@@ -347,7 +370,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
@@ -418,7 +441,7 @@ export default function Page() {
         </div>
       )}
 
-      {mp.open && <MapPage walked={mp.walked} pose={mp.pose} onClose={() => mp.setOpen(false)} />}
+      {mp.open && <MapPage walked={mp.walked} pose={mp.pose} opened={mp.spotPts} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
       {menu === "board" && (
         <div className="card tray" role="dialog" aria-label={BOARD_TITLE}>

@@ -26,6 +26,8 @@ import {
   MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
 } from "@/lib/margins";
+import { buildSpotsScene, type SpotsScene } from "@/components/spotsScene";
+import { allSpotsForDay, nearestSpot as nearestWorldSpot, spotKey, spotsOverride, type WorldSpot } from "@/lib/worldSpots";
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
@@ -56,6 +58,9 @@ type Props = {
   onUnfold?: (spot: number, layoutDay: string) => Promise<Outcome>; // ask the server what is inside a page (it decides, not the client)
   onLoadOpened?: (day: string) => Promise<number[] | null>; // pages this player already opened today, from the server
   onMarginsNote?: (text: string) => void;
+  onWorldUnfold?: (region: string, spot: number, layoutDay: string) => Promise<Outcome>; // W5: ask the server what is inside a World spot
+  onLoadWorldOpened?: (day: string) => Promise<string[] | null>; // W5: World spots this player already opened today (keys "region:spot")
+  onSpotsOpened?: (points: { x: number; z: number }[]) => void; // W5: where today's opened spots are, for the map page
   onKeepsake?: (id: string) => void; // the server gave a keepsake: the page sets it as worn // a quiet line for a refusal or a found egg
   worn?: string | null; // the keepsake worn (6d-3 will pass the server's answer; nothing sends it yet)
   canOffer?: boolean; // something is in the pouch
@@ -211,10 +216,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, onMapKey, onMapPose });
-  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onKeepsake, onMapKey, onMapPose };
+  const cb = useRef({ onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose });
+  cb.current = { onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose };
   // Latest props for the render loop, which is created once.
   const live = useRef({ genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey });
   live.current = { genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey };
@@ -344,12 +349,41 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
     };
+    // W5: today's spots across the World. Where they lie comes from the day alone; what is inside comes from the server.
+    const spotsOff = spotsOverride(window.location.search, process.env.NODE_ENV === "production") === "off" || local; // dev previews never touch the server
+    let sc: SpotsScene | null = null, wSpots: WorldSpot[] = [], wDay = "", wOpened = new Set<string>();
+    const wOpenedByDay = new Map<string, Set<string>>(), wHeld = new Map<string, Shown>(); // held: food the server gave while the pouch was full (this visit only)
+    let wHold = 0, wCand: WorldSpot | null = null, wPending = false, wBlocked = false, wReady = false, wFailed = false, wQuiet = false, wNoted = false, wVisit = 0, wReportKey = "";
+    const reportSpots = () => {
+      const k = `${wOpened.size}|${wSpots.length}`;
+      if (k === wReportKey) return;
+      wReportKey = k;
+      cb.current.onSpotsOpened?.(wSpots.filter((q) => wOpened.has(spotKey(q.region, q.id))).map((q) => ({ x: q.x, z: q.z })));
+    };
+    const startSpots = () => {
+      if (spotsOff || sc) return;
+      wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
+      wSpots = allSpotsForDay(wDay);
+      sc = buildSpotsScene(wSpots); scene.add(sc.group);
+      wOpened = wOpenedByDay.get(wDay) ?? new Set<string>(); wOpenedByDay.set(wDay, wOpened);
+      sc.setOpened(wOpened);
+      wHold = 0; wCand = null; wPending = false; wBlocked = false; wQuiet = false; wReady = false; wFailed = false; wNoted = false;
+      const my = ++wVisit;
+      Promise.resolve(cb.current.onLoadWorldOpened ? cb.current.onLoadWorldOpened(wDay) : null).catch(() => null).then((rows) => {
+        if (my !== wVisit || !sc) return;
+        if (rows === null) { wFailed = true; return; } // a failed read keeps the ring from running; the next return reads again
+        for (const k of rows) wOpened.add(k);
+        wReady = true; sc.setOpened(wOpened); reportSpots();
+      });
+      reportSpots();
+    };
+    const stopSpots = () => { wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } };
+    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
-    const leaveGardenZone = () => { shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
+    const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
     let room: HomeScene | null = null;
     const roomCols = roomColliders();
@@ -1155,6 +1189,67 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
       }
 
+      // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
+      let wNear: Place | null = null;
+      if (zones.is("garden") && sc && !travel) {
+        sc.update(t / 1000, reducedMotion);
+        const idle = sit.phase === "standing" && !printNear && !hideFindable;
+        const cand = idle ? nearestWorldSpot(pos, wSpots, wOpened) : null;
+        if (cand !== wCand) { wCand = cand; wHold = 0; wBlocked = false; }
+        const wv = unfoldView(false, wReady, wFailed);
+        if (cand && !wv.canAsk && wv.noteOnHold && keys.has(PLAY.keys.hold)) { if (!wNoted) { cb.current.onMarginsNote?.(wv.noteOnHold); wNoted = true; } }
+        else if (!keys.has(PLAY.keys.hold)) wNoted = false;
+        const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !wBlocked && wv.canAsk;
+        wHold = wPending ? 1 : holdStep(wHold, holding, dt);
+        if (cand && !keys.has(PLAY.keys.hold)) wBlocked = false;
+        if (wHold >= 1 && cand && !wPending) {
+          const key = spotKey(cand.region, cand.id), hk = `${wDay}|${key}`;
+          const full = cb.current.canGather && !cb.current.canGather("ink"); // the server picks the find, so any full pouch stops it first
+          if (full) { cb.current.onGather?.("ink"); wBlocked = true; wHold = 0; }
+          else if (wHeld.has(hk)) { // the server already gave this find: open it from the hold, no new call
+            const kind = wHeld.get(hk)!; wHeld.delete(hk);
+            const st = settleUnfold({ ok: true, kind, spot: cand.id, duplicate: false }, true, true);
+            wOpened.add(key); sc.pop(key, t / 1000); wHold = 0;
+            if (st.food) cb.current.onGather?.(st.food);
+            reportSpots();
+          }
+          else if (wQuiet) { cb.current.onMarginsNote?.(QUIET); wBlocked = true; wHold = 0; } // the server already said no; don't ask again this stay
+          else if (cb.current.onWorldUnfold) {
+            wPending = true; // the ring waits full for the answer; the page opens only once it is back
+            const spot = cand, myVisit = wVisit, askDay = wDay, dayOpened = wOpened, myScene = sc;
+            cb.current.onWorldUnfold(spot.region, spot.id, askDay).catch((): Outcome => ({ ok: false, reason: "network" })).then((o) => {
+              const here = myVisit === wVisit && zones.is("garden");
+              const room = !cb.current.canGather || cb.current.canGather("ink");
+              const st = settleUnfold(o, here, room);
+              if (st.held) { // a full pouch: the page stays folded and the find is kept, with the gentle hint
+                wHeld.set(`${askDay}|${key}`, st.held);
+                if (here) { cb.current.onGather?.(st.held); wPending = false; wBlocked = true; wHold = 0; }
+                return;
+              }
+              if (st.open) dayOpened.add(key); // the server wrote it, so the spot counts as open on any later stay that day
+              if (st.food) cb.current.onGather?.(st.food); // a scrap is only shown: the server keeps no stock of it
+              if (st.egg) cb.current.onMarginsNote?.(FOUND_EGG);
+              if (st.cosmetic) { cosPlayUntil = performance.now() + 3000; cb.current.onKeepsake?.(st.cosmetic); } // the Print is on screen in the garden, so the put-on plays
+              if (!here) return;
+              wPending = false;
+              if (st.ceiling) wQuiet = true;
+              if (st.note && !st.egg) cb.current.onMarginsNote?.(st.note);
+              if (st.open) { myScene.pop(key, performance.now() / 1000); wHold = 0; reportSpots(); }
+              else { wBlocked = true; wHold = 0; } // refused: stays folded, nothing spent
+            });
+          } else { wBlocked = true; wHold = 0; }
+        }
+        if (cand) wNear = { id: "spot", kind: "unfold", x: cand.x, z: cand.z, label: "Folded page", prompt: "Hold to unfold" };
+        if (cand && !wv.prompt) wNear = null;
+        if (wHold > 0 && cand) {
+          const v = new THREE.Vector3(cand.x, 0.8, cand.z).project(camera);
+          ring.style.display = "block";
+          ring.style.left = `${(v.x * 0.5 + 0.5) * el.clientWidth}px`;
+          ring.style.top = `${(-v.y * 0.5 + 0.5) * el.clientHeight}px`;
+          arc.setAttribute("stroke-dashoffset", String(CIRC * (1 - wHold)));
+        }
+      }
+
       // Third-person follow camera, pulled in near scenery and smoothed.
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
@@ -1181,7 +1276,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const cs = canPlayerSplash(hourNow);
       if (cs !== canSplashShown) { canSplashShown = cs; cb.current.onCanSplash?.(cs); }
 
-      const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : null) : inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos);
+      const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);

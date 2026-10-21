@@ -82,13 +82,13 @@ describe("the only server calls", () => {
   const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
   it("pins the rpc list: margins_unfold is the one new call", () => {
     const calls = [...page.matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_worn_cosmetic"]);
+    expect(calls).toEqual(["claim_daily_egg", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_worn_cosmetic", "world_unfold"]);
   });
   it("margins_unfold is sent the page number and nothing else", () => {
     expect(page).toMatch(/rpc\("margins_unfold", \{ p_spot: n \}\)/);
   });
-  it("reads margins_claims twice only: today's rows on entry, and one page's row before an unfold", () => {
-    expect([...page.matchAll(/from\("margins_claims"\)/g)].length).toBe(2);
+  it("reads margins_claims four times only: the Margins pair, and the World spots pair (by region)", () => {
+    expect([...page.matchAll(/from\("margins_claims"\)/g)].length).toBe(4);
   });
   it("the world and the lib stay free of the network", () => {
     for (const f of ["../components/World.tsx", "../lib/margins-server.ts", "../components/marginsScene.ts"]) {
