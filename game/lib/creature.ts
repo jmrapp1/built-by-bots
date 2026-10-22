@@ -27,6 +27,7 @@ export function buildCreature(g: Genes, look: Look = { partsShown: 99, mark: nul
   for (const x of [-0.2, 0.2]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), dark);
     eye.position.set(x * SCALE[g.shape][0], body.position.y + 0.1, 0.55 * SCALE[g.shape][2]);
+    eye.userData.eye = true; // the idle blink (lib/fidget.ts) squashes these
     group.add(eye);
   }
   for (const p of g.parts.slice(0, look.partsShown)) {
@@ -92,6 +93,7 @@ function buildLeaflet(g: Genes, look: Look, speciesId: string): THREE.Group {
   for (const x of [-0.17, 0.17]) {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), dark);
     eye.position.set(x, h * 0.62, 0.17);
+    eye.userData.eye = true;
     group.add(eye);
   }
   const top = h + 0.05;
