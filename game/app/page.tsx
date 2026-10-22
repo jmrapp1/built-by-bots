@@ -34,7 +34,7 @@ import { HINTS_AGAIN, HINTS_BACK, resetBrowserHints } from "@/lib/hintsReset";
 import WelcomeBack from "@/components/WelcomeBack";
 import { welcomeOverride } from "@/lib/welcome";
 import { LOW } from "@/lib/cardStatus";
-import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
+import { FED_MESSAGE, HATCHED_MESSAGE, BAD_MESSAGE_WORDS, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -290,7 +290,7 @@ export default function Page() {
     setPicked(null); // show the new Print
     setEggs((all) => all.map((e) => (e.id === egg!.id ? { ...e, hatched_at: new Date().toISOString() } : e)));
     applyCreature(data as Creature);
-    setMsg("");
+    setMsg(HATCHED_MESSAGE);
   };
   // Hold E near your Print: the world calls this when the ring is full. The server still decides the outcome.
   const feed = async () => {
@@ -475,7 +475,7 @@ export default function Page() {
   const state = { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined, canSplash };
   const feedTag = feedPrompt(!!creature, printNear, !!food);
   const tag = findable ? FOUND_PROMPT : feedTag ?? (nearby ? promptFor(nearby, state) : null);
-  const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
+  const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || BAD_MESSAGE_WORDS.test(msg);
   return (
     <main className="hud-root">
       <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
