@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Store } from "@/lib/guide";
+import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, strokeFinishes, guideDay, PREVIEW_DONE_STROKE, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Step, type Store } from "@/lib/guide";
 
 const mem = (): Store & { data: Record<string, string> } => {
   const data: Record<string, string> = {};
@@ -137,6 +137,64 @@ describe("wording", () => {
   it("names the real bound keys", () => {
     expect(hintText("move")).toContain("W A S D");
     expect(hintText("egg")).toContain("E");
+  });
+});
+
+describe("?guide=stroke preview switch", () => {
+  it("accepts feed and stroke in dev, nothing in production or for other values", () => {
+    expect(guideOverride("?guide=stroke", false)).toBe("stroke");
+    expect(guideOverride("?guide=feed", false)).toBe("feed");
+    expect(guideOverride("?guide=stroke", true)).toBeNull();
+    for (const bad of ["", "?guide=", "?guide=STROKE", "?guide=strokes", "?guide=move"]) expect(guideOverride(bad, false)).toBeNull();
+  });
+  it("starts with move, egg and feed done", () => expect(PREVIEW_DONE_STROKE).toEqual(["move", "egg", "feed"]));
+});
+
+describe("stroke step", () => {
+  const near = { eggPending: false, printNear: true, hasCreature: true, hasSnack: true };
+  it("is the fourth step and the old saved list reads back unchanged", () => {
+    expect(STEPS).toEqual(["move", "egg", "feed", "stroke"]);
+    const s = mem(); s.data[GUIDE_KEY] = '{"v":1,"done":["move","egg","feed"]}';
+    expect(readDone(s)).toEqual(["move", "egg", "feed"]);
+  });
+  it("shows only after a feed finished this session, never from a saved list", () => {
+    const saved: Step[] = ["move", "egg", "feed"];
+    expect(currentHint(saved, ctx(near))).toBeNull();
+    expect(currentHint(saved, ctx({ ...near, fedThisSession: false }))).toBeNull();
+    expect(currentHint(saved, ctx({ ...near, fedThisSession: true }))).toBe("stroke");
+  });
+  it("comes after egg, move and feed", () => {
+    expect(currentHint([], ctx({ ...near, fedThisSession: true, eggPending: true, nearEgg: true }))).toBe("egg");
+    expect(currentHint([], ctx({ ...near, fedThisSession: true }))).toBe("move");
+    expect(currentHint(["move", "egg"], ctx({ ...near, fedThisSession: true }))).toBe("feed");
+  });
+  it("needs the Print near, a Print, the garden and daytime; Escape keeps it away", () => {
+    const base = { ...near, fedThisSession: true };
+    const d: Step[] = ["move", "egg", "feed"];
+    expect(currentHint(d, ctx({ ...base, printNear: false }))).toBeNull();
+    expect(currentHint(d, ctx({ ...base, hasCreature: false }))).toBeNull();
+    expect(currentHint(d, ctx({ ...base, inGarden: false }))).toBeNull();
+    expect(currentHint(d, ctx({ ...base, ready: false }))).toBeNull();
+    expect(currentHint(d, ctx({ ...base, day: false }))).toBeNull();
+    expect(currentHint(d, ctx({ ...base, dismissed: ["stroke"] }))).toBeNull();
+    expect(guideDay(12)).toBe(true); expect(guideDay(23)).toBe(false);
+  });
+  it("is finished only by a stroke while its hint shows", () => {
+    expect(strokeFinishes("stroke", 0, 1)).toBe(true);
+    expect(strokeFinishes("stroke", 1, 1)).toBe(false);
+    expect(strokeFinishes(null, 0, 1)).toBe(false);
+    expect(strokeFinishes("feed", 0, 1)).toBe(false);
+  });
+  it("existing players with a full saved list see nothing", () => {
+    expect(currentHint([...STEPS], ctx({ ...near, fedThisSession: true }))).toBeNull();
+  });
+  it("works for the session when storage is blocked", () => {
+    let done = readDone(blocked); done = markDone(markDone(markDone(done, "move"), "egg"), "feed");
+    expect(() => writeDone(blocked, done)).not.toThrow();
+    expect(currentHint(done, ctx({ ...near, fedThisSession: true }))).toBe("stroke");
+  });
+  it("wording names the real stroke key and fits one short line", () => {
+    expect(hintText("stroke")).toBe("Hold R beside your Print to stroke it.");
   });
 });
 
