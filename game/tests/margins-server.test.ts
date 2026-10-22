@@ -256,6 +256,6 @@ describe("a failed claims read at a folded page", () => {
     expect(w).toMatch(/!unfoldView\(local, serverReady, readFailed\)\.prompt \? null/);
     expect(w).toMatch(/keys\.has\(PLAY\.keys\.hold\) && !live\.current\.locked && !uBlocked && view\.canAsk/);
     expect(w).toMatch(/view\.noteOnHold/);
-    expect(strip("../app/page.tsx")).toMatch(/msg !== MARGINS_ERRORS\.network\) return/); // clears after a short while, like the pouch line
+    expect(strip("../app/page.tsx")).toMatch(/fadesAway\(msg, \[HINTS_BACK, MARGINS_ERRORS\.network\]\)\) return/); // clears after a short while, like the pouch line
   });
 });
