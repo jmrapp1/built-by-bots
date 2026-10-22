@@ -84,6 +84,9 @@ export function feedPrompt(hasCreature: boolean, printNear: boolean, hasSnack = 
 
 export const POUCH_FULL = "Your pouch is full. Share a snack with your Print first.";
 export const FED_MESSAGE = "Nom! Your Print is fed.";
+export const HATCHED_MESSAGE = "Your egg hatched. Say hello to your Print.";
+// Words that make the message line look like a problem (page.tsx styles these as an error).
+export const BAD_MESSAGE_WORDS = /too soon|enough for today|not ready|sign in|went wrong/i;
 
 // Gentle wording for feed errors from the server. The raw message is never shown.
 const FEED_ERRORS = {
