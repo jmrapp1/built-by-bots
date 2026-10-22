@@ -38,6 +38,8 @@ import { buildSpotsScene, type SpotsScene } from "@/components/spotsScene";
 import { allSpotsForDay, nearestSpot as nearestWorldSpot, spotKey, spotsOverride, type WorldSpot } from "@/lib/worldSpots";
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
+import { scrapOverride, scrapsFor } from "@/lib/scraps";
+import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
@@ -374,6 +376,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         scene.add(shoreSights.group);
       } catch { shoreSights = null; }
     };
+    // S23: glyph scraps, scenery only. Built with the garden, freed when it is left; ?scraps=near|many|off is dev only.
+    const scrapMode = scrapOverride(window.location.search, process.env.NODE_ENV === "production");
+    let glyphScraps: GlyphScraps | null = null;
+    const showScraps = () => {
+      if (glyphScraps) return;
+      try { const f = scrapsFor(scrapMode); glyphScraps = buildGlyphScraps(f.bits, f.scale); scene.add(glyphScraps.group); } catch { glyphScraps = null; }
+    };
+    const dropScraps = () => { try { if (glyphScraps) scene.remove(glyphScraps.group); glyphScraps?.dispose(); } catch { /* nothing */ } glyphScraps = null; };
     const dropShoreSights = () => { try { shoreSights?.dispose(); } catch { /* nothing */ } shoreSights = null; };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
@@ -448,11 +458,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       });
       reportSpots();
     };
-    const stopSpots = () => { dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } startSpots(); };
+    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
@@ -1465,6 +1475,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if (cap) cb.current.onMarginsNote?.(cap);
         } catch { dropShoreSights(); }
       }
+      if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
       let wNear: Place | null = null;
       if (zones.is("garden") && sc && !travel) {
