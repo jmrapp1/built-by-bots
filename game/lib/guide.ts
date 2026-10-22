@@ -2,8 +2,9 @@
 // The hint state (which steps are done) lives in local storage only. Blocked or bad storage degrades to this session.
 import { PLAY } from "@/lib/play";
 import { keyLabel } from "@/lib/ui";
+import { isDay } from "@/lib/pond";
 
-export const STEPS = ["move", "egg", "feed"] as const;
+export const STEPS = ["move", "egg", "feed", "stroke"] as const;
 export type Step = (typeof STEPS)[number];
 
 export const GUIDE_KEY = "blotty.guide";
@@ -17,12 +18,14 @@ export const GUIDE_TEXT = {
   move: (walk: string, act: string) => `Walk with ${walk}, and press ${act} to do things.`,
   egg: (act: string) => `Press ${act} to collect your egg.`,
   feed: (act: string) => `Hold ${act} beside your Print to share a snack.`,
+  stroke: (key: string) => `Hold ${key} beside your Print to stroke it.`,
   arrow: "Your egg is this way",
 } as const;
 
 export const guideKeys = () => ({
   walk: WALK_CODES.map(keyLabel).join(" "),
   act: keyLabel(PLAY.keys.hold),
+  stroke: keyLabel(PLAY.keys.stroke),
 });
 
 export type Store = Pick<Storage, "getItem" | "setItem">;
@@ -75,6 +78,8 @@ export type Ctx = {
   printNear: boolean;
   hasSnack: boolean;
   hasCreature: boolean;
+  fedThisSession?: boolean; // the feed step finished in this visit (never true from saved data alone)
+  day?: boolean; // the stroke hint is a daytime line; undefined counts as day
   dismissed: readonly Step[]; // skipped with Escape this session (also saved as done)
 };
 
@@ -85,6 +90,7 @@ export function currentHint(done: readonly Step[], c: Ctx): Step | null {
   if (c.eggPending && c.nearEgg && open("egg")) return "egg";
   if (open("move")) return "move";
   if (c.hasCreature && c.printNear && c.hasSnack && open("feed")) return "feed";
+  if (c.fedThisSession && c.hasCreature && c.printNear && c.day !== false && open("stroke")) return "stroke";
   return null;
 }
 
@@ -96,9 +102,12 @@ export const pointerOn = (done: readonly Step[], c: Pick<Ctx, "ready" | "inGarde
 // A feed done before the hint ever appeared, or after it was skipped, leaves the step alone.
 export const feedFinishes = (shown: Step | null, prevTick: number, tick: number): boolean => shown === "feed" && tick > prevTick;
 
+// A stroke that starts while the stroke hint is the one on show finishes it. One before it appeared, or after Escape, does not.
+export const strokeFinishes = (shown: Step | null, prevStrokes: number, strokes: number): boolean => shown === "stroke" && strokes > prevStrokes;
+
 export const hintText = (s: Step): string => {
   const k = guideKeys();
-  return s === "move" ? GUIDE_TEXT.move(k.walk, k.act) : s === "egg" ? GUIDE_TEXT.egg(k.act) : GUIDE_TEXT.feed(k.act);
+  return s === "move" ? GUIDE_TEXT.move(k.walk, k.act) : s === "egg" ? GUIDE_TEXT.egg(k.act) : s === "feed" ? GUIDE_TEXT.feed(k.act) : GUIDE_TEXT.stroke(k.stroke);
 };
 
 // Where the egg is relative to the way the camera looks. Returns an angle in radians (0 = straight ahead,
@@ -115,8 +124,16 @@ export function eggBearing(pose: { x: number; z: number; yaw: number }, egg: { x
 export const hasMoved = (from: { x: number; z: number } | null, to: { x: number; z: number }, min = 0.3): boolean =>
   !!from && Math.hypot(to.x - from.x, to.z - from.z) >= min;
 
-// ?guide=feed (dev only, ignored in production builds): shows the feed hint without real data.
-// Move and egg count as done, a Print is near and a snack is in hand. Nothing is read, saved or sent.
+// ?guide=feed and ?guide=stroke (dev only, ignored in production builds): show a hint without real data.
+// Move and egg count as done, a Print is near and a snack is in hand. "stroke" also starts with the feed done and fed this
+// session; in "feed", a press of the hold key stands in for a feed and then the stroke hint follows. Nothing is read, saved or sent.
 export const PREVIEW_DONE: readonly Step[] = ["move", "egg"];
-export const guideOverride = (search: string, isProduction: boolean): "feed" | null =>
-  !isProduction && new URLSearchParams(search).get("guide") === "feed" ? "feed" : null;
+export const PREVIEW_DONE_STROKE: readonly Step[] = ["move", "egg", "feed"];
+export type GuidePreview = "feed" | "stroke";
+export const guideOverride = (search: string, isProduction: boolean): GuidePreview | null => {
+  if (isProduction) return null;
+  const v = new URLSearchParams(search).get("guide");
+  return v === "feed" || v === "stroke" ? v : null;
+};
+// Daytime for the stroke hint.
+export const guideDay = (hour: number): boolean => isDay(hour);
