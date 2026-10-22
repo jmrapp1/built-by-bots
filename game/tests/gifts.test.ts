@@ -90,6 +90,6 @@ describe("wiring", () => {
   it("?decor=stub never calls the gift and the button needs a signed-in account", () => {
     const page = src("../app/page.tsx");
     expect(page).toMatch(/!userId \|\| stubDecor/);
-    expect(page).toMatch(/npcLine\.last && userId && !stubDecor/);
+    expect(page).toMatch(/npcLine\.last && (npcLine\.g !== 2 && )?userId && !stubDecor/);
   });
 });

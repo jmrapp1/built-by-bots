@@ -304,8 +304,8 @@ describe("the client", () => {
   it("makes no server call for the Margins; feed_creature stays the only feed path", () => {
     expect(src("../lib/margins.ts")).not.toMatch(/supabase|rpc|three|fetch|Date\.now|performance|localStorage/);
     expect(src("../components/World.tsx")).not.toMatch(/supabase|\.rpc\(|fetch\(|localStorage/);
-    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
+    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z0-9_]+)"/g)].map((m) => m[1]).sort();
+    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_npc_gift2", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
   });
   it("has no numbers or caps in public text", () => {
     expect(JSON.stringify(BOARD_PAGES)).not.toMatch(/\d/);

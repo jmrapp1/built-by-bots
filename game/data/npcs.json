@@ -1,5 +1,5 @@
 {
-  "note": "Neighbours in the world (slices N1 to N3). Authored lines only; edit text here, no code change. Nothing is saved or sent here; the one-time gift (slice N4) is granted by the server, these are only the words.",
+  "note": "Neighbours in the world (slices N1 to N3). Authored lines only; edit text here, no code change. Nothing is saved or sent here; the one-time gift (slice N4) is granted by the server, these are only the words. Slice N5: `gift2` holds the words for the second gift (granted by the server on a later day).",
   "npcs": [
     {
       "id": "binder",
@@ -99,6 +99,19 @@
           "book",
           "house"
         ]
+      },
+      "gift2": {
+        "line": "A stack of pages, for coming back. Set it down at Home.",
+        "thanks": "Thank you for coming back. The pages are yours already.",
+        "waiting": "Come back another day.",
+        "icons": [
+          "book",
+          "house"
+        ],
+        "waitingIcons": [
+          "moon",
+          "trail"
+        ]
       }
     },
     {
@@ -191,6 +204,19 @@
         "icons": [
           "book",
           "house"
+        ]
+      },
+      "gift2": {
+        "line": "A small reading lamp, for coming back. It likes a quiet corner.",
+        "thanks": "Thank you for coming back. The lamp is yours already.",
+        "waiting": "Come back another day.",
+        "icons": [
+          "book",
+          "house"
+        ],
+        "waitingIcons": [
+          "moon",
+          "trail"
         ]
       }
     },
@@ -334,6 +360,19 @@
         "icons": [
           "trail",
           "house"
+        ]
+      },
+      "gift2": {
+        "line": "A pressed leaf in a frame. I kept it from the road. Hang it at Home.",
+        "thanks": "Thank you for walking back this way. The frame is yours already.",
+        "waiting": "Come back another day.",
+        "icons": [
+          "trail",
+          "house"
+        ],
+        "waitingIcons": [
+          "moon",
+          "trail"
         ]
       }
     }

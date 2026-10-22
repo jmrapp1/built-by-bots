@@ -28,6 +28,8 @@ export type Spot = { from: "gate"; out: number; side: number } | { at: [number, 
 export type Hint = { text: string; icons: IconName[] };
 // N4: the words for the one-time gift (the server decides whether it is given; these are only the lines).
 export type GiftWords = { line: string; thanks: string; icons: IconName[] };
+// N5: the words for the second gift, given on a later day; `waiting` is the one fixed line before it unlocks.
+export type Gift2Words = { line: string; thanks: string; waiting: string; icons: IconName[]; waitingIcons: IconName[] };
 export type AtSpot = { at: [number, number]; face: number };
 export const MAX_DAY_SPOTS = 9, MIN_DAY_SPOTS = 3;
 export type Npc = {
@@ -38,6 +40,7 @@ export type Npc = {
   timeIcons: { from: number; to: number; icon: IconName }[]; otherwise: IconName; extra: IconName[];
   hints: Hint[];
   gift: GiftWords | null; // null: this neighbour has no gift words, so none is asked for
+  gift2: Gift2Words | null; // N5: null means no second gift is asked for
 };
 export const TIMES = { turn: 0.4, bloom: 0.3, fade: 0.25, reducedFade: 0.15, bloomAfter: 0.15, stripFade: 0.2 };
 
@@ -93,8 +96,14 @@ export function checkNpc(raw: unknown): Npc | null {
       const okLine = (t: unknown) => typeof t === "string" && !!t.trim() && t.length <= MAX_LINE;
       if (icons && okLine(w.line) && okLine(w.thanks)) gift = { line: w.line, thanks: w.thanks, icons }; // bad gift words: no gift, the neighbour still works
     }
+    let gift2: Gift2Words | null = null;
+    if (r.gift2 !== undefined) {
+      const w = r.gift2, icons = w ? iconList(w.icons, 1) : null, wi = w ? iconList(w.waitingIcons, 1) : null;
+      const okLine = (t: unknown) => typeof t === "string" && !!t.trim() && t.length <= MAX_LINE;
+      if (icons && wi && okLine(w.line) && okLine(w.thanks) && okLine(w.waiting)) gift2 = { line: w.line, thanks: w.thanks, waiting: w.waiting, icons, waitingIcons: wi };
+    }
     return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot, spots,
-      noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints, gift };
+      noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints, gift, gift2 };
   } catch { return null; }
 }
 

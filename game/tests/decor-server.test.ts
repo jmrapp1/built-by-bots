@@ -55,7 +55,7 @@ describe("runPlace", () => {
 describe("owned-only strip", () => {
   it("lists only owned pieces that fit; stub mode (no owned list) lists all", () => {
     expect(decorChoicesFor("north-mid", {}, ["bench", "framed-page"]).map((c) => c.id)).toEqual([null, "bench"]);
-    expect(decorChoicesFor("north-mid", {}).length).toBe(8);
+    expect(decorChoicesFor("north-mid", {}).length).toBe(10);
     expect(decorStrip("north-mid", {}, []).emptyText).toBeTruthy();
     expect(decorStrip("north-mid", {}, ["bench"]).emptyText).toBeNull();
   });
