@@ -240,7 +240,7 @@ export default function Page() {
     } else setNpcLine((l) => (l && l.id === n.id ? { ...l, note: out.note } : l));
     setGiftBusy(false);
   };
-  // N5: on a neighbour's last hint, once the first gift is known to be claimed, ask for the second (once per neighbour per sign-in).
+  // N5: on a neighbour's last hint, once the first gift is known to be claimed, ask for the second (once per neighbour per sign-in; a failed ask is not retried until the next sign-in, or it would loop through setNpcLine).
   // The server decides if it is time; a waiting answer shows the fixed line, nothing is granted here.
   const gift2Tried = useRef<Record<string, boolean>>({});
   useEffect(() => { gift2Tried.current = {}; }, [userId]);
@@ -254,7 +254,7 @@ export default function Page() {
       if (!first) { const r = await sb.from("npc_gifts").select("npc").eq("npc", id); first = !r.error && Array.isArray(r.data) && r.data.length > 0; }
       if (!first) { gift2Tried.current[id] = false; return; } // no first gift yet: nothing to ask
       const out = await runClaimGift2(async (a) => sb.rpc("claim_npc_gift2", a), id);
-      if (!out.ok) { gift2Tried.current[id] = false; setNpcLine((l) => (l && l.id === id ? { ...l, note: out.note } : l)); return; }
+      if (!out.ok) { setNpcLine((l) => (l && l.id === id ? { ...l, note: out.note } : l)); return; }
       const s = gift2Strip(n, out);
       setNpcLine((l) => (l && l.id === id && s ? { ...l, ...s, g: 2 } : l));
       if (out.state === "claimed") setHomeDecor((h) => (h ? { ...h, owned: withOwned(h.owned, out.decoration) } : h)); // optimistic add of what the server said

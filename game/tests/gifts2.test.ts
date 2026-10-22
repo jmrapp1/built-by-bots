@@ -86,3 +86,17 @@ describe("wiring", () => {
     expect(src("../components/World.tsx")).not.toMatch(/claim_npc_gift2|supabase/);
   });
 });
+
+describe("gift2 effect does not loop on a failed claim", () => {
+  const page = src("../app/page.tsx");
+  const effect = page.slice(page.indexOf("const gift2Tried"), page.indexOf("const signOut"));
+  it("a failed claim leaves the neighbour marked as tried (only a new sign-in clears it)", () => {
+    const fail = effect.slice(effect.indexOf("if (!out.ok)"), effect.indexOf("const s = gift2Strip"));
+    expect(fail).toContain("setNpcLine");
+    expect(fail).not.toMatch(/gift2Tried\.current\[[^\]]+\]\s*=\s*false/);
+  });
+  it("the tried map is cleared only when the signed-in user changes", () => {
+    expect(effect).toMatch(/useEffect\(\(\) => \{ gift2Tried\.current = \{\}; \}, \[userId\]\)/);
+    expect((effect.match(/gift2Tried\.current\[[^\]]+\]\s*=\s*false/g) ?? []).length).toBe(1); // only the "no first gift yet" read, which sets no state
+  });
+});
