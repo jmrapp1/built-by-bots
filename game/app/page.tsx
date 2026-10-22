@@ -495,7 +495,7 @@ export default function Page() {
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
-          <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); }}>{HINTS_AGAIN}</button>
+          <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); setTimeout(() => window.location.reload(), 900); }}>{HINTS_AGAIN}</button>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
         </div>
       )}
