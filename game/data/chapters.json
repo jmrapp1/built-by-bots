@@ -1,0 +1,9 @@
+{
+  "note": "S21: chapter cards. Fixed wording only; a card shows when a door or gate crossing finishes. Edit the names here.",
+  "showMs": 2500,
+  "places": {
+    "garden": { "name": "The Garden", "icon": "leaf" },
+    "margins": { "name": "The Margins", "icon": "book" },
+    "home": { "name": "Home", "icon": "house" }
+  }
+}
