@@ -108,3 +108,8 @@ export function friendlyFeedError(message: string): string {
 export const isFeedMessage = (m: string): boolean => m === FED_MESSAGE || (Object.values(FEED_ERRORS) as string[]).includes(m);
 
 export const keyLabel = (code: string): string => code.replace(/^Key/, "");
+
+// Which status lines fade on their own. Other messages (server errors, "hatches in Ns") stay until replaced.
+// `extra` lets the page add lines owned by other modules (hints-back, Margins network error).
+export const fadesAway = (m: string, extra: readonly string[] = []): boolean =>
+  isFeedMessage(m) || m === POUCH_FULL || m === HATCHED_MESSAGE || extra.includes(m);

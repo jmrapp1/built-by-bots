@@ -34,7 +34,7 @@ import { HINTS_AGAIN, HINTS_BACK, resetBrowserHints } from "@/lib/hintsReset";
 import WelcomeBack from "@/components/WelcomeBack";
 import { welcomeOverride } from "@/lib/welcome";
 import { LOW } from "@/lib/cardStatus";
-import { FED_MESSAGE, HATCHED_MESSAGE, BAD_MESSAGE_WORDS, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
+import { FED_MESSAGE, HATCHED_MESSAGE, BAD_MESSAGE_WORDS, POUCH_FULL, feedPrompt, isFeedMessage, fadesAway, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -315,7 +315,7 @@ export default function Page() {
   }, [reacting, fedTick]);
   // The confirmation fades after a moment.
   useEffect(() => {
-    if (!isFeedMessage(msg) && msg !== POUCH_FULL && msg !== HINTS_BACK && msg !== MARGINS_ERRORS.network) return;
+    if (!fadesAway(msg, [HINTS_BACK, MARGINS_ERRORS.network])) return;
     const t = setTimeout(() => setMsg((m) => (m === msg ? "" : m)), 2600);
     return () => clearTimeout(t);
   }, [msg]);
