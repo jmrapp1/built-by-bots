@@ -15,6 +15,7 @@ import MapPage from "@/components/MapPage";
 import { newWalked, type Walked } from "@/lib/map";
 import FirstRunGuide from "@/components/FirstRunGuide";
 import { guideOverride } from "@/lib/guide";
+import { FOLLOW, FOLLOW_TEXT } from "@/lib/follow";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import PickerStrip from "@/components/PickerStrip";
 import { decorPreview, decorStrip, withChoice, type Placed } from "@/lib/decor";
@@ -84,6 +85,7 @@ export default function Page() {
   const [nearby, setNearby] = useState<Place | null>(null);
   const [printNear, setPrintNear] = useState(false);
   const [findable, setFindable] = useState(false);
+  const [followMode, setFollowMode] = useState<"off" | "can" | "on">("off"); // come along: the walk-together prompt
   const [canSplash, setCanSplash] = useState(true);
   const [npcLine, setNpcLine] = useState<{ id: string; name: string; text: string; icons: string[]; last: boolean; note?: string } | null>(null); // N1: the neighbour's hint strip (N4: `last` = the final hint, where a gift is offered)
   const [giftBusy, setGiftBusy] = useState(false);
@@ -433,7 +435,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || /too soon|enough for today|not ready|sign in|went wrong/i.test(msg);
   return (
     <main className="hud-root">
-      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} fedTick={fedTick} pose={guidePose} onGlow={setGuideGlow} preview={typeof window !== "undefined" && guideOverride(window.location.search, process.env.NODE_ENV === "production") === "feed"} />
 
@@ -448,6 +450,7 @@ export default function Page() {
             <dt><KeyCap>E</KeyCap></dt><dd style={{ margin: 0 }}>Do the thing nearby. Hold it near your Print to share a snack</dd>
             <dt><KeyCap>Q</KeyCap></dt><dd style={{ margin: 0 }}>Change the snack in hand</dd>
             <dt><KeyCap>R</KeyCap></dt><dd style={{ margin: 0 }}>Hold to stroke your Print</dd>
+            <dt><KeyCap>C</KeyCap></dt><dd style={{ margin: 0 }}>By day, near your Print: walk together (press again to stop)</dd>
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
@@ -469,6 +472,11 @@ export default function Page() {
           {!feedTag && nearby?.kind === "egg" && <EggIcon />}
           <strong>{feedTag && (feeding || reacting) ? "Munching…" : tag}</strong>
           {(feedTag || nearby?.kind !== "nest" || wait === 0) && <KeyCap>E</KeyCap>}
+        </div>
+      )}
+      {followMode !== "off" && !menu && !npcLine && !findable && (
+        <div className="card tag" role="status" style={{ bottom: tag || (nearby?.kind === "pond" && canSplash) ? 144 : undefined }}>
+          <strong>{followMode === "on" ? FOLLOW_TEXT.stop : FOLLOW_TEXT.start}</strong><KeyCap>{keyLabel(FOLLOW.key)}</KeyCap>
         </div>
       )}
       {nearby?.kind === "pond" && canSplash && !menu && !npcLine && !feedTag && !findable && (
