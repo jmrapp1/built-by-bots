@@ -152,8 +152,8 @@ describe("the client", () => {
   it("makes no server call for sleep, and feed_creature stays the only feed path", () => {
     expect(src("../lib/night.ts")).not.toMatch(/supabase|rpc|three|Date\.now|performance|fetch/);
     expect(src("../components/World.tsx")).not.toMatch(/supabase|\.rpc\(|fetch\(/);
-    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
+    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z0-9_]+)"/g)].map((m) => m[1]).sort();
+    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_npc_gift2", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
   });
   it("the board mentions the evening without numbers or times", () => {
     const text = BOARD_PAGES.flatMap((p) => p.lines).join(" ");

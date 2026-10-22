@@ -167,8 +167,8 @@ describe("the client", () => {
   const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8").replace(/\/\/.*$/gm, "");
   it("keepsake code never touches the network, and adds no rpc or text on screen", () => {
     for (const f of ["../lib/cosmetics.ts", "../lib/cosmeticsBuild.ts"]) expect(src(f)).not.toMatch(/supabase|\.rpc\(|fetch\(|localStorage|Date\.now|performance/);
-    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z_]+)"/g)].map((m) => m[1]).sort();
-    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
+    const calls = [...src("../app/page.tsx").matchAll(/\.rpc\("([a-z0-9_]+)"/g)].map((m) => m[1]).sort();
+    expect(calls).toEqual(["claim_daily_egg", "claim_npc_gift", "claim_npc_gift2", "claim_starter_decorations", "claim_starter_egg", "feed_creature", "grow_creature", "hatch_egg", "margins_unfold", "set_home_decoration", "set_worn_cosmetic", "world_unfold"]);
     expect(src("../lib/cosmeticsBuild.ts")).not.toMatch(/FontLoader|TextGeometry|CanvasTexture|textures?\//);
   });
   it("the world reads the preview switch through cosmeticOverride", () => {

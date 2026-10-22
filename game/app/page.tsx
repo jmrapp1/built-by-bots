@@ -20,7 +20,7 @@ import KeepsakePicker from "@/components/KeepsakePicker";
 import PickerStrip from "@/components/PickerStrip";
 import { decorPreview, decorStrip, withChoice, type Placed } from "@/lib/decor";
 import { loadHomeDecor, ownedFromDecorRows, runPlace, settlePlaced } from "@/lib/decor-server";
-import { giftNpc, giftStrip, runClaimGift, withOwned } from "@/lib/gifts";
+import { gift2Npc, gift2Strip, giftNpc, giftStrip, runClaimGift, runClaimGift2, withOwned } from "@/lib/gifts";
 import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@/lib/picker";
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
@@ -87,7 +87,7 @@ export default function Page() {
   const [findable, setFindable] = useState(false);
   const [followMode, setFollowMode] = useState<"off" | "can" | "on">("off"); // come along: the walk-together prompt
   const [canSplash, setCanSplash] = useState(true);
-  const [npcLine, setNpcLine] = useState<{ id: string; name: string; text: string; icons: string[]; last: boolean; note?: string } | null>(null); // N1: the neighbour's hint strip (N4: `last` = the final hint, where a gift is offered)
+  const [npcLine, setNpcLine] = useState<{ id: string; name: string; text: string; icons: string[]; last: boolean; note?: string; g?: 1 | 2 } | null>(null); // N1: the neighbour's hint strip (N4: `last` = the final hint, where a gift is offered)
   const [giftBusy, setGiftBusy] = useState(false);
   const [giftTaken, setGiftTaken] = useState<string[]>([]); // neighbours whose gift was answered this sign-in (the server still decides)
   const [npcClose, setNpcClose] = useState(0);
@@ -230,7 +230,7 @@ export default function Page() {
     const sb = supabase(), out = await runClaimGift(async (a) => sb.rpc("claim_npc_gift", a), n.id);
     if (out.ok) {
       const s = giftStrip(n, out);
-      if (s) setNpcLine({ id: n.id, ...s, last: line.last });
+      if (s) setNpcLine({ id: n.id, ...s, last: line.last, g: 1 });
       setGiftTaken((g) => (g.includes(n.id) ? g : [...g, n.id]));
       if (homeDecor) { // the Home picker lists what the server says we own: read it again, else add this one
         const r = await sb.from("owned_decorations").select("decoration");
@@ -240,6 +240,31 @@ export default function Page() {
     } else setNpcLine((l) => (l && l.id === n.id ? { ...l, note: out.note } : l));
     setGiftBusy(false);
   };
+  // N5: on a neighbour's last hint, once the first gift is known to be claimed, ask for the second (once per neighbour per sign-in).
+  // The server decides if it is time; a waiting answer shows the fixed line, nothing is granted here.
+  const gift2Tried = useRef<Record<string, boolean>>({});
+  useEffect(() => { gift2Tried.current = {}; }, [userId]);
+  useEffect(() => {
+    const line = npcLine, n = line ? gift2Npc(line.id) : null;
+    if (!line || !n || !line.last || line.g || !userId || stubDecor || gift2Tried.current[n.id]) return;
+    gift2Tried.current[n.id] = true;
+    const sb = supabase(), me = userId, id = n.id;
+    (async () => {
+      let first = giftTaken.includes(id);
+      if (!first) { const r = await sb.from("npc_gifts").select("npc").eq("npc", id); first = !r.error && Array.isArray(r.data) && r.data.length > 0; }
+      if (!first) { gift2Tried.current[id] = false; return; } // no first gift yet: nothing to ask
+      const out = await runClaimGift2(async (a) => sb.rpc("claim_npc_gift2", a), id);
+      if (!out.ok) { gift2Tried.current[id] = false; setNpcLine((l) => (l && l.id === id ? { ...l, note: out.note } : l)); return; }
+      const s = gift2Strip(n, out);
+      setNpcLine((l) => (l && l.id === id && s ? { ...l, ...s, g: 2 } : l));
+      if (out.state === "claimed") setHomeDecor((h) => (h ? { ...h, owned: withOwned(h.owned, out.decoration) } : h)); // optimistic add of what the server said
+      if (out.state === "claimed") {
+        const r = await sb.from("owned_decorations").select("decoration");
+        if (!r.error) setHomeDecor((h) => (h && userId === me ? { ...h, owned: ownedFromDecorRows(r.data) } : h));
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [npcLine]);
   const signOut = () => supabase().auth.signOut();
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
