@@ -13,6 +13,7 @@ import {
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
+import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, type FollowState } from "@/lib/follow";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
@@ -56,6 +57,7 @@ type Props = {
   onNearby: (place: Place | null) => void;
   onInteract: (place: Place) => void;
   onPrintNear: (near: boolean) => void;
+  onFollow?: (mode: "off" | "can" | "on") => void; // come along: the walk-together prompt (can start / is walking)
   onFindable?: (found: boolean) => void; // the Print is hiding and within reach: E means "found"
   onCanSplash?: (ok: boolean) => void; // the pond can be splashed (day only)
   onFeedPrint: () => void; // the hold finished: ask the server to feed
@@ -230,10 +232,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose });
-  cb.current = { onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose };
+  const cb = useRef({ onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose });
+  cb.current = { onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose };
   // Latest props for the render loop, which is created once.
   const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
   live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
@@ -625,6 +627,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       scene.add(m);
       return m;
     });
+    // Come along: by day the Print walks with the player (lib/follow.ts). Client only, nothing stored.
+    let followS: FollowState = FOLLOWIDLE, followWant = false, followMoving = false, followRoute: Vec[] = [], followLeg = 0, followRouteAt = -1, followShown: "off" | "can" | "on" = "off";
+    let followPreview = followOverride(window.location.search, process.env.NODE_ENV === "production") !== null;
+    let followHead = 0, followLast: Vec | null = null;
     let holdStart = -1;
     let strokeStart = -1;
     let strokeEnd = -1;
@@ -715,6 +721,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
         return;
       }
+      if (e.code === FOLLOW.key && !e.repeat) { followWant = true; return; }
       if (e.code === PLAY.keys.hold && !e.repeat) {
         if (travel) {
           // walking through a gate: nothing else to do
@@ -1046,7 +1053,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           pondS = overrideState(pondPreview); pondPreview = null;
         }
         if (pondBusy(pondS) && (engaged || !awakeNow)) { pondS = PONDIDLE; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
-        if (!pondBusy(pondS) && !hideBusy(hideS) && awakeNow && !engaged && ts >= pondNextAt) {
+        if (followActive(followS) && ts >= pondNextAt) pondNextAt = ts + retryDelay(Math.random()); // a walk together goes first; the visit tries again later
+        if (!pondBusy(pondS) && !hideBusy(hideS) && !followActive(followS) && awakeNow && !engaged && ts >= pondNextAt) {
           if (canStartVisit(hourNow, true, wander)) pondS = pondStart();
           else pondNextAt = ts + retryDelay(Math.random());
         }
@@ -1089,7 +1097,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (hideBusy(hideS) && (engaged || !awakeNow || sit.phase !== "standing" || pondBusy(pondS))) {
           hideS = hideCancel(); hideRoute = []; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; hideNextAt = ts + nextGameDelay(Math.random());
         }
-        if (!hideBusy(hideS) && awakeNow && !engaged && !pondBusy(pondS) && sit.phase === "standing" && ts >= hideNextAt) {
+        if (followActive(followS) && ts >= hideNextAt) hideNextAt = ts + hideRetry(Math.random()); // same for hide and seek
+        if (!hideBusy(hideS) && !followActive(followS) && awakeNow && !engaged && !pondBusy(pondS) && sit.phase === "standing" && ts >= hideNextAt) {
           if (canStartGame(hourNow, true, true, wander, pos)) hideS = hideStart();
           else hideNextAt = ts + hideRetry(Math.random());
         }
@@ -1117,17 +1126,62 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           if (!hideBusy(hideS)) { hideOwned = false; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; hideNextAt = ts + nextGameDelay(Math.random()); }
           else hidePoseV = hidePose(hideS, reducedMotion);
         }
+        // Come along: C near the Print by day starts a walk; the Print trots a few steps behind and aside. Anything else that wants
+        // the Print, a panel, a door, night or leaving the garden ends it with a small settle.
+        let followPoseV: ReturnType<typeof followPose> | null = null;
+        {
+          const gardenNow = zones.is("garden") && !travel, panel = !!live.current.locked || !!live.current.mapOpen;
+          const dPrint = Math.hypot(wander.x - pos.x, wander.z - pos.z);
+          const lastP = followLast ?? { x: pos.x, z: pos.z }, dp = Math.hypot(pos.x - lastP.x, pos.z - lastP.z);
+          if (dp > 1e-4 && dp < 3) followHead = Math.atan2(pos.x - lastP.x, pos.z - lastP.z); // a jump (a door) is not a walk
+          const pSpeed = dp < 3 && dt > 0 ? dp / dt : 0;
+          followLast = { x: pos.x, z: pos.z };
+          const hold = engaged || pondBusy(pondS) || hideBusy(hideS) || sit.phase !== "standing";
+          const busy = hold || !!sk || pgStart >= 0;
+          const offer = { hour: hourNow, awake: awakeNow, busy, panel, distance: dPrint, following: followActive(followS) };
+          if (followActive(followS) && followInterrupted({ awake: awakeNow, hour: hourNow, busy: hold, panel, garden: gardenNow, distance: dPrint })) followS = followEnd(followS);
+          const begin = () => { followS = followStart(); followRoute = []; followLeg = 0; followRouteAt = -1; };
+          if (followWant) {
+            followWant = false;
+            if (followOn(followS)) followS = followEnd(followS);
+            else if (gardenNow && canOfferFollow(offer)) begin();
+          }
+          if (followPreview && gardenNow) { followPreview = false; if (canOfferFollow({ ...offer, distance: 0 })) begin(); } // dev: skip the walk up to the Print
+          followMoving = false;
+          if (followActive(followS)) {
+            const was = followS.phase;
+            followS = followAdvance(followS, dt, pSpeed);
+            if (!followActive(followS)) wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 };
+            else {
+              const toPlayer = Math.atan2(pos.x - wander.x, pos.z - wander.z);
+              if (was === "on" && followS.phase === "on") {
+                const gc = gardenCols(), tgt = followTarget(pos, followHead, gc, GARDEN.print.radius);
+                if (tgt) {
+                  if (ts >= followRouteAt) { followRoute = routeTo(wander, tgt, gc, GARDEN.print.radius); followLeg = 0; followRouteAt = ts + FOLLOW.routeEvery; }
+                  while (followLeg < followRoute.length - 1 && Math.hypot(followRoute[followLeg].x - wander.x, followRoute[followLeg].z - wander.z) < 0.3) followLeg++;
+                  const goal = followLeg < followRoute.length - 1 ? followRoute[followLeg] : tgt;
+                  const m = followMove(wander, goal, followSpeed(Math.hypot(tgt.x - wander.x, tgt.z - wander.z)), dt, pos, gc, GARDEN.print.radius);
+                  wander = { ...wander, x: m.pos.x, z: m.pos.z, tx: m.pos.x, tz: m.pos.z, wait: 1, heading: m.moving && m.heading !== null ? m.heading : toPlayer };
+                  followMoving = m.moving;
+                } else wander = { ...wander, heading: toPlayer };
+              } else wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1, heading: toPlayer };
+            }
+          }
+          if (followActive(followS)) followPoseV = followPose(followS, followMoving, reducedMotion);
+          const mode = followOn(followS) ? "on" : !followActive(followS) && gardenNow && canOfferFollow(offer) ? "can" : "off";
+          if (mode !== followShown) { followShown = mode; cb.current.onFollow?.(mode); }
+        }
         // The peek leans out sideways; it is eased so an interrupt never snaps the Print back.
         const sideWant = hidePoseV && hideS.perp ? hidePoseV.side : 0;
         hideSide += (sideWant - hideSide) * Math.min(1, dt * 8);
         if (Math.abs(hideSide) < 0.001) hideSide = 0;
         const hideDir = hideS.perp ?? { x: 0, z: 0 };
-        if (!engaged && !owned && !holdStill && !pondOwned && !hideOwned) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        if (!engaged && !owned && !holdStill && !pondOwned && !hideOwned && !followActive(followS)) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
         // Pose: the reaction wins, then stroking, otherwise rest.
         const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
         const reactPose = reacting ? feedPose(sinceFeed, reducedMotion) : stroked >= 0 ? strokePose(stroked, reducedMotion, released) : { lean: 0, squash: 1, hop: 0 };
-        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? hidePoseV ?? reactPose;
+        const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? hidePoseV ?? followPoseV ?? reactPose;
         const watching = !engaged && skAt !== null && sk !== null && printWatches(awakeNow, wander);
         const watchHop = watching && sk ? watcherHop(sk.plan, skAge, reducedMotion) : 0;
         const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : watching && skAt ? Math.atan2(skAt.x - wander.x, skAt.z - wander.z) : wander.heading;
@@ -1186,7 +1240,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           ...(stroked >= 0 && released === 0 ? strokePuffs(stroked, reducedMotion) : []),
           ...(bed === "sleep" && !engaged ? swirlPuffs(ts, reducedMotion) : []),
         ];
-        const hp = !engaged && hideBusy(hideS) ? hidePuffs(hideS, reducedMotion) : [];
+        const hp = !engaged && hideBusy(hideS) ? hidePuffs(hideS, reducedMotion) : !engaged && followActive(followS) ? followDrops(followS, followMoving, reducedMotion) : [];
         hideDrops.forEach((m, i) => {
           const pf = hp[i];
           m.visible = !!pf;
@@ -1195,7 +1249,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           m.scale.setScalar(pf.scale);
           const mt = m.material as THREE.MeshBasicMaterial;
           mt.opacity = pf.opacity;
-          mt.color.set(pf.tone === "gold" ? 0xf2b632 : i % 2 ? 0xffffff : 0x3b4a8c);
+          mt.color.set((pf as { tone: string }).tone === "gold" ? 0xf2b632 : i % 2 ? 0xffffff : 0x3b4a8c);
         });
         drops.forEach((m, i) => {
           const pf = puffs[i];
