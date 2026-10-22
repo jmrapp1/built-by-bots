@@ -79,6 +79,7 @@ export default function Page() {
   // The pouch lives in a ref as well as state so a walk-over and a feed never read a stale copy.
   const [pouch, setPouch] = useState<string[]>([]);
   const pouchRef = useRef<string[]>([]);
+  const menuBtn = useRef<HTMLButtonElement>(null);
   const setPouchBoth = (p: string[]) => { pouchRef.current = p; setPouch(p); };
   const foodIds = FOODS.map((x) => x.id);
   const food = inHand(pouch, wantedFood, foodIds); // null while the pouch is empty
@@ -480,7 +481,7 @@ export default function Page() {
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <HomeHintLine loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} guideDone={guideStatus.finished} guideHint={guideStatus.hint} hasCreature={!!creature} nearDoor={nearby?.id === "door-home"} nearPlot={nearby?.kind === "decor"} decorTick={decorTick} raise={followMode !== "off" && !npcLine && !findable && tag ? 60 : 0} preview={typeof window !== "undefined" ? homeHintOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
 
-      <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
+      <button ref={menuBtn} className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
         <div className="card menu" role="dialog" aria-label="Menu">
           <h3>Menu</h3>
@@ -495,7 +496,7 @@ export default function Page() {
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
-          <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); setTimeout(() => window.location.reload(), 900); }}>{HINTS_AGAIN}</button>
+          <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); menuBtn.current?.focus(); }}>{HINTS_AGAIN}</button>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
         </div>
       )}

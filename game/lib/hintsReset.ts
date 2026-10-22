@@ -5,7 +5,7 @@ import { HOME_HINT_KEY } from "@/lib/homeHint";
 
 export const HINT_KEYS = [GUIDE_KEY, TRY_KEY, HOME_HINT_KEY] as const;
 export const HINTS_AGAIN = "Show the hints again";
-export const HINTS_BACK = "Hints are back.";
+export const HINTS_BACK = "Hints will be back next time you open the game.";
 
 export type ResetStore = { removeItem(key: string): void };
 

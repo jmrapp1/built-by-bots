@@ -31,6 +31,6 @@ describe("resetHints (S16)", () => {
   });
   it("has the two strings", () => {
     expect(HINTS_AGAIN).toBe("Show the hints again");
-    expect(HINTS_BACK).toBe("Hints are back.");
+    expect(HINTS_BACK).toBe("Hints will be back next time you open the game.");
   });
 });
