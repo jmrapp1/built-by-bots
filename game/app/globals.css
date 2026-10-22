@@ -211,6 +211,11 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .try-tab:hover, .try-tab:focus-visible { opacity: 1; }
 .try-card { margin-left: 16px; width: min(280px, 80vw); display: grid; gap: 10px; animation: fade 180ms var(--ease) both; }
 .try-card h2 { margin: 0; font-size: 17px; }
+
+/* Welcome back (S17): a small paper card near the top, on the first return after a while. */
+.welcome { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 3; width: min(320px, 86vw); display: grid; gap: 8px; text-align: center; cursor: pointer; animation: fade 180ms var(--ease) both; }
+.welcome h2 { margin: 0; font-size: 17px; }
+.welcome p { margin: 0; }
 .try-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .try-card li { display: flex; gap: 8px; }
 .try-done { color: var(--ink-soft); }

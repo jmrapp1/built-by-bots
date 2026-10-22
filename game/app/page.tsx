@@ -31,6 +31,9 @@ import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } 
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
 import { HINTS_AGAIN, HINTS_BACK, resetBrowserHints } from "@/lib/hintsReset";
+import WelcomeBack from "@/components/WelcomeBack";
+import { welcomeOverride } from "@/lib/welcome";
+import { LOW } from "@/lib/cardStatus";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
@@ -479,6 +482,7 @@ export default function Page() {
 
       <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
+      <WelcomeBack loaded={claimedOn !== undefined} guideDone={guideStatus.finished} guideHint={guideStatus.hint} clear={!menu && !menuOpen && !mp.open && !npcLine} creature={creature ? { id: creature.id, stage: creature.stage ?? "blot", hungry: creature.fullness < LOW } : null} preview={typeof window !== "undefined" ? welcomeOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <HomeHintLine loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} guideDone={guideStatus.finished} guideHint={guideStatus.hint} hasCreature={!!creature} nearDoor={nearby?.id === "door-home"} nearPlot={nearby?.kind === "decor"} decorTick={decorTick} raise={followMode !== "off" && !npcLine && !findable && tag ? 60 : 0} preview={typeof window !== "undefined" ? homeHintOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
 
       <button ref={menuBtn} className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
