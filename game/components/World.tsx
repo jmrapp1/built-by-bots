@@ -80,6 +80,7 @@ type Props = {
   walkKey?: string | null; // whose map this browser keeps (W4); the walked cells never leave the browser
   mapOpen?: boolean; // the map page is showing: the loop reports where the player stands
   onHome?: () => void; // the player entered the Home room
+  onZoneDone?: (zone: "garden" | "margins" | "home") => void; // S21: a door or gate crossing finished
   onMapKey?: () => void; // M was pressed
   onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
   guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
@@ -233,10 +234,10 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose });
-  cb.current = { onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onGuidePose };
+  const cb = useRef({ onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose });
+  cb.current = { onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose };
   // Latest props for the render loop, which is created once.
   const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
   live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
@@ -931,7 +932,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         wipe.style.display = f.wipe > 0 || tt < 0.05 ? "block" : "none";
         if (reducedMotion) { wipe.style.transform = "none"; wipe.style.opacity = String(f.wipe); } // a fade, not a sweep
         else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
-        if (f.done) { travel = null; wipe.style.display = "none"; }
+        if (f.done) { travel = null; wipe.style.display = "none"; cb.current.onZoneDone?.(zones.current); }
       }
       const res = tRes ? tRes : zones.is("home") && canWalk(sit) ? (() => {
         const l = { x: pos.x - ROOM_OFF, z: pos.z };
