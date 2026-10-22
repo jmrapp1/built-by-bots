@@ -14,6 +14,8 @@ import { PLAY, nextFood } from "@/lib/play";
 import MapPage from "@/components/MapPage";
 import { newWalked, type Walked } from "@/lib/map";
 import FirstRunGuide from "@/components/FirstRunGuide";
+import HomeHintLine from "@/components/HomeHint";
+import { homeHintOverride } from "@/lib/homeHint";
 import TryList from "@/components/TryList";
 import { tryOverride } from "@/lib/tryList";
 import { guideOverride } from "@/lib/guide";
@@ -113,6 +115,7 @@ export default function Page() {
   const [homeDecor, setHomeDecor] = useState<{ owned: string[]; placed: Placed } | null>(null);
   const [decorNote, setDecorNote] = useState<string | null>(null);
   const [decorBusy, setDecorBusy] = useState(false);
+  const [decorTick, setDecorTick] = useState(0); // S13: goes up on each successful Decorate
   const decorTried = useRef<string | null>(null); // the account whose starters were claimed this page load
   const mp = useMapState();
   // The keepsake picker. Owned keepsakes are read only when it opens; a failed read just lists none. ?picker=stub (dev only) uses a stub and never calls the server.
@@ -220,12 +223,12 @@ export default function Page() {
   // Place or clear one plot through set_home_decoration. The room changes only when the server confirms.
   const placeDecor = async (choice: string | null) => {
     if (!decorPlot || decorBusy) return;
-    if (stubDecor) { setPlaced((o) => withChoice(decorPlot, o, choice)); setMenu(null); return; }
+    if (stubDecor) { setPlaced((o) => withChoice(decorPlot, o, choice)); setDecorTick((n) => n + 1); setMenu(null); return; }
     if (!homeDecor) return;
     setDecorBusy(true); setDecorNote(null);
     const out = await runPlace(async (a) => supabase().rpc("set_home_decoration", a), decorPlot, choice);
     setDecorBusy(false);
-    if (out.ok) { setHomeDecor((h) => (h ? { ...h, placed: settlePlaced(h.placed, out) } : h)); setMenu(null); } else setDecorNote(out.note);
+    if (out.ok) { setHomeDecor((h) => (h ? { ...h, placed: settlePlaced(h.placed, out) } : h)); setDecorTick((n) => n + 1); setMenu(null); } else setDecorNote(out.note);
   };
   // N4: take a neighbour's gift. Only the neighbour's id goes to the server; the strip changes only on its answer.
   const takeGift = async () => {
@@ -471,6 +474,7 @@ export default function Page() {
 
       <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
+      <HomeHintLine loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} guideDone={guideStatus.finished} guideHint={guideStatus.hint} hasCreature={!!creature} nearDoor={nearby?.id === "door-home"} nearPlot={nearby?.kind === "decor"} decorTick={decorTick} raise={followMode !== "off" && !npcLine && !findable && tag ? 60 : 0} preview={typeof window !== "undefined" ? homeHintOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
