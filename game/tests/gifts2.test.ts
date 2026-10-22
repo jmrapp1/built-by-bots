@@ -100,3 +100,15 @@ describe("gift2 effect does not loop on a failed claim", () => {
     expect((effect.match(/gift2Tried\.current\[[^\]]+\]\s*=\s*false/g) ?? []).length).toBe(1); // only the "no first gift yet" read, which sets no state
   });
 });
+
+describe("second-gift strip never offers the first gift", () => {
+  const page = src("../app/page.tsx");
+  it("Take it is hidden on the second-gift and waiting strips (g: 2)", () => {
+    expect(page).toMatch(/npcLine\.last && npcLine\.g !== 2 && userId[^>]*<button/);
+  });
+  it("a first gift found already claimed is marked taken before the second ask", () => {
+    const e = page.slice(page.indexOf("const gift2Tried"), page.indexOf("const signOut"));
+    expect(e.indexOf("setGiftTaken")).toBeGreaterThan(e.indexOf("no first gift yet"));
+    expect(e.indexOf("setGiftTaken")).toBeLessThan(e.indexOf("runClaimGift2("));
+  });
+});

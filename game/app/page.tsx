@@ -253,6 +253,7 @@ export default function Page() {
       let first = giftTaken.includes(id);
       if (!first) { const r = await sb.from("npc_gifts").select("npc").eq("npc", id); first = !r.error && Array.isArray(r.data) && r.data.length > 0; }
       if (!first) { gift2Tried.current[id] = false; return; } // no first gift yet: nothing to ask
+      setGiftTaken((g) => (g.includes(id) ? g : [...g, id])); // the first gift is already claimed: no "Take it" for it (sets no npcLine, so no re-run)
       const out = await runClaimGift2(async (a) => sb.rpc("claim_npc_gift2", a), id);
       if (!out.ok) { setNpcLine((l) => (l && l.id === id ? { ...l, note: out.note } : l)); return; }
       const s = gift2Strip(n, out);
@@ -488,7 +489,7 @@ export default function Page() {
           <div className="npc-icons">{npcLine.icons.map((n, i) => <NpcIcon key={i} name={n} />)}</div>
           <p><strong>{npcLine.name}</strong><br />{npcLine.text}</p>
           {npcLine.note && <p className="note" role="status">{npcLine.note}</p>}
-          {npcLine.last && userId && !stubDecor && giftNpc(npcLine.id) && !giftTaken.includes(npcLine.id) && <button className="btn" disabled={giftBusy} onClick={takeGift}>Take it</button>}
+          {npcLine.last && npcLine.g !== 2 && userId && !stubDecor && giftNpc(npcLine.id) && !giftTaken.includes(npcLine.id) && <button className="btn" disabled={giftBusy} onClick={takeGift}>Take it</button>}
           <button className="btn" onClick={() => { setNpcLine(null); setNpcClose((n) => n + 1); }}>Thanks</button>
         </div>
       )}
