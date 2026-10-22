@@ -68,6 +68,13 @@ export function friendlyAuthError(message: string): string {
   return "Something went wrong. Please try again.";
 }
 
+// Sign-in card words (S15). The rule is said before the mistake, on Create account only.
+export const PASSWORD_NOTE = "At least 8 characters.";
+export const CONFIRM_SPAM_LINE = "Can't find it? Look in spam, then come back here.";
+export function passwordNote(mode: "in" | "up"): string {
+  return mode === "up" ? PASSWORD_NOTE : "";
+}
+
 // Feed prompt: only for a hatched Print that is close by. With nothing in the pouch it nudges instead.
 export const GATHER_NUDGE = "Gather a snack first";
 export function feedPrompt(hasCreature: boolean, printNear: boolean, hasSnack = true): string | null {

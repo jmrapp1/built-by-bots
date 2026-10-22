@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FED_MESSAGE, dropFill, feedPrompt, friendlyFeedError, friendlyAuthError, moodFace, promptFor } from "@/lib/ui";
+import { FED_MESSAGE, dropFill, feedPrompt, friendlyFeedError, friendlyAuthError, passwordNote, PASSWORD_NOTE, CONFIRM_SPAM_LINE, moodFace, promptFor } from "@/lib/ui";
 import { GARDEN } from "@/lib/world";
 
 const place = (kind: string) => GARDEN.places.find((p) => p.kind === kind)!;
@@ -73,5 +73,19 @@ describe("css class names", () => {
     const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
     expect(css.match(/^\.stage\s*\{/gm)?.length).toBe(1);
     expect(css).toMatch(/^\.growth\s*\{/m);
+  });
+});
+
+describe("sign-in card words (S15)", () => {
+  it("shows the password rule on Create account only", () => {
+    expect(passwordNote("up")).toBe("At least 8 characters.");
+    expect(passwordNote("in")).toBe("");
+    expect(PASSWORD_NOTE).toBe("At least 8 characters.");
+  });
+  it("has the spam line for the confirm screen", () => {
+    expect(CONFIRM_SPAM_LINE).toBe("Can't find it? Look in spam, then come back here.");
+  });
+  it("keeps the wrong-password words", () => {
+    expect(friendlyAuthError("Invalid login credentials")).toBe("That email and password didn't match. Try again.");
   });
 });
