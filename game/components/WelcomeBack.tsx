@@ -11,6 +11,7 @@ export type WelcomeProps = {
   clear: boolean; // no menu, map or talk is open
   creature: { id: string; stage: string; hungry: boolean } | null;
   preview?: WelcomePreview | null; // dev only
+  onCard?: (showing: boolean) => void; // S20: tells the page when the card is up
 };
 
 export default function WelcomeBack(p: WelcomeProps) {
@@ -63,6 +64,8 @@ export default function WelcomeBack(p: WelcomeProps) {
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [card]);
+
+  useEffect(() => { p.onCard?.(!!card); }, [card]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!card || !p.clear) return null;
   return (
