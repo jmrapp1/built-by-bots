@@ -30,7 +30,7 @@ import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
-import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
+import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -435,7 +435,8 @@ export default function Page() {
           <div className="card signin" role="status">
             <EnvelopeIcon />
             <h2>Check your email to finish</h2>
-            <p className="note">We sent a link. Open it, then come back and sign in.</p>
+            <p className="note">We sent a link{email ? <> to <strong>{email}</strong></> : null}. Open it, then come back and sign in.</p>
+            <p className="note">{CONFIRM_SPAM_LINE}</p>
             <button className="btn quiet" onClick={() => { setConfirmSent(false); setMode("in"); }}>Back to sign in</button>
           </div>
         ) : (
@@ -443,8 +444,8 @@ export default function Page() {
             <div className="brand"><Blot /><h1>Blotty</h1></div>
             <p className="tagline">Raise little creatures made of ink.</p>
             <div className="tabs" data-mode={mode} role="tablist">
-              <button type="button" role="tab" aria-selected={mode === "in"} className="tab" onClick={() => { setMode("in"); setAuthError(""); }}>Sign in</button>
-              <button type="button" role="tab" aria-selected={mode === "up"} className="tab" onClick={() => { setMode("up"); setAuthError(""); }}>Create account</button>
+              <button type="button" role="tab" aria-selected={mode === "in"} className="tab" onClick={() => { if (mode !== "in") setPassword(""); setMode("in"); setAuthError(""); }}>Sign in</button>
+              <button type="button" role="tab" aria-selected={mode === "up"} className="tab" onClick={() => { if (mode !== "up") setPassword(""); setMode("up"); setAuthError(""); }}>Create account</button>
             </div>
             <div className="field">
               <label htmlFor="email">Email</label>
@@ -453,9 +454,10 @@ export default function Page() {
             <div className="field">
               <label htmlFor="password">Password</label>
               <div className="input-wrap">
-                <input id="password" className="input" type={showPw ? "text" : "password"} required minLength={8} autoComplete={mode === "in" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={authError ? true : undefined} aria-describedby={authError ? "auth-error" : undefined} />
+                <input id="password" className="input" type={showPw ? "text" : "password"} required minLength={8} autoComplete={mode === "in" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={authError ? true : undefined} aria-describedby={[authError ? "auth-error" : "", passwordNote(mode) ? "password-note" : ""].filter(Boolean).join(" ") || undefined} />
                 <button type="button" className="eye" aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw((v) => !v)}><EyeIcon off={showPw} /></button>
               </div>
+              {passwordNote(mode) && <p id="password-note" className="note">{passwordNote(mode)}</p>}
               {authError && <p id="auth-error" className="error" role="alert">{authError}</p>}
             </div>
             <button type="submit" className="btn primary" disabled={busy}>{busy ? "One moment…" : mode === "in" ? "Sign in" : "Create account"}</button>
