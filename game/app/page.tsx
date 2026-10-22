@@ -30,6 +30,7 @@ import { STUB_OWNED, ownedFromRows, pickerPreview, runPick, settlePick } from "@
 import { FOUND_EGG, MARGINS_ERRORS, openedFromClaims, runUnfold, type Outcome } from "@/lib/margins-server";
 import { openedWorldFromClaims, runWorldUnfold } from "@/lib/spots-server";
 import { FORAGE, carried, inHand, pouchAdd, pouchSpend } from "@/lib/forage";
+import { HINTS_AGAIN, HINTS_BACK, resetBrowserHints } from "@/lib/hintsReset";
 import { FED_MESSAGE, POUCH_FULL, feedPrompt, isFeedMessage, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
@@ -310,7 +311,7 @@ export default function Page() {
   }, [reacting, fedTick]);
   // The confirmation fades after a moment.
   useEffect(() => {
-    if (!isFeedMessage(msg) && msg !== POUCH_FULL && msg !== MARGINS_ERRORS.network) return;
+    if (!isFeedMessage(msg) && msg !== POUCH_FULL && msg !== HINTS_BACK && msg !== MARGINS_ERRORS.network) return;
     const t = setTimeout(() => setMsg((m) => (m === msg ? "" : m)), 2600);
     return () => clearTimeout(t);
   }, [msg]);
@@ -494,6 +495,7 @@ export default function Page() {
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
+          <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); }}>{HINTS_AGAIN}</button>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
         </div>
       )}
