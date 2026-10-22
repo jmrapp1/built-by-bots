@@ -2,6 +2,7 @@
 import { GUIDE_KEY } from "@/lib/guide";
 import { TRY_KEY } from "@/lib/tryList";
 import { HOME_HINT_KEY } from "@/lib/homeHint";
+import { forgetShown } from "@/lib/welcome";
 
 export const HINT_KEYS = [GUIDE_KEY, TRY_KEY, HOME_HINT_KEY] as const;
 export const HINTS_AGAIN = "Show the hints again";
@@ -23,7 +24,9 @@ export function resetHints(store: ResetStore | null): boolean {
 // The browser's own storage, when it can be had. Blocked storage gives null.
 export function resetBrowserHints(): boolean {
   try {
-    return resetHints(typeof window === "undefined" ? null : window.localStorage ?? null);
+    const st = typeof window === "undefined" ? null : window.localStorage ?? null;
+    forgetShown(st); // S17: the Welcome back card may show again on the next qualifying return
+    return resetHints(st);
   } catch {
     return false;
   }
