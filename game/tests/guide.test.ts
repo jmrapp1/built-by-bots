@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, strokeFinishes, guideDay, PREVIEW_DONE_STROKE, PREVIEW_DONE_MAP, mapFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Step, type Store } from "@/lib/guide";
+import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, strokeFinishes, guideDay, PREVIEW_DONE_STROKE, PREVIEW_DONE_MAP, PREVIEW_DONE_HATCH, mapFinishes, nestPointerOn, hatchText, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Step, type Store } from "@/lib/guide";
 
 const mem = (): Store & { data: Record<string, string> } => {
   const data: Record<string, string> = {};
@@ -130,7 +130,7 @@ describe("egg pointer", () => {
 });
 
 describe("wording", () => {
-  const all = [...STEPS.map(hintText), GUIDE_TEXT.arrow];
+  const all = [...STEPS.map((x) => hintText(x)), GUIDE_TEXT.arrow];
   it("is one short line with no digits", () => {
     for (const t of all) { expect(t).not.toMatch(/\d/); expect(t.length).toBeLessThanOrEqual(60); }
   });
@@ -153,7 +153,7 @@ describe("?guide=stroke preview switch", () => {
 describe("stroke step", () => {
   const near = { eggPending: false, printNear: true, hasCreature: true, hasSnack: true };
   it("is the fourth step and the old saved list reads back unchanged", () => {
-    expect(STEPS).toEqual(["move", "egg", "feed", "stroke", "map"]);
+    expect(STEPS).toEqual(["move", "egg", "hatch", "feed", "stroke", "map"]);
     const s = mem(); s.data[GUIDE_KEY] = '{"v":1,"done":["move","egg","feed"]}';
     expect(readDone(s)).toEqual(["move", "egg", "feed"]);
   });
@@ -253,5 +253,65 @@ describe("?guide=feed preview switch", () => {
   it("puts the feed hint on screen when a Print and snack are in hand", () => {
     expect(PREVIEW_DONE).toEqual(["move", "egg"]);
     expect(currentHint(PREVIEW_DONE, ctx({ eggPending: false, printNear: true, hasSnack: true, hasCreature: true }))).toBe("feed");
+  });
+});
+
+describe("hatch step", () => {
+  const waiting = { eggPending: false, hasWaiting: true, hasCreature: false };
+  const two = ["move", "egg"] as const;
+  it("sits between egg and feed, and an old save without it still reads", () => {
+    expect(STEPS.indexOf("hatch")).toBe(STEPS.indexOf("egg") + 1);
+    expect(STEPS.indexOf("feed")).toBe(STEPS.indexOf("hatch") + 1);
+    const s = mem(); s.data[GUIDE_KEY] = '{"v":1,"done":["move","egg","feed","stroke","map"]}';
+    expect(readDone(s)).toEqual(["move", "egg", "feed", "stroke", "map"]);
+  });
+  it("shows once the egg is collected and waits in the nest, with no Print", () => {
+    expect(currentHint([...two], ctx(waiting))).toBe("hatch");
+    expect(currentHint([...two], ctx({ ...waiting, hasWaiting: false }))).toBeNull();
+    expect(currentHint([...two], ctx({ ...waiting, hasCreature: true }))).toBeNull();
+    expect(currentHint([...two], ctx({ ...waiting, ready: false }))).toBeNull();
+    expect(currentHint([...two], ctx({ ...waiting, inGarden: false }))).toBeNull();
+    expect(currentHint([], ctx({ ...waiting, eggPending: true }))).toBe("move");
+  });
+  it("shows day and night, and never twice", () => {
+    for (const day of [true, false]) expect(currentHint([...two], ctx({ ...waiting, day }))).toBe("hatch");
+    expect(currentHint([...two], ctx({ ...waiting, printNear: true, hasSnack: true }))).toBe("hatch");
+  });
+  it("is done by hatching or Escape, and the feed hint follows", () => {
+    expect(currentHint([...two, "hatch"], ctx(waiting))).toBeNull();
+    expect(currentHint([...two], ctx({ ...waiting, dismissed: ["hatch"] }))).toBeNull();
+    const after = { eggPending: false, hasCreature: true, hasWaiting: false, printNear: true, hasSnack: true };
+    expect(currentHint([...two, "hatch"], ctx(after))).toBe("feed");
+  });
+  it("existing players see nothing", () => {
+    const done = [...STEPS];
+    expect(currentHint(done, ctx(waiting))).toBeNull();
+    expect(nestPointerOn(done, ctx(waiting))).toBe(false);
+  });
+  it("wording: away, timer running, ready", () => {
+    expect(hatchText(false, 9)).toBe("Your egg is waiting in the nest.");
+    expect(hatchText(true, 9)).toBe("Your egg is nearly ready.");
+    expect(hatchText(true, 0)).toBe("Press E to hatch your egg.");
+    expect(hintText("hatch")).toBe("Press E to hatch your egg.");
+  });
+  it("nest pointer shows only away from the nest while the hint is due", () => {
+    expect(nestPointerOn([...two], ctx({ ...waiting, nearNest: false }))).toBe(true);
+    expect(nestPointerOn([...two], ctx({ ...waiting, nearNest: true }))).toBe(false);
+    expect(nestPointerOn([...two, "hatch"], ctx(waiting))).toBe(false);
+    expect(nestPointerOn([...two], ctx({ ...waiting, dismissed: ["hatch"] }))).toBe(false);
+    expect(nestPointerOn([...two], ctx({ ...waiting, hasCreature: true }))).toBe(false);
+    expect(pointerOn([...two], ctx(waiting))).toBe(false);
+  });
+  it("works for the session when storage is blocked", () => {
+    let done = readDone(blocked); for (const x of two) done = markDone(done, x);
+    expect(currentHint(done, ctx(waiting))).toBe("hatch");
+    done = markDone(done, "hatch"); expect(() => writeDone(blocked, done)).not.toThrow();
+    expect(currentHint(done, ctx(waiting))).toBeNull();
+  });
+  it("?guide=hatch is dev only", () => {
+    expect(guideOverride("?guide=hatch", false)).toBe("hatch");
+    expect(guideOverride("?guide=hatch", true)).toBeNull();
+    expect(guideOverride("?guide=HATCH", false)).toBeNull();
+    expect(PREVIEW_DONE_HATCH).toEqual(["move", "egg"]);
   });
 });
