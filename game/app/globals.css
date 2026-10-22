@@ -203,3 +203,16 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
    The canvas stays square and is capped by the window height, leaving room for the card's padding, gap and Close button. */
 .tray.mappage { width: min(500px, 94vw); animation-name: fade; }
 .mappage canvas { width: min(100%, calc(100vh - 190px)); width: min(100%, calc(100dvh - 190px)); margin: 0 auto; height: auto; aspect-ratio: 1; border: var(--border); border-radius: var(--radius-control); display: block; }
+
+/* Things to try (S12): an ink-blot tab at the left edge that opens a small paper card. */
+.try-wrap { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 2; }
+.try-tab { display: grid; place-items: center; width: 40px; height: 48px; padding: 0 0 0 4px; color: var(--ink); background: var(--paper); border: var(--border); border-left: 0; border-radius: 0 14px 14px 0; cursor: pointer; opacity: 0.8; animation: guide-pulse 3.2s ease-in-out infinite; }
+.try-tab:hover, .try-tab:focus-visible { opacity: 1; }
+.try-card { margin-left: 16px; width: min(280px, 80vw); display: grid; gap: 10px; animation: fade 180ms var(--ease) both; }
+.try-card h2 { margin: 0; font-size: 17px; }
+.try-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.try-card li { display: flex; gap: 8px; }
+.try-done { color: var(--ink-soft); }
+.try-closing { margin: 0; text-align: center; }
+.try-actions { display: flex; gap: 8px; justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) { .try-tab { animation: none !important; } }

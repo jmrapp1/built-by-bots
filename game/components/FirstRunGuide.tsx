@@ -25,6 +25,7 @@ export type GuideProps = {
   raise?: number; // px to lift the hint when another prompt sits under it
   pose: { x: number; z: number; yaw: number } | null; // null away from the garden
   onGlow: (on: boolean) => void;
+  onStatus?: (s: { finished: boolean; hint: boolean }) => void; // S12: every step done or skipped, and whether a hint is on screen
   preview?: GuidePreview | null; // dev-only ?guide=hatch|feed|stroke|map: fake state, nothing saved; the hold key stands in for a hatch (at the nest) or a feed, the stroke key for a stroke
 };
 
@@ -84,6 +85,8 @@ export default function FirstRunGuide(raw: GuideProps) {
   useEffect(() => { shown.current = hint; }); // after the feed effect, so that one sees the hint from before the feed
   const pointer = pointerOn(done, ctx), nestPointer = nestPointerOn(done, ctx);
   const glow = read && p.loaded && !p.existing && !p.eggClaimed && !done.includes("egg");
+  const finished = read && p.loaded && (p.existing || STEPS.every((x) => done.includes(x)));
+  useEffect(() => { p.onStatus?.({ finished, hint: !!hint }); }, [finished, hint]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { p.onGlow(glow); }, [glow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { // Escape hides the hint on show and keeps it hidden

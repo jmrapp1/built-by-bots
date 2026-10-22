@@ -14,6 +14,8 @@ import { PLAY, nextFood } from "@/lib/play";
 import MapPage from "@/components/MapPage";
 import { newWalked, type Walked } from "@/lib/map";
 import FirstRunGuide from "@/components/FirstRunGuide";
+import TryList from "@/components/TryList";
+import { tryOverride } from "@/lib/tryList";
 import { guideOverride } from "@/lib/guide";
 import { FOLLOW, FOLLOW_TEXT } from "@/lib/follow";
 import KeepsakePicker from "@/components/KeepsakePicker";
@@ -76,10 +78,12 @@ export default function Page() {
   const setPouchBoth = (p: string[]) => { pouchRef.current = p; setPouch(p); };
   const foodIds = FOODS.map((x) => x.id);
   const food = inHand(pouch, wantedFood, foodIds); // null while the pouch is empty
+  const [forageTick, setForageTick] = useState(0), [dailyTick, setDailyTick] = useState(0), [guideStatus, setGuideStatus] = useState({ finished: false, hint: false }); // S12: things to try
   const gather = (kind: string): "ok" | "full" => {
     const next = pouchAdd(pouchRef.current, kind);
     if (!next) { setMsg(POUCH_FULL); return "full"; }
     setPouchBoth(next);
+    setForageTick((n) => n + 1);
     return "ok";
   };
 
@@ -380,6 +384,7 @@ export default function Page() {
     }
     setEggs((all) => [...all, data as Egg]);
     setClaimedOn(utcDay(new Date()));
+    setDailyTick((n) => n + 1);
     setMsg(DAILY.messages.collected);
   };
 
@@ -464,7 +469,8 @@ export default function Page() {
     <main className="hud-root">
       <World genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
-      <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
+      <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
+      <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
 
       <button className="iconbtn" aria-label="Menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}><MenuIcon /></button>
       {menuOpen && (
