@@ -16,11 +16,11 @@ function atlas(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = CELL * n; c.height = CELL;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#f1e7cc"; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#fffaf0"; g.fillRect(0, 0, c.width, c.height);
   for (let i = 0; i < n; i++) {
     const x0 = i * CELL, cx = x0 + CELL / 2, cy = CELL / 2;
-    g.strokeStyle = "rgba(120,100,70,0.35)"; g.lineWidth = 3; g.strokeRect(x0 + 2, 2, CELL - 4, CELL - 4); // a worn edge
-    g.strokeStyle = "#2f2a44"; g.fillStyle = "#2f2a44"; g.lineWidth = 7; g.lineCap = "round"; g.lineJoin = "round";
+    g.strokeStyle = "rgba(110,90,60,0.7)"; g.lineWidth = 6; g.strokeRect(x0 + 3, 3, CELL - 6, CELL - 6); // a worn edge
+    g.strokeStyle = "#2f2a44"; g.fillStyle = "#2f2a44"; g.lineWidth = 9; g.lineCap = "round"; g.lineJoin = "round";
     g.beginPath();
     switch (GLYPH_IDS[i]) {
       case "dot": g.arc(cx, cy, 11, 0, Math.PI * 2); g.fill(); g.beginPath(); break;
