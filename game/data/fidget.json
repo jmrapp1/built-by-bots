@@ -1,0 +1,12 @@
+{
+  "note": "Idle fidgets: by day, a standing Print now and then blinks, glances, shakes or settles. Seconds and radians. Nothing here is shown to players.",
+  "gap": [6, 14],
+  "fastGap": 1.5,
+  "cancelSeconds": 0.2,
+  "kinds": ["blink", "glance", "shake", "settle"],
+  "seconds": { "blink": 0.6, "glance": 1.2, "shake": 0.8, "settle": 1.0 },
+  "blink": { "close": 0.9 },
+  "glance": { "angle": 0.35 },
+  "shake": { "roll": 0.07, "wobbles": 2 },
+  "settle": { "squash": 0.05 }
+}

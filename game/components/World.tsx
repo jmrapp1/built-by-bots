@@ -16,6 +16,7 @@ import { growthPulse, stageById } from "@/lib/growth";
 import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, type FollowState } from "@/lib/follow";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
+import { canFidget, fidgetOffsets, fidgetOverride, seedFrom, seeded, startState, stepFidget, type FidgetState } from "@/lib/fidget";
 import { NIGHT, fireflyAnchors, fireflyAt, fireflyLevel, mixPose, routeTo, sleepPhase, sleepPose, stretchPose, swirlPuffs, walkRoute } from "@/lib/night";
 import { STANDING, canWalk, lerpPos, sitAdvance, sitFrame, sitToggle, sitWalkKey, SIT, type SitState } from "@/lib/sit";
 import {
@@ -638,6 +639,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let strokeEnd = -1;
     let wander: Wander | null = null;
     let printMesh: THREE.Group | null = null;
+    // Idle fidgets (lib/fidget.ts): small additive offsets on the standing Print; none when it is busy. Client only, nothing saved.
+    const fidgetPick = fidgetOverride(window.location.search, process.env.NODE_ENV === "production");
+    let fidgetRng = seeded(1), fidgetS: FidgetState = startState(fidgetRng, fidgetPick), fidgetYaw = 0, fidgetEyes: THREE.Object3D[] = [], fidgetBlinked = false;
     let baseScale = 1;
     let shownStage: string | null = null;
     let pulseStart = -1;
@@ -665,6 +669,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         printMesh = buildCreature(g, { partsShown: sd.partsShown, mark: sd.mark }, spId);
         baseScale = GARDEN.print.scale * sd.scale;
         printMesh.scale.setScalar(baseScale);
+        fidgetEyes = []; printMesh.traverse((o) => { if (o.userData.eye) fidgetEyes.push(o); });
+        fidgetYaw = 0; fidgetBlinked = false;
+        fidgetRng = seeded(seedFrom(`${spId}|${g.hue}|${g.shape}|${g.parts.join(",")}`)); fidgetS = startState(fidgetRng, fidgetPick);
         if (shownStage !== null && shownStage !== st) pulseStart = performance.now();
         shownStage = st;
         dynamic.add(printMesh);
@@ -1188,17 +1195,30 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const watchHop = watching && sk ? watcherHop(sk.plan, skAge, reducedMotion) : 0;
         const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : watching && skAt ? Math.atan2(skAt.x - wander.x, skAt.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
+        printMesh.rotation.y -= fidgetYaw; // take last frame's glance off before turning toward the target
         let dy = faceTarget + (hidePoseV && !engaged ? hidePoseV.spin : 0) - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
         printMesh.rotation.x = pose.lean;
-        printMesh.rotation.z = !engaged ? (pondPoseV?.shake ?? hidePoseV?.shake ?? 0) : 0;
+        // Idle fidgets: only while standing still by day with nothing else going on.
+        const fidgetCan = canFidget({
+          day: ph === "awake" && bed === "none", standing: wander.wait > 0, engaged,
+          busy: owned || holdStill || pondOwned || hideOwned || followActive(followS) || !!sk || !!travel || sit.phase !== "standing" || !zones.is("garden"),
+          panel: !!live.current.locked || !!live.current.mapOpen,
+          moving: ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c)),
+        });
+        fidgetS = stepFidget(fidgetS, dt, fidgetCan, fidgetRng, reducedMotion, fidgetPick);
+        const fo = fidgetOffsets(fidgetS, reducedMotion);
+        fidgetYaw = fo.yaw;
+        printMesh.rotation.y += fidgetYaw;
+        printMesh.rotation.z = (!engaged ? (pondPoseV?.shake ?? hidePoseV?.shake ?? 0) : 0) + fo.roll;
+        if (fo.blink > 0 || fidgetBlinked) { for (const e of fidgetEyes) e.scale.y = 1 - fo.blink; fidgetBlinked = fo.blink > 0; }
         printMesh.position.set(wander.x + hideDir.x * HIDE.peekOut * hideSide, (owned || holdStill || pondOwned || hideOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + watchHop + yBase, wander.z + hideDir.z * HIDE.peekOut * hideSide);
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
         const wide = 1 + (1 - pose.squash) * 0.5;
-        printMesh.scale.set(sc * wide, sc * pose.squash, sc * wide);
+        printMesh.scale.set(sc * wide, sc * pose.squash * fo.squash, sc * wide);
 
         // Keepsakes: swap to what should be worn, then play the put-on motion (eased; never blocks input).
         const want = cosPreview ? (cosPreview.kind === "one" ? cosPreview.id : cycleAt((t - t0) / 1000)) : live.current.worn;
