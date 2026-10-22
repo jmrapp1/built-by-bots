@@ -18,6 +18,7 @@ import HomeHintLine from "@/components/HomeHint";
 import { homeHintOverride } from "@/lib/homeHint";
 import TryList from "@/components/TryList";
 import { tryOverride } from "@/lib/tryList";
+import { cardOverride, cardStatus, withCardPreview } from "@/lib/cardStatus";
 import { guideOverride } from "@/lib/guide";
 import { FOLLOW, FOLLOW_TEXT } from "@/lib/follow";
 import KeepsakePicker from "@/components/KeepsakePicker";
@@ -541,9 +542,12 @@ export default function Page() {
       )}
       {msg && <div className={`card toast${bad ? " bad" : ""}`} role="status">{msg}</div>}
 
-      {creature && (
+      {creature && (() => {
+        const shown = withCardPreview(creature, typeof window !== "undefined" ? cardOverride(window.location.search, process.env.NODE_ENV === "production") : null);
+        const status = cardStatus(shown);
+        return (
         <div className="card mood" aria-label="Your Print">
-          <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(creature.mood)} /></div>
+          <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(shown.mood)} /></div>
           {creatures.length > 1 && (
             <div className="board-nav">
               <button className="btn quiet" aria-label="Previous Print" onClick={() => setPicked(Math.max(0, activeIndex(creatures.length, picked) - 1))} disabled={activeIndex(creatures.length, picked) <= 0}>Back</button>
@@ -551,19 +555,22 @@ export default function Page() {
               <button className="btn quiet" aria-label="Next Print" onClick={() => setPicked(Math.min(creatures.length - 1, activeIndex(creatures.length, picked) + 1))} disabled={activeIndex(creatures.length, picked) >= creatures.length - 1}>Next</button>
             </div>
           )}
-          <div className="growth" aria-label={`Stage: ${stageById(creature.stage ?? "blot").name}`}>
-            <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(creature.stage ?? "blot").name}</span>
-            <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100)}>
-              <span style={{ width: `${progressToNext(creature.stage ?? "blot", creature.care ?? 0, creature.age_seconds ?? 0) * 100}%` }} />
+          <div className="growth" aria-label={`Stage: ${stageById(shown.stage ?? "blot").name}`}>
+            <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(shown.stage ?? "blot").name}</span>
+            <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(shown.stage ?? "blot", shown.care ?? 0, shown.age_seconds ?? 0) * 100)}>
+              <span style={{ width: `${progressToNext(shown.stage ?? "blot", shown.care ?? 0, shown.age_seconds ?? 0) * 100}%` }} />
             </span>
+            <span className="card-note">{status.caption}</span>
           </div>
           <div className="drops">
-            <InkDrop value={creature.fullness} label="Fed" />
-            <InkDrop value={creature.mood} label="Happy" />
+            <InkDrop value={shown.fullness} label="Fed" />
+            <InkDrop value={shown.mood} label="Happy" />
           </div>
+          <p className="card-note">{status.line}</p>
           <button className="btn quiet" onClick={openPicker}>Keepsakes</button>
         </div>
-      )}
+        );
+      })()}
 
       {mp.open && <MapPage walked={mp.walked} pose={mp.pose} opened={mp.spotPts} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
