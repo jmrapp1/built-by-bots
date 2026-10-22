@@ -15,7 +15,7 @@ describe("resetHints (S16)", () => {
     s.setItem(GUIDE_KEY, "x"); s.setItem(TRY_KEY, "x"); s.setItem(HOME_HINT_KEY, "x"); s.setItem("other", "keep");
     expect(resetHints(s)).toBe(true);
     expect([...s.m.keys()]).toEqual(["other"]);
-    expect([...HINT_KEYS].sort()).toEqual(["blotty.guide", "blotty.homeHint", "blotty.tryList"]);
+    expect([...HINT_KEYS].sort()).toEqual(["blotty.gentle", "blotty.guide", "blotty.homeHint", "blotty.tryList"]);
   });
   it("returns false for null or throwing storage without throwing", () => {
     expect(resetHints(null)).toBe(false);

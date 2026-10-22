@@ -1,10 +1,11 @@
-// S16: bring the one-shot hints back. Local only: removes the three hint keys and nothing else. No server, no React.
+// S16: bring the one-shot hints back. Local only: removes the hint keys and nothing else. No server, no React.
 import { GUIDE_KEY } from "@/lib/guide";
 import { TRY_KEY } from "@/lib/tryList";
 import { HOME_HINT_KEY } from "@/lib/homeHint";
+import { GENTLE_KEY } from "@/lib/gentle";
 import { forgetShown } from "@/lib/welcome";
 
-export const HINT_KEYS = [GUIDE_KEY, TRY_KEY, HOME_HINT_KEY] as const;
+export const HINT_KEYS = [GUIDE_KEY, TRY_KEY, HOME_HINT_KEY, GENTLE_KEY] as const;
 export const HINTS_AGAIN = "Show the hints again";
 export const HINTS_BACK = "Hints will be back next time you open the game.";
 

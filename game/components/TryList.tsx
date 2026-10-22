@@ -17,6 +17,7 @@ export type TryProps = {
   atPond: boolean;
   talking: boolean; // a neighbour's talk is open
   preview?: "on" | "reset" | null; // dev only
+  onOpen?: (open: boolean) => void; // S20: tells the page when the card is open
 };
 
 export default function TryList(p: TryProps) {
@@ -45,6 +46,8 @@ export default function TryList(p: TryProps) {
   const finished = p.dailyKnown && allDone(st.done, c);
   // Once everything is ticked the closing line is shown this visit, and the card is retired for next time.
   useEffect(() => { if (read && finished && !st.retired && open) setSt((s) => keep({ ...s, retired: true })); }, [read, finished, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { p.onOpen?.(open); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const retire = () => { setOpen(false); setSt((s) => keep({ ...s, retired: true })); };
   const visible = read && tabVisible({ retired: false, guideDone: p.guideDone || p.preview === "on", guideHint: p.guideHint, inGarden: p.inGarden, loaded: p.loaded, dailyKnown: p.dailyKnown });
