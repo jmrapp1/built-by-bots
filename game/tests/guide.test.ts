@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, strokeFinishes, guideDay, PREVIEW_DONE_STROKE, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Step, type Store } from "@/lib/guide";
+import { GUIDE_KEY, GUIDE_TEXT, PREVIEW_DONE, STEPS, guideOverride, afterEggClaimed, currentHint, eggBearing, feedFinishes, strokeFinishes, guideDay, PREVIEW_DONE_STROKE, PREVIEW_DONE_MAP, mapFinishes, hasMoved, hintText, isExistingPlayer, markDone, pointerOn, readDone, writeDone, type Ctx, type Step, type Store } from "@/lib/guide";
 
 const mem = (): Store & { data: Record<string, string> } => {
   const data: Record<string, string> = {};
@@ -153,7 +153,7 @@ describe("?guide=stroke preview switch", () => {
 describe("stroke step", () => {
   const near = { eggPending: false, printNear: true, hasCreature: true, hasSnack: true };
   it("is the fourth step and the old saved list reads back unchanged", () => {
-    expect(STEPS).toEqual(["move", "egg", "feed", "stroke"]);
+    expect(STEPS).toEqual(["move", "egg", "feed", "stroke", "map"]);
     const s = mem(); s.data[GUIDE_KEY] = '{"v":1,"done":["move","egg","feed"]}';
     expect(readDone(s)).toEqual(["move", "egg", "feed"]);
   });
@@ -195,6 +195,51 @@ describe("stroke step", () => {
   });
   it("wording names the real stroke key and fits one short line", () => {
     expect(hintText("stroke")).toBe("Hold R beside your Print to stroke it.");
+  });
+});
+
+describe("map step", () => {
+  const inGarden = { eggPending: false };
+  const four: Step[] = ["move", "egg", "feed", "stroke"];
+  it("an old save with four steps reads back as four, and map is open", () => {
+    const s = mem(); s.data[GUIDE_KEY] = '{"v":1,"done":["move","egg","feed","stroke"]}';
+    expect(readDone(s)).toEqual(four);
+    expect(currentHint(readDone(s), ctx(inGarden))).toBe("map");
+  });
+  it("shows only after stroke is done, when ready and in the garden", () => {
+    expect(currentHint(["move", "egg", "feed"], ctx(inGarden))).toBeNull();
+    expect(currentHint(four, ctx(inGarden))).toBe("map");
+    expect(currentHint(four, ctx({ ...inGarden, ready: false }))).toBeNull();
+    expect(currentHint(four, ctx({ ...inGarden, inGarden: false }))).toBeNull();
+    expect(currentHint([...four, "map"], ctx(inGarden))).toBeNull();
+    expect(currentHint(four, ctx({ ...inGarden, dismissed: ["map"] }))).toBeNull();
+  });
+  it("shows at night too, and never while an earlier step is due", () => {
+    expect(currentHint(four, ctx({ ...inGarden, day: false }))).toBe("map");
+    expect(currentHint(["stroke"], ctx({ eggPending: false }))).toBe("move");
+    expect(currentHint(["move", "egg", "stroke"], ctx({ eggPending: false, hasCreature: true, printNear: true, hasSnack: true }))).toBe("feed");
+  });
+  it("mapFinishes is true exactly when the map goes from closed to open", () => {
+    expect(mapFinishes(false, true)).toBe(true);
+    expect(mapFinishes(true, true)).toBe(false);
+    expect(mapFinishes(true, false)).toBe(false);
+    expect(mapFinishes(false, false)).toBe(false);
+  });
+  it("the line names the map key from data and no other key", () => {
+    expect(hintText("map")).toBe("Press M to open your map and see where else you can go.");
+    expect(hintText("map").match(/\b[A-Z]\b/g)).toEqual(["M"]);
+  });
+  it("preview: accepted in dev only, starts with four steps done", () => {
+    expect(guideOverride("?guide=map", false)).toBe("map");
+    expect(guideOverride("?guide=map", true)).toBeNull();
+    expect(guideOverride("?guide=MAP", false)).toBeNull();
+    expect(PREVIEW_DONE_MAP).toEqual(four);
+  });
+  it("works for the session when storage is blocked", () => {
+    let done = readDone(blocked); for (const s of four) done = markDone(done, s);
+    expect(() => writeDone(blocked, done)).not.toThrow();
+    expect(currentHint(done, ctx(inGarden))).toBe("map");
+    done = markDone(done, "map"); expect(currentHint(done, ctx(inGarden))).toBeNull();
   });
 });
 

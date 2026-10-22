@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
 import { PLAY } from "@/lib/play";
 import { hourOfDay, hourOverride } from "@/lib/daynight";
-import { GUIDE_TEXT, PREVIEW_DONE, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, markDone, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
+import { GUIDE_TEXT, PREVIEW_DONE, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -17,18 +17,19 @@ export type GuideProps = {
   hasSnack: boolean;
   hasCreature: boolean;
   fedTick: number;
+  mapOpen?: boolean; // the map panel is open
   strokeTick?: number; // goes up each time a stroke starts
   raise?: number; // px to lift the hint when another prompt sits under it
   pose: { x: number; z: number; yaw: number } | null; // null away from the garden
   onGlow: (on: boolean) => void;
-  preview?: GuidePreview | null; // dev-only ?guide=feed|stroke: fake state, nothing saved; the hold key stands in for a feed, the stroke key for a stroke
+  preview?: GuidePreview | null; // dev-only ?guide=feed|stroke|map: fake state, nothing saved; the hold key stands in for a feed, the stroke key for a stroke
 };
 
 export default function FirstRunGuide(raw: GuideProps) {
   const pv = !!raw.preview;
   const [pvTick, setPvTick] = useState(0), [pvStroke, setPvStroke] = useState(0);
   const p: GuideProps = pv ? { ...raw, loaded: true, existing: false, eggClaimed: true, nearEgg: false, printNear: true, hasSnack: true, hasCreature: true, fedTick: pvTick, strokeTick: pvStroke } : raw;
-  const [fedNow, setFedNow] = useState(raw.preview === "stroke"); // the feed step finished in this visit
+  const [fedNow, setFedNow] = useState(raw.preview === "stroke" || raw.preview === "map"); // the feed step finished in this visit
   const [done, setDone] = useState<Step[]>([]);
   const [read, setRead] = useState(false);
   const [dismissed, setDismissed] = useState<Step[]>([]);
@@ -36,17 +37,20 @@ export default function FirstRunGuide(raw: GuideProps) {
   const start = useRef<{ x: number; z: number } | null>(null);
   const fed0 = useRef(p.fedTick);
   const stroke0 = useRef(p.strokeTick ?? 0);
+  const mapWas = useRef(!!p.mapOpen);
   const shown = useRef<Step | null>(null); // the hint on screen in the previous render
   const egg = useMemo(() => GARDEN.places.find((x) => x.kind === "egg")!, []);
 
   const finish = (steps: Step[]) => setDone((d) => { const n = steps.reduce(markDone, d); if (n.length !== d.length) writeDone(store.current, n); return n; });
 
-  useEffect(() => { store.current = pv ? null : browserStore(); setDone(pv ? [...(raw.preview === "stroke" ? PREVIEW_DONE_STROKE : PREVIEW_DONE)] : readDone(store.current)); setRead(true); }, []);
-  useEffect(() => { if (read && p.loaded && p.existing) finish(["move", "egg", "feed"]); }, [read, p.loaded, p.existing]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { store.current = pv ? null : browserStore(); setDone(pv ? [...(raw.preview === "map" ? PREVIEW_DONE_MAP : raw.preview === "stroke" ? PREVIEW_DONE_STROKE : PREVIEW_DONE)] : readDone(store.current)); setRead(true); }, []);
+  useEffect(() => { if (read && p.loaded && p.existing) finish(["move", "egg", "feed", "stroke", "map"]); }, [read, p.loaded, p.existing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (read && p.loaded && p.eggClaimed) setDone((d) => { const n = afterEggClaimed(d); if (n.length !== d.length) writeDone(store.current, n); return n; }); }, [read, p.loaded, p.eggClaimed]);
   useEffect(() => { if (feedFinishes(shown.current, fed0.current, p.fedTick)) { finish(["feed"]); setFedNow(true); } fed0.current = p.fedTick; }, [p.fedTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (strokeFinishes(shown.current, stroke0.current, p.strokeTick ?? 0)) finish(["stroke"]); stroke0.current = p.strokeTick ?? 0; }, [p.strokeTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (read && mapFinishes(mapWas.current, !!p.mapOpen)) finish(["map"]); mapWas.current = !!p.mapOpen; }, [read, p.mapOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { // preview only: the hold key counts as one feed, the stroke key as one stroke
     if (!pv) return;
