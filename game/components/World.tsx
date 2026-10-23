@@ -64,6 +64,8 @@ import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
 import { cloudsEnabled, hazeAt, hazeEnabled, hazeFog, hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
+import { READING, READING_ENABLED, READING_OFF, READING_SPOTS, doorArrival as readingArrival, doorPath as readingDoorPath, doorYaw as readingYaw, findLook, inDoorZone as inReadingDoor, levelFor, levelStep as readingLevelStep, marginsDoorCircles, nearestReadingSpot, openedFromKeys, previewKind, quietIfUnknown, readingOverride, roomColliders as readingColliders, roomWalkEnd, spotKey as readingSpotKey, type Look } from "@/lib/reading";
+import { buildReadingDoor, buildReadingScene, type ReadingScene } from "@/components/readingScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
 type Props = {
@@ -100,7 +102,7 @@ type Props = {
   walkKey?: string | null; // whose map this browser keeps (W4); the walked cells never leave the browser
   mapOpen?: boolean; // the map page is showing: the loop reports where the player stands
   onHome?: () => void; // the player entered the Home room
-  onZoneDone?: (zone: "garden" | "margins" | "home") => void; // S21: a door or gate crossing finished
+  onZoneDone?: (zone: "garden" | "margins" | "home") => void; // (the Reading Room reports nothing: it has no chapter card) // S21: a door or gate crossing finished
   onMapKey?: () => void; // M was pressed
   onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
   guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
@@ -389,7 +391,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let uHold = 0, uSpot: Spot | null = null;
     const local = isLocalPreview(mo); // dev previews of other days, all pages or the nearest page never touch the server
     let serverReady = local, readFailed = false, downNoted = false, uPending = false, quietUntilNext = false, visit = 0;
-    let travel: null | { into: "margins" | "garden" | "home"; from: "garden" | "margins" | "home"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
+    let travel: null | { into: "margins" | "garden" | "home" | "reading"; from: "garden" | "margins" | "home" | "reading"; start: number; walk: { x: number; z: number }[]; arrive: { x: number; z: number }[]; swapped: boolean } = null;
     let mCols = colliders();
     let reportKey = "";
     let uBlocked = false;
@@ -478,11 +480,13 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const hazeOn = hazeEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31e: haze in the garden; off = today's fog exactly
     const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins, stars: !margins && starsOn, clouds: !margins && cloudsOn }); lightClock = 0; } catch { skyScene = null; } };
     const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
+    let rdoor: { group: THREE.Group; dispose(): void } | null = null;
     const enterMarginsZone = () => {
       dropSky(); showSky(true); // the garden dome (with sun and moon) is swapped for the Margins one
-      if (!mLayout || !mField) { mLayout = generateLayout(); mField = buildField(mLayout.cols); mCols = mLayout.cols; }
+      if (!mLayout || !mField) { mLayout = generateLayout(); if (READING_ENABLED) mLayout.cols.circles.push(...marginsDoorCircles()); mField = buildField(mLayout.cols); mCols = mLayout.cols; } // the Reading Room door posts are solid (only when the room is on)
       mg = buildMarginsScene(mLayout);
       scene.add(mg.group);
+      if (READING_ENABLED) { try { rdoor = buildReadingDoor(); mg.group.add(rdoor.group); } catch { rdoor = null; } } // the door is a look; trouble building it skips only the door
       mDay = mo.day ?? utcDay(new Date()); // the day is fixed for the whole visit
       mSpots = spotsForDay(mDay, mLayout, mField);
       opened = openedByDay.get(mDay) ?? new Set<number>();
@@ -514,6 +518,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       dropSky();
       dropNpcs();
       dropSights();
+      try { rdoor?.dispose(); } catch { /* nothing */ } rdoor = null;
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
       if (cosFoundAway) { cosFoundAway = false; cosHold = performance.now() + 900; cosPlayUntil = performance.now() + 4500; } // plays once, after the page-turn has cleared
       mSpots = []; mActive = null; uHold = 0; uSpot = null; uPending = false; visit++; // a call still in flight is settled when its answer arrives (see below)
@@ -566,22 +571,55 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       lightClock = 0; report(); cb.current.onHome?.(); // the page claims and reads the Home decorations (once per sign-in)
     };
     const leaveHomeZone = () => { decor?.dispose(); decor = null; decorShown = null; room?.dispose(); room = null; };
+    // S34: the Reading Room. Built on entering, freed on leaving; fixed soft light inside (no sky and no clock), like the Home room.
+    const rPreview = readingOverride(window.location.search, process.env.NODE_ENV === "production"); // dev only: ?reading=1 / ?reading=reduced
+    let rd: ReadingScene | null = null, rDay = "", rOpened = new Set<number>();
+    const rOpenedByDay = new Map<string, Set<number>>(), rHeld = new Map<string, Look>(); // held: food the server gave while the pouch was full (this visit only)
+    let rActive: { id: number; since: number; look: Look } | null = null, rHold = 0, rCand: (typeof READING_SPOTS)[number] | null = null;
+    let rPending = false, rBlocked = false, rReady = false, rFailed = false, rQuiet = false, rNoted = false, rVisit = 0, rLevel = 0, rPrev = 0;
+    const rCols = readingColliders();
+    let rGrant: { food: "ink" | "glyph" | null; egg: boolean } | null = null, rPreviewN = 0;
+    const rGive = () => { const g = rGrant; rGrant = null; if (!g) return; if (g.food) cb.current.onGather?.(g.food); if (g.egg) cb.current.onMarginsNote?.(FOUND_EGG); }; // what the server gave, handed over once
+    const enterReadingZone = () => {
+      dropSky(); // a room has no sky
+      try { rd = buildReadingScene(); rd.group.position.x = READING_OFF; scene.add(rd.group); } catch { rd = null; }
+      (scene.fog as THREE.Fog).near = READING.light.fog[0]; (scene.fog as THREE.Fog).far = READING.light.fog[1];
+      rDay = utcDay(new Date()); // fixed for the whole visit
+      rOpened = rOpenedByDay.get(rDay) ?? new Set<number>(); rOpenedByDay.set(rDay, rOpened);
+      rActive = null; rHold = 0; rCand = null; rPending = false; rBlocked = false; rQuiet = false; rNoted = false; rFailed = false;
+      rLevel = levelFor(hourNow, !!rPreview); // already the right level on arrival; only a moving clock fades
+      rd?.setOpened(rOpened);
+      const my = ++rVisit;
+      rReady = !!rPreview; // the dev preview never touches the server
+      if (!rPreview) {
+        // What this player already opened today comes from the server, so a reload cannot reroll a page.
+        Promise.resolve(cb.current.onLoadWorldOpened ? cb.current.onLoadWorldOpened(rDay) : null).catch(() => null).then((keys) => {
+          if (my !== rVisit || !zones.is("reading")) return;
+          if (keys === null) { rFailed = true; return; } // a failed read keeps the ring from running; the next entry reads again
+          for (const n of openedFromKeys(keys)) rOpened.add(n);
+          rReady = true; rd?.setOpened(rOpened);
+        });
+      }
+      lightClock = 0; report();
+    };
+    const leaveReadingZone = () => { rVisit++; rGive(); rActive = null; rHold = 0; rCand = null; rPending = false; try { rd?.dispose(); } catch { /* nothing */ } rd = null; }; // a call still in flight is settled when its answer arrives
     // The one enter/leave path (W1): the garden is the home zone; each other zone builds and frees its own scene objects.
     const zones = createZoneController([
       { id: "garden", enter: enterGardenZone, leave: leaveGardenZone },
       { id: "margins", enter: enterMarginsZone, leave: leaveMarginsZone },
       { id: "home", enter: enterHomeZone, leave: leaveHomeZone },
+      { id: "reading", enter: enterReadingZone, leave: leaveReadingZone },
     ]);
     const GARDEN_DOOR: Place = { id: "door-home", kind: "door", x: 0, z: 0, label: "Door", prompt: "Go through the door" };
     const ROOM_DOOR: Place = { id: "door-garden", kind: "door", x: 0, z: 0, label: "Door", prompt: "Back to the garden" };
-    const offOf = (z: "garden" | "margins" | "home") => (z === "margins" ? OFF : z === "home" ? ROOM_OFF : 0);
-    const startTravel = (into: "margins" | "garden" | "home", from: { x: number; z: number }) => {
+    const offOf = (z: "garden" | "margins" | "home" | "reading") => (z === "margins" ? OFF : z === "home" ? ROOM_OFF : z === "reading" ? READING_OFF : 0);
+    const startTravel = (into: "margins" | "garden" | "home" | "reading", from: { x: number; z: number }) => {
       if (travel) return;
       const fromZone = zones.current, fo = offOf(fromZone), io = offOf(into);
       const local = { x: from.x - fo, z: from.z };
       // the walk through the gate or door you are at, then the arrival on the far side (each in its own zone's coordinates)
-      const walk = (fromZone === "home" ? doorPath(local, "room") : into === "home" ? doorPath(local, "garden") : gatePath(local, into === "margins" ? "garden" : "home")).map((q) => ({ x: q.x + fo, z: q.z }));
-      const arrive = (into === "home" ? doorArrival("home") : fromZone === "home" ? doorArrival("garden") : arrivalPath(into)).map((q) => ({ x: q.x + io, z: q.z }));
+      const walk = (fromZone === "reading" ? readingDoorPath(local, "room") : into === "reading" ? readingDoorPath(local, "margins") : fromZone === "home" ? doorPath(local, "room") : into === "home" ? doorPath(local, "garden") : gatePath(local, into === "margins" ? "garden" : "home")).map((q) => ({ x: q.x + fo, z: q.z }));
+      const arrive = (into === "reading" ? readingArrival("reading") : fromZone === "reading" ? readingArrival("margins") : into === "home" ? doorArrival("home") : fromZone === "home" ? doorArrival("garden") : arrivalPath(into)).map((q) => ({ x: q.x + io, z: q.z }));
       travel = { into, from: fromZone, start: performance.now(), walk, arrive, swapped: false };
       sit = STANDING;
       holdStart = -1; uHold = 0;
@@ -889,8 +927,14 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           // walking through a gate: nothing else to do
         } else if (nearby?.kind === "gate") {
           startTravel(zones.is("margins") ? "garden" : "margins", pos); // the gate in either direction
+        } else if (nearby?.kind === "door" && nearby.id === "door-reading") {
+          startTravel("reading", pos); // the Reading Room door, from the Margins
+        } else if (nearby?.kind === "door" && nearby.id === "door-margins") {
+          startTravel("margins", pos); // and back out of the Reading Room
         } else if (nearby?.kind === "door") {
           startTravel(zones.is("home") ? "garden" : "home", pos); // the Home door in either direction
+        } else if (zones.is("reading")) {
+          // unfolding is a hold, handled each frame
         } else if (zones.is("home")) {
           if (nearby?.kind === "decor" && !live.current.locked) cb.current.onInteract(nearby); // ?decor=stub: open the strip for this plot
         } else if (nearby?.kind === "npc") {
@@ -962,11 +1006,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let lightClock = 0;
     const applyLight = () => {
       hourNow = override ?? hourOfDay(new Date());
-      const L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
-      (scene.background as THREE.Color).set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
+      const inRoom = zones.is("home") || zones.is("reading"), roomSky = zones.is("reading") ? READING.look.sky : HOME_ROOM.look.sky; // a room: fixed soft daylight, its own sky colour, no clock inside
+      const L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : zones.is("reading") ? READING.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
+      (scene.background as THREE.Color).set(inRoom ? roomSky : L.sky);
       const haze = hazeOn && zones.is("garden") ? hazeAt(hourNow) : null;
-      (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : hazeFog(L.fog, haze));
-      (edge.material as THREE.MeshBasicMaterial).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
+      (scene.fog as THREE.Fog).color.set(inRoom ? roomSky : hazeFog(L.fog, haze));
+      (edge.material as THREE.MeshBasicMaterial).color.set(inRoom ? roomSky : L.sky);
       mg?.setSky(L.sky);
       if (skyScene) skyScene.setColors(L.sky, lerpColor(zenithAt(hourNow), L.sky, zones.is("garden") ? weatherNow(hourNow).tint * 0.6 : 0));
       shell?.setSky(L.sky, haze);
@@ -979,7 +1024,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     };
     // Dev-only starts for the Margins (ignored in production): ?area=margins ?unfold=1 ?gate=1
     const homeStart = homeOverride(window.location.search, process.env.NODE_ENV === "production");
-    if (homeStart) {
+    if (rPreview && READING_ENABLED) {
+      zones.enterZone("reading");
+      const a = readingArrival("reading");
+      pos = { x: a[1].x + READING_OFF, z: a[1].z };
+      yaw = readingYaw("reading");
+    } else if (homeStart) {
       zones.enterZone("home");
       const a = doorArrival("home");
       pos = { x: a[1].x + ROOM_OFF, z: a[1].z };
@@ -1013,7 +1063,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     readWalked();
     let last = performance.now();
     let raf = 0;
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !!rPreview?.reduced; // ?reading=reduced (dev only) also forces it
     // The player walks the whole World; collision data for the streamed chunks comes from the pure map, never from what is drawn.
     const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: cols.boxes } : cols);
     const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8)], boxes: cols.boxes } : cols);
@@ -1131,7 +1181,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (f.swapped && !travel.swapped) {
           travel.swapped = true; // behind the full page, so nothing flashes
           if (travel.into === "garden") zones.leaveZone(); else zones.enterZone(travel.into);
-          yaw = travel.into === "home" ? doorYaw("home") : travel.from === "home" ? doorYaw("garden") : arrivalYaw(travel.into);
+          yaw = travel.into === "reading" ? readingYaw("reading") : travel.from === "reading" ? readingYaw("margins") : travel.into === "home" ? doorYaw("home") : travel.from === "home" ? doorYaw("garden") : arrivalYaw(travel.into);
           camInit = false;
         }
         const pp = pointAlong(travel.swapped ? travel.arrive : travel.walk, travel.swapped ? f.arrive : f.walk);
@@ -1139,9 +1189,14 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         wipe.style.display = f.wipe > 0 || tt < 0.05 ? "block" : "none";
         if (reducedMotion) { wipe.style.transform = "none"; wipe.style.opacity = String(f.wipe); } // a fade, not a sweep
         else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
-        if (f.done) { travel = null; wipe.style.display = "none"; cb.current.onZoneDone?.(zones.current); }
+        if (f.done) { travel = null; wipe.style.display = "none"; const zc = zones.current; if (zc !== "reading") cb.current.onZoneDone?.(zc); }
       }
-      const res = tRes ? tRes : zones.is("home") && canWalk(sit) ? (() => {
+      const res = tRes ? tRes : zones.is("reading") && canWalk(sit) ? (() => {
+        const l = { x: pos.x - READING_OFF, z: pos.z };
+        const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
+          keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, rCols, READING.room.width);
+        return { pos: { x: r.pos.x + READING_OFF, z: Math.min(r.pos.z, roomWalkEnd()) }, heading: r.heading }; // the doorway is the way out; no further
+      })() : zones.is("home") && canWalk(sit) ? (() => {
         const l = { x: pos.x - ROOM_OFF, z: pos.z };
         const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
           keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, roomCols, HOME_ROOM.room.width);
@@ -1656,6 +1711,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           if (mActive) mNear = null;
           else if (uSpot) mNear = !unfoldView(local, serverReady, readFailed).prompt ? null : { id: "unfold", kind: "unfold", x: uSpot.x + OFF, z: uSpot.z, label: "Folded page", prompt: "Hold to unfold" };
           else if (inGateZone(l, "home")) mNear = { id: "gate-home", kind: "gate", x: 0, z: 0, label: "Gate", prompt: "Back to the garden" };
+          else if (rdoor && inReadingDoor(l, "margins")) mNear = { id: "door-reading", kind: "door", x: 0, z: 0, label: "Door", prompt: "Go through the door" };
         }
         // the way home is recomputed only when the player moves to a new cell
         const key = `${Math.round(l.x / 1.5)},${Math.round(l.z / 1.5)}`;
@@ -1694,6 +1750,82 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           ring.style.left = `${(v.x * 0.5 + 0.5) * el.clientWidth}px`;
           ring.style.top = `${(-v.y * 0.5 + 0.5) * el.clientHeight}px`;
           arc.setAttribute("stroke-dashoffset", String(CIRC * (1 - uHold)));
+        }
+      }
+
+      // S34: the Reading Room. Hold E at a lit glint; the server says what is inside (world_unfold, region reading_room). Dusk spots ease in with the hour.
+      let rNear: Place | null = null;
+      if (zones.is("reading") && rd) {
+        const l = { x: pos.x - READING_OFF, z: pos.z };
+        rLevel = readingLevelStep(rLevel, levelFor(hourNow, !!rPreview), dt, reducedMotion);
+        if (!travel) {
+          if (rActive) {
+            if ((t - rActive.since) / 1000 >= unfoldSeconds(reducedMotion)) { rOpened.add(rActive.id); rGive(); rActive = null; }
+          } else {
+            const cand = nearestReadingSpot(l, rOpened, rLevel);
+            if (cand !== rCand) { rCand = cand; rHold = 0; rBlocked = false; }
+            const rv = unfoldView(!!rPreview, rReady, rFailed);
+            if (cand && !rv.canAsk && rv.noteOnHold && keys.has(PLAY.keys.hold)) { if (!rNoted) { cb.current.onMarginsNote?.(rv.noteOnHold); rNoted = true; } }
+            else if (!keys.has(PLAY.keys.hold)) rNoted = false;
+            const holding = !!cand && keys.has(PLAY.keys.hold) && !live.current.locked && !rBlocked && rv.canAsk;
+            rHold = rPending ? 1 : holdStep(rHold, holding, dt);
+            if (cand && !keys.has(PLAY.keys.hold)) rBlocked = false;
+            if (rHold >= 1 && cand && !rPending) {
+              const hk = `${rDay}|${cand.id}`;
+              const full = cb.current.canGather && !cb.current.canGather("ink"); // the server picks the find, so any full pouch stops it first
+              if (rPreview) { // dev preview: cycles through the kinds, never calls the server
+                const kind = previewKind(rPreviewN++);
+                rActive = { id: cand.id, since: t, look: findLook(kind, cand.dusk) }; rGrant = null; rHold = 0;
+              }
+              else if (full) { cb.current.onGather?.("ink"); rBlocked = true; rHold = 0; }
+              else if (rHeld.has(hk)) { // the server already gave this find: open it from the hold, no new call
+                const kind = rHeld.get(hk)!; rHeld.delete(hk);
+                rActive = { id: cand.id, since: t, look: kind }; rGrant = { food: kind === "ink" || kind === "lantern" ? "ink" : kind === "glyph" ? "glyph" : null, egg: false }; rHold = 0;
+              }
+              else if (rQuiet) { cb.current.onMarginsNote?.(QUIET); rBlocked = true; rHold = 0; } // the server already said no; don't ask again this visit
+              else if (cb.current.onWorldUnfold) {
+                rPending = true; // the ring waits full for the answer; the page opens only once it is back
+                const spot = cand, myVisit = rVisit, askDay = rDay, dayOpened = rOpened;
+                cb.current.onWorldUnfold(READING.region, spot.id, askDay).catch((): Outcome => ({ ok: false, reason: "network" })).then((raw) => {
+                  const o = quietIfUnknown(raw); // a region the server does not know yet is just "the pages are quiet"
+                  const here = myVisit === rVisit && zones.is("reading");
+                  const room = !cb.current.canGather || cb.current.canGather("ink");
+                  const st = settleUnfold(o, here, room);
+                  const look = o.ok ? findLook(o.kind, spot.dusk) : "plain"; // chosen after the answer, from the kind the server returned
+                  if (st.held) { // a full pouch: the page stays folded and the find is kept, with the gentle hint
+                    rHeld.set(`${askDay}|${spot.id}`, look);
+                    if (here) { cb.current.onGather?.(st.held); rPending = false; rBlocked = true; rHold = 0; }
+                    return;
+                  }
+                  if (st.open) dayOpened.add(spot.id); // the server wrote it, so the page counts as open on any later visit that day
+                  if (!here) {
+                    // Left while the call was in flight: still hand over what the server gave, with no animation.
+                    if (st.food) cb.current.onGather?.(st.food);
+                    if (st.egg) cb.current.onMarginsNote?.(FOUND_EGG);
+                    if (st.cosmetic) { cosPlayUntil = performance.now() + 3000; cb.current.onKeepsake?.(st.cosmetic); }
+                    return;
+                  }
+                  rPending = false;
+                  if (st.ceiling) rQuiet = true;
+                  if (st.note && !st.animate && !st.egg) cb.current.onMarginsNote?.(st.note);
+                  if (st.cosmetic) { cosFoundAway = true; cb.current.onKeepsake?.(st.cosmetic); } // the Print is away: worn at once, and the put-on plays when the player is back in the garden
+                  if (st.animate && st.kind) { rActive = { id: spot.id, since: performance.now(), look }; rGrant = { food: st.food, egg: st.egg }; rHold = 0; }
+                  else { rBlocked = true; rHold = 0; } // refused: stays folded, nothing spent. A repeat: shown open, nothing granted.
+                });
+              } else { rBlocked = true; rHold = 0; }
+            }
+          }
+          if (rActive) rNear = null;
+          else if (rCand) rNear = !unfoldView(!!rPreview, rReady, rFailed).prompt ? null : { id: "unfold", kind: "unfold", x: rCand.x + READING_OFF, z: rCand.z, label: "Folded page", prompt: "Hold to unfold" };
+          else if (inReadingDoor(l, "room")) rNear = { id: "door-margins", kind: "door", x: 0, z: 0, label: "Door", prompt: "Go through the door" };
+        }
+        rd.update({ t: t / 1000, player: l, level: rLevel, reduced: reducedMotion, opened: rOpened, active: rActive ? { id: rActive.id, since: (t - rActive.since) / 1000, look: rActive.look } : null, target: l });
+        if (rHold > 0 && rCand) {
+          const v = new THREE.Vector3(rCand.x + READING_OFF, 0.5, rCand.z).project(camera);
+          ring.style.display = "block";
+          ring.style.left = `${(v.x * 0.5 + 0.5) * el.clientWidth}px`;
+          ring.style.top = `${(-v.y * 0.5 + 0.5) * el.clientHeight}px`;
+          arc.setAttribute("stroke-dashoffset", String(CIRC * (1 - rHold)));
         }
       }
 
@@ -1780,7 +1912,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       const dir = { x: Math.sin(yaw) * Math.cos(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
       const flat = Math.hypot(dir.x, dir.z) || 1;
       // While sitting the bench would pull the camera in on top of the player, so it keeps a fixed, slightly closer distance.
-      const walkDist = zones.is("home") ? cameraDistance({ x: pos.x - ROOM_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, roomCols) : zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
+      const walkDist = zones.is("reading") ? cameraDistance({ x: pos.x - READING_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, rCols) : zones.is("home") ? cameraDistance({ x: pos.x - ROOM_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, roomCols) : zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
       const hs = cameraHeights(ground, pitch, dist);
@@ -1809,7 +1941,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (want && want !== decorShown) { decorShown = want; decor.show(want, t / 1000); }
         decor.update(t / 1000, reducedMotion, nearby?.kind === "decor" ? nearby.id : null);
       }
-      const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
+      const n = travel ? null : zones.is("margins") ? mNear : zones.is("reading") ? rNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase, weather: zones.is("garden") ? weatherNow(hourNow).tint : 0, cover: zones.is("garden") ? weatherNow(hourNow).intensity : 0 });
       renderer.render(scene, camera);

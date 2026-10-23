@@ -1,7 +1,7 @@
 // W1: one zone list and one enter/leave path. A zone builds what it needs in enter() and frees all of it in leave().
 // Pure logic, no three.js: the controller only decides order and bookkeeping, so it is testable without a browser.
 
-export type ZoneId = "garden" | "margins" | "home";
+export type ZoneId = "garden" | "margins" | "home" | "reading";
 export type ZoneDef = { id: ZoneId; enter(): void; leave(): void };
 export type ZoneEvent = { zone: ZoneId; step: "enter" | "leave" };
 
