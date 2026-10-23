@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { addOutline, disposeTree } from "@/lib/outline";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
+import { buildCreatureOld, shapesOverride } from "@/lib/creatureOld";
 import {
   GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
 } from "@/lib/world";
@@ -731,6 +732,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       cosObj = buildCosmetic(id, live.current.species, live.current.genes.shape);
       if (cosObj) { printMesh.add(cosObj); poseCosmetic(cosObj, 1, 1, 0); }
     };
+    const shapesMode = shapesOverride(window.location.search, process.env.NODE_ENV === "production"); // dev-only before/after and gallery stills
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
@@ -741,7 +743,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       printMesh = null;
       if (g) {
         const sd = stageById(st);
-        printMesh = buildCreature(g, { partsShown: sd.partsShown, mark: sd.mark }, spId);
+        printMesh = (shapesMode === "old" ? buildCreatureOld : buildCreature)(g, { partsShown: sd.partsShown, mark: sd.mark }, spId);
         baseScale = GARDEN.print.scale * sd.scale;
         printMesh.scale.setScalar(baseScale);
         fidgetEyes = []; printMesh.traverse((o) => { if (o.userData.eye) fidgetEyes.push(o); });
@@ -750,6 +752,18 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (shownStage !== null && shownStage !== st) pulseStart = performance.now();
         shownStage = st;
         dynamic.add(printMesh);
+        if (shapesMode === "gallery") { // dev still: every shape in both bodies, new on the near row and old behind, with all parts
+          for (const [row, build] of [[0, buildCreature], [1, buildCreatureOld]] as const) {
+            ["round", "tall", "wide"].forEach((shape, i) => {
+              for (const [col, sp] of ["blotling", "leaflet"].entries()) {
+                const m = build({ hue: g.hue, shape: shape as Genes["shape"], parts: ["ears", "tail", "fins", "tabs", "fold", "spine"] }, { partsShown: 99, mark: "leaf" }, sp);
+                m.scale.setScalar(baseScale);
+                m.position.set(nest.x - 3.2 + i * 2.2 + col * 7, 0, nest.z + 4 + row * 3);
+                dynamic.add(m);
+              }
+            });
+          }
+        }
         attachCos(cosId); // a rebuild keeps what is worn, with no motion
         wander = wander ?? newWander({ x: nest.x, z: nest.z + 2 });
       }

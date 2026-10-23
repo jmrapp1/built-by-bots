@@ -69,3 +69,66 @@ export function leaning<T extends THREE.BufferGeometry>(geometry: T, degrees: nu
   geometry.computeBoundingSphere();
   return geometry;
 }
+
+/** Smooth a [radius, height] profile with a spline (so a few points read as a curve). Radius never goes below 0. */
+export function smoothProfile(profile: ReadonlyArray<readonly [number, number]>, samples = 28): Array<[number, number]> {
+  const curve = new THREE.SplineCurve(profile.map(([x, y]) => new THREE.Vector2(x, y)));
+  return curve.getPoints(samples).map((p) => [Math.max(0, p.x), p.y] as [number, number]);
+}
+
+// Average the normals of vertices that share a position, so a lathe seam or pole shades without a crease.
+function weldNormals(g: THREE.BufferGeometry): void {
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const nor = g.attributes.normal as THREE.BufferAttribute;
+  const groups = new Map<string, number[]>();
+  for (let i = 0; i < pos.count; i++) {
+    const key = `${pos.getX(i).toFixed(4)},${pos.getY(i).toFixed(4)},${pos.getZ(i).toFixed(4)}`;
+    const list = groups.get(key);
+    if (list) list.push(i); else groups.set(key, [i]);
+  }
+  const sum = new THREE.Vector3();
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    sum.set(0, 0, 0);
+    for (const i of list) sum.add(new THREE.Vector3().fromBufferAttribute(nor, i));
+    sum.normalize();
+    for (const i of list) nor.setXYZ(i, sum.x, sum.y, sum.z);
+  }
+}
+
+/** Push each vertex in or out from the origin by up to `amount` (fraction), by direction, so seams stay closed. Same seed, same shape. */
+export function wobble<T extends THREE.BufferGeometry>(g: T, amount: number, seed: number): T {
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  const rnd = mulberry32(seed);
+  const phase = [rnd() * 6.283, rnd() * 6.283, rnd() * 6.283];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const n = v.clone().normalize();
+    const k = (Math.sin(n.x * 2.3 + phase[0]) + Math.sin(n.y * 2.7 + phase[1]) + Math.sin(n.z * 2.1 + phase[2])) / 3;
+    v.multiplyScalar(1 + amount * k);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  weldNormals(g);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** Bend along +X: the higher a vertex, the further it moves (quadratic), by `amount` x the geometry's height. */
+export function curl<T extends THREE.BufferGeometry>(g: T, amount: number): T {
+  g.computeBoundingBox();
+  const { min, max } = g.boundingBox!;
+  const h = Math.max(1e-6, max.y - min.y);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const t = (pos.getY(i) - min.y) / h;
+    pos.setX(i, pos.getX(i) + amount * h * t * t);
+  }
+  g.computeVertexNormals();
+  weldNormals(g);
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}

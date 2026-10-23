@@ -44,10 +44,10 @@ describe("S26 ink look pass", () => {
   });
 
   it("no geometry constructor in World.tsx or lib/creature.ts was touched (outline lines are EdgesGeometry only)", () => {
-    const s = worldSrc() + creatureSrc();
+    const s = worldSrc() + readFileSync("lib/creatureOld.ts", "utf8"); // S28 moved the pre-S28 creature into creatureOld.ts
     // every added-looking Geometry(...) call that isn't EdgesGeometry still has a sibling in the source
     // (a loose smoke check: the known geometry constructors used before S26 are all still present with their args)
-    expect(s).toContain("new THREE.SphereGeometry(0.6, 32, 24)"); // creature body, unchanged
+    expect(s).toContain("new THREE.SphereGeometry(0.6, 32, 24)"); // pre-S28 creature body, kept in creatureOld.ts
     expect(s).toContain("new THREE.CylinderGeometry(r * 0.35, r * 0.5, 2.6, 8)"); // tree trunk, unchanged
     expect(s).toContain("new THREE.BoxGeometry(h.w, 1.1, h.d)"); // hedge, unchanged
   });
