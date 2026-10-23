@@ -7,6 +7,7 @@ import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
 import { SHORE_SIGHTS, shoreSightsForDay } from "@/lib/shoreSights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { addOutline, disposeTree } from "@/lib/outline";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
   GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
@@ -43,6 +44,7 @@ import { DREAM, bedYaw, dreamAt, dreamLevel, dreamOverride } from "@/lib/dream";
 import { buildDreamGlyph, type DreamGlyph } from "@/components/dreamGlyph";
 import { buildDrizzle, type Drizzle } from "@/components/drizzle";
 import { localDay, nextGlanceGap, startGlance, weatherAt, weatherLight, weatherOverride, WEATHER } from "@/lib/weather";
+import { PALETTE } from "@/lib/palette";
 import { dayNumber } from "@/lib/npcs";
 import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
@@ -98,16 +100,18 @@ type Props = {
 };
 
 
-function paperTexture() {
+// S26: paper-grain strength and tint are now parameters (grain default low-strength, warm ink rule by default),
+// so the same canvas helper serves the ground (strong rule lines) and other surfaces (faint grain only).
+function paperTexture(grainStrength = 0.35, tint = "#f4ecd6") {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#f4ecd6";
+  g.fillStyle = tint;
   g.fillRect(0, 0, 512, 512);
-  g.strokeStyle = "rgba(120,140,170,0.35)";
+  g.strokeStyle = `rgba(120,140,170,${grainStrength})`;
   g.lineWidth = 2;
   for (let y = 32; y < 512; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
-  g.strokeStyle = "rgba(200,120,120,0.25)";
+  g.strokeStyle = `rgba(200,120,120,${grainStrength * 0.7})`;
   g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 512); g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -116,17 +120,30 @@ function paperTexture() {
   return t;
 }
 
-const mat = (color: number | string) => new THREE.MeshToonMaterial({ color });
+// S26: ink/sepia toon gradient (3 warm bands) instead of the default smooth ramp, shared by every mat() call.
+let gradientMapCache: THREE.DataTexture | null = null;
+function gradientMap(): THREE.DataTexture {
+  if (gradientMapCache) return gradientMapCache;
+  const data = new Uint8Array([120, 120, 120, 255, 190, 190, 190, 255, 255, 255, 255, 255]);
+  const t = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.needsUpdate = true;
+  gradientMapCache = t;
+  return t;
+}
+const mat = (color: number | string) => new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
 
 function buildTree(r: number) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.5, 2.6, 8), mat("#2a2438"));
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.5, 2.6, 8), mat(PALETTE.ink));
   trunk.position.y = 1.3;
+  trunk.castShadow = true; trunk.receiveShadow = true; addOutline(trunk);
   g.add(trunk);
-  const leaf = mat("#6f9a6a");
+  const leaf = mat(PALETTE.moss);
   for (const [y, s] of [[3.0, 1.5], [3.9, 1.1], [4.6, 0.7]] as const) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(s * r * 1.5, 1.6, 7), leaf);
     cone.position.y = y;
+    cone.castShadow = true; cone.receiveShadow = true; addOutline(cone);
     g.add(cone);
   }
   return g;
@@ -138,7 +155,7 @@ const ripples: { mesh: THREE.Mesh; offset: number }[] = [];
 function buildPlace(p: Place): THREE.Object3D {
   const g = new THREE.Group();
   g.position.set(p.x, 0, p.z);
-  const paper = mat("#fffaf0"), ink = mat("#1b1b2a"), stone = mat("#b9b3a6");
+  const paper = mat(PALETTE.paper), ink = mat(PALETTE.ink), stone = mat(PALETTE.inkSoft);
   switch (p.kind) {
     case "gate": {
       g.add(buildGate(gateFrame("garden").d));
@@ -147,37 +164,45 @@ function buildPlace(p: Place): THREE.Object3D {
     case "egg": {
       const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 0.5, 20), stone);
       plinth.position.y = 0.25;
+      plinth.castShadow = true; plinth.receiveShadow = true; addOutline(plinth);
       const page = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.8), paper);
       page.position.y = 0.52;
+      page.castShadow = true; page.receiveShadow = true; addOutline(page);
       g.add(plinth, page);
       break;
     }
     case "nest": {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 8, 24), mat("#e6d8b4"));
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 8, 24), mat(PALETTE.gold));
       ring.rotation.x = Math.PI / 2;
       ring.position.y = 0.18;
+      ring.castShadow = true; ring.receiveShadow = true; addOutline(ring);
       g.add(ring);
       break;
     }
     case "scenery": {
-      const table = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.7, 20), mat("#8a6b4a"));
+      const table = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.7, 20), mat(PALETTE.sepia));
       table.position.y = 0.35;
+      table.castShadow = true; table.receiveShadow = true; addOutline(table);
       const well = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.4, 16), ink);
       well.position.y = 0.9;
+      well.castShadow = true; well.receiveShadow = true; addOutline(well);
       g.add(table, well);
       break;
     }
     case "rest": {
       // An ink-blot bench with a soft cushion and a little pillow.
-      const blot = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 12), mat("#2f2a44"));
+      const blot = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 12), mat(PALETTE.ink));
       blot.scale.set(1.5, 0.3, 1);
       blot.position.y = 0.3;
-      const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 12), mat("#e8b9a0"));
+      blot.castShadow = true; blot.receiveShadow = true; addOutline(blot);
+      const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 12), mat(PALETTE.blush));
       cushion.scale.set(1.3, 0.28, 0.85);
       cushion.position.y = 0.62;
-      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), mat("#fffaf0"));
+      cushion.castShadow = true; cushion.receiveShadow = true; addOutline(cushion);
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), mat(PALETTE.paper));
       pillow.position.set(-0.7, 0.82, 0);
       pillow.rotation.set(0, 0.4, 0.25);
+      pillow.castShadow = true; pillow.receiveShadow = true; addOutline(pillow);
       g.add(blot, cushion, pillow);
       break;
     }
@@ -215,12 +240,14 @@ function buildPlace(p: Place): THREE.Object3D {
     }
     case "notice": {
       for (const x of [-0.7, 0.7]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2, 0.12), mat("#5a4632"));
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2, 0.12), mat(PALETTE.sepia));
         post.position.set(x, 1, 0);
+        post.castShadow = true; post.receiveShadow = true; addOutline(post);
         g.add(post);
       }
       const board = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 0.08), paper);
       board.position.y = 1.7;
+      board.castShadow = true; board.receiveShadow = true; addOutline(board);
       g.add(board);
       break;
     }
@@ -230,13 +257,16 @@ function buildPlace(p: Place): THREE.Object3D {
 
 function buildPlayer() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.4, 6, 12), mat("#2f2a44"));
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.4, 6, 12), mat(PALETTE.ink));
   body.position.y = 0.55;
+  body.castShadow = true; body.receiveShadow = true; addOutline(body);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), mat("#f1e6cf"));
   head.position.y = 1.05;
-  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.3, 12), mat("#2f2a44"));
+  head.castShadow = true; head.receiveShadow = true; addOutline(head);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.3, 12), mat(PALETTE.ink));
   hat.position.y = 1.3;
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), mat("#1b1b2a"));
+  hat.castShadow = true; hat.receiveShadow = true; addOutline(hat);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), mat(PALETTE.ink));
   nose.position.set(0, 1.05, 0.2);
   g.add(body, head, hat, nose);
   return g;
@@ -279,12 +309,24 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(el.clientWidth, el.clientHeight);
+    // S26: one soft shadow pass. The sun casts; the ground and the Print receive. No new objects.
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     el.appendChild(renderer.domElement);
 
     const hemi = new THREE.HemisphereLight(L0.hemisphereSky, L0.hemisphereGround, L0.hemisphereIntensity);
     scene.add(hemi);
     const sun = new THREE.DirectionalLight(L0.sun, L0.sunIntensity);
     sun.position.set(...L0.sunPosition);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 40;
+    sun.shadow.camera.left = -18;
+    sun.shadow.camera.right = 18;
+    sun.shadow.camera.top = 18;
+    sun.shadow.camera.bottom = -18;
+    sun.shadow.bias = -0.0015;
     scene.add(sun);
 
     const ground = new THREE.Mesh(
@@ -292,6 +334,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       new THREE.MeshStandardMaterial({ map: paperTexture(), roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
     scene.add(ground);
     // soft page edge
     const edge = new THREE.Mesh(
@@ -304,8 +347,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     for (const t of GARDEN.trees) { const m = buildTree(t.r); m.position.set(t.x, 0, t.z); scene.add(m); }
     for (const h of GARDEN.hedges) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(h.w, 1.1, h.d), mat("#86ad7a"));
+      const m = new THREE.Mesh(new THREE.BoxGeometry(h.w, 1.1, h.d), mat(PALETTE.moss));
       m.position.set(h.x, 0.55, h.z);
+      m.castShadow = true; m.receiveShadow = true; addOutline(m);
       scene.add(m);
     }
     for (const p of GARDEN.places) scene.add(buildPlace(p));
@@ -554,7 +598,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const spots = FORAGE.spots.map((sp, i) => {
       const g = new THREE.Group();
       g.position.set(sp.x, 0, sp.z);
-      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 24), new THREE.MeshBasicMaterial({ color: sp.kind === "ink" ? 0x5b86d6 : 0xf2b632, transparent: true, opacity: 0.7, depthWrite: false }));
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 24), new THREE.MeshBasicMaterial({ color: sp.kind === "ink" ? PALETTE.watercolorBlue : PALETTE.gold, transparent: true, opacity: 0.7, depthWrite: false }));
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.02;
       g.add(glow);
@@ -564,7 +608,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         body.rotation.x = -Math.PI / 2;
         body.position.y = 0.04;
       } else {
-        body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), new THREE.MeshToonMaterial({ color: "#3b4a8c" }));
+        body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), new THREE.MeshToonMaterial({ color: PALETTE.watercolorBlue, gradientMap: gradientMap() }));
         body.position.y = 0.3;
         body.rotation.set(0.4, 0.7, 0.2);
       }
@@ -691,6 +735,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
     rebuild.current = () => {
+      for (const c of [...dynamic.children]) disposeTree(c); // frees the old Print/egg and their ink outlines
       dynamic.clear();
       const { genes: g, eggPhase: phase, stage: st, species: spId } = live.current;
       printMesh = null;
@@ -1306,7 +1351,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           m.scale.setScalar(pf.scale);
           const mt = m.material as THREE.MeshBasicMaterial;
           mt.opacity = pf.opacity;
-          mt.color.set((pf as { tone: string }).tone === "gold" ? 0xf2b632 : i % 2 ? 0xffffff : 0x3b4a8c);
+          mt.color.set((pf as { tone: string }).tone === "gold" ? 0xd9a15a : i % 2 ? 0xffffff : 0x6f8fb0);
         });
         drops.forEach((m, i) => {
           const pf = puffs[i];
@@ -1341,7 +1386,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
             m.scale.setScalar(d.scale);
             const mt = m.material as THREE.MeshBasicMaterial;
             mt.opacity = d.opacity;
-            mt.color.set(d.dark ? 0x3b4a8c : 0xcfd9f2);
+            mt.color.set(d.dark ? 0x6f8fb0 : 0xcfd9f2);
           }
         }
         for (; ri < ringPool.length; ri++) ringPool[ri].visible = false;
@@ -1620,6 +1665,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("resize", onResize);
       ring.remove();
       wipe.remove();
+      for (const c of [...dynamic.children]) disposeTree(c);
       zones.dispose(); // frees the zone that is showing, through the same path as leaving
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; }
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
