@@ -1,7 +1,9 @@
 // Come along: by day the Print can walk with the player. Pure rules only (no three.js, clock, randomness or server);
 // World.tsx wires them in. Numbers live in data/follow.json. Nothing here is stored or sent.
 import follow from "@/data/follow.json";
-import { GARDEN, insideAny, pushOut, type Colliders, type Vec } from "@/lib/world";
+import { GARDEN, HOME, clampToBounds, insideAny, pushOut, type Colliders, type Vec } from "@/lib/world";
+import { WORLD } from "@/lib/worldMap";
+import { routeTo } from "@/lib/night";
 import { puffAt, type Pose, type Puff } from "@/lib/play";
 import { isDay } from "@/lib/pond";
 
@@ -52,11 +54,14 @@ export function followAdvance(s: FollowState, dt: number, playerSpeed: number): 
 
 // Where the Print wants to be: a few steps behind the player and a little to one side, on a clear spot.
 // heading is the way the player last walked (atan2(dx, dz)). Returns null when no clear spot is found (it then stays put).
-export function followTarget(player: Vec, heading: number, cols: Colliders, radius: number = GARDEN.print.radius): Vec | null {
+// S33: the whole World is walkable (not only Home), and several Prints each take a `slot` so they trail in a loose bunch:
+// slot 0 is the Print you started with; odd slots take the other side first; each pair sits a `slotStep` further back.
+export function followTarget(player: Vec, heading: number, cols: Colliders, radius: number = GARDEN.print.radius, slot = 0): Vec | null {
   const bx = -Math.sin(heading), bz = -Math.cos(heading), rx = Math.cos(heading), rz = -Math.sin(heading);
-  const half = GARDEN.size / 2 - radius - 0.5;
-  for (const g of FOLLOW.gapTries) for (const side of FOLLOW.sides) {
-    const p = { x: player.x + bx * FOLLOW.gap * g + rx * side, z: player.z + bz * FOLLOW.gap * g + rz * side };
+  const half = WORLD.size / 2 - radius - 0.5;
+  const sides = slot % 2 === 1 ? [...FOLLOW.sides].reverse() : FOLLOW.sides, extra = Math.ceil(slot / 2) * FOLLOW.slotStep;
+  for (const g of FOLLOW.gapTries) for (const side of sides) {
+    const p = { x: player.x + bx * (FOLLOW.gap * g + extra) + rx * side, z: player.z + bz * (FOLLOW.gap * g + extra) + rz * side };
     if (Math.abs(p.x) > half || Math.abs(p.z) > half) continue;
     if (Math.hypot(p.x - player.x, p.z - player.z) < FOLLOW.minGap) continue;
     if (!insideAny(p, radius + 0.1, cols)) return p;
@@ -77,7 +82,7 @@ export function followMove(at: Vec, goal: Vec, speed: number, dt: number, player
   const dx = goal.x - at.x, dz = goal.z - at.z, d = Math.hypot(dx, dz);
   if (speed <= 0 || d < 1e-6) return { pos: at, heading: null, moving: false };
   const s = Math.min(d, speed * dt);
-  const next = pushOut({ x: at.x + (dx / d) * s, z: at.z + (dz / d) * s }, radius, cols);
+  const next = pushOut(clampToBounds({ x: at.x + (dx / d) * s, z: at.z + (dz / d) * s }, radius, WORLD.size), radius, cols);
   if (Math.hypot(next.x - player.x, next.z - player.z) < FOLLOW.minGap && Math.hypot(next.x - player.x, next.z - player.z) < Math.hypot(at.x - player.x, at.z - player.z)) return { pos: at, heading: Math.atan2(dx, dz), moving: false };
   return { pos: next, heading: Math.atan2(dx, dz), moving: Math.hypot(next.x - at.x, next.z - at.z) > 1e-6 };
 }
@@ -116,4 +121,48 @@ export function cameraHeights(ground: number, pitch: number, dist: number): { ca
   const raw = ground + c.height + Math.sin(pitch) * dist;
   const cam = Math.max(raw, ground + c.minHeight);
   return { cam, look: ground + c.height * 0.7 + (cam - raw) };
+}
+
+// ---- S33: all Prints walk around ----
+
+/** A route for a Print anywhere in the World: a short window round both ends, so the search stays small. */
+export function followRouteTo(from: Vec, to: Vec, cols: Colliders, radius: number): Vec[] {
+  const m = FOLLOW.routeMargin, lim = WORLD.size / 2 - radius - 1;
+  let x0 = Math.min(from.x, to.x) - m, x1 = Math.max(from.x, to.x) + m, z0 = Math.min(from.z, to.z) - m, z1 = Math.max(from.z, to.z) + m;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, hw = Math.min((x1 - x0) / 2, FOLLOW.routeMax / 2), hh = Math.min((z1 - z0) / 2, FOLLOW.routeMax / 2);
+  x0 = Math.max(-lim, cx - hw); x1 = Math.min(lim, cx + hw); z0 = Math.max(-lim, cz - hh); z1 = Math.min(lim, cz + hh);
+  return routeTo(from, to, cols, radius, WORLD.size, { x0, x1, z0, z1 });
+}
+
+/** Where a Print outside Home should head to get back inside it (null when it is already inside). */
+export function homeGoal(p: Vec, radius: number = GARDEN.print.radius): Vec | null {
+  const lim = HOME.half - radius - 1.5;
+  if (Math.abs(p.x) <= lim + 1 && Math.abs(p.z) <= lim + 1) return null;
+  return { x: Math.max(-lim, Math.min(lim, p.x)), z: Math.max(-lim, Math.min(lim, p.z)) };
+}
+
+/** Which Print is "the" Print (card, feeding, stroking): the nearest one to the player within focusRadius, switching only when another is clearly nearer. */
+export function chooseFocus(player: Vec, prints: { id: string; x: number; z: number }[], current: string | null): string | null {
+  const dist = (q: { x: number; z: number }) => Math.hypot(q.x - player.x, q.z - player.z);
+  const cur = prints.find((q) => q.id === current) ?? null;
+  let best: { id: string; x: number; z: number } | null = null;
+  for (const q of prints) if (q.id !== current && dist(q) <= FOLLOW.focusRadius && (!best || dist(q) < dist(best))) best = q;
+  if (!best) return current;
+  return !cur || dist(best) + FOLLOW.focusMargin < dist(cur) ? best.id : current;
+}
+
+/** Ids of the other Prints that join a walk: those within joinRadius, nearest first, at most maxCompanions. Slot k+1 is the k-th in this list. */
+export function joiners(player: Vec, others: { id: string; x: number; z: number }[]): string[] {
+  return others
+    .map((q) => ({ id: q.id, d: Math.hypot(q.x - player.x, q.z - player.z) }))
+    .filter((q) => q.d <= FOLLOW.joinRadius)
+    .sort((a, b) => a.d - b.d || (a.id < b.id ? -1 : 1))
+    .slice(0, FOLLOW.maxCompanions)
+    .map((q) => q.id);
+}
+
+/** Where a companion Print rests for the night: beside the bed, a different spot for each. */
+export function restSpot(bed: Vec, index: number): Vec {
+  const r = FOLLOW.restSpots[index % FOLLOW.restSpots.length];
+  return { x: bed.x + r[0], z: bed.z + r[1] };
 }
