@@ -6,8 +6,7 @@
   "baseline": {
     "components/World.tsx": 9,
     "components/decorScene.ts": 2,
-    "components/homeScene.ts": 3,
-    "components/marginsScene.ts": 8,
+        "components/marginsScene.ts": 8,
     "components/npcScene.ts": 26,
     "components/sightScene.ts": 4,
     "components/worldShell.ts": 3,

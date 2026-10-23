@@ -103,3 +103,29 @@ describe("S29c builders", () => {
     same(hedgeGeo(6, 1.1, 0.8, "x"), hedgeGeo(6, 1.1, 0.8, "x"));
   });
 });
+
+import { baseboardGeo, wallGeo } from "@/lib/propShapes";
+
+describe("S30 home walls", () => {
+  it("wall slabs keep the old box footprint (10%) and height, and are deterministic", () => {
+    for (const [w, d, bow, lean] of [[13, 0.5, -0.03, 0], [0.5, 9, -0.03, -0.5], [0.5, 9, 0.03, 0], [5, 0.5, 0.02, 0]] as const) {
+      const g = wallGeo(w, 3.2, d, bow, lean); finite(g); const s = size(g);
+      near(s.x, w, 0.1); near(s.z, d, 0.14); near(s.y, 3.2, 0.1);
+      same(g, wallGeo(w, 3.2, d, bow, lean));
+    }
+  });
+  it("the bow is zero at both ends so corners still meet, and the sides are not mirror images", () => {
+    const g = wallGeo(13, 3.2, 0.5, 0.03), p = g.attributes.position;
+    let endMax = 0, mid = 0;
+    for (let i = 0; i < p.count; i++) { if (Math.abs(p.getX(i)) > 6.49) endMax = Math.max(endMax, Math.abs(p.getZ(i))); if (Math.abs(p.getX(i)) < 0.2) mid = Math.max(mid, p.getZ(i)); }
+    expect(endMax).toBeLessThanOrEqual(0.2501); expect(mid).toBeGreaterThan(0.27);
+  });
+  it("the baseboard stays within 5% of its box size (the dip adds 0.01)", () => {
+    const s = size(baseboardGeo(13.02, 0.28, 0.52)); finite(baseboardGeo(1, 0.28, 0.52)); near(s.x, 13.02); near(s.z, 0.52); near(s.y, 0.28, 0.06);
+  });
+  it("home walls: the colliders come from lib/home.ts data and homeScene has no raw primitive", () => {
+    const src = readFileSync(join(__dirname, "..", "components/homeScene.ts"), "utf8");
+    expect(src).not.toMatch(/new THREE\.(Box|Sphere|Cylinder|Cone)Geometry/);
+    expect(readFileSync(join(__dirname, "..", "lib/home.ts"), "utf8")).not.toMatch(/from "three"/);
+  });
+});
