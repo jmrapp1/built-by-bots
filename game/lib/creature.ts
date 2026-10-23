@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { partsFor, speciesById } from "@/lib/species";
+import { addOutline } from "@/lib/outline";
 import { PALETTE } from "@/lib/palette";
 
 export type Genes = { hue: number; shape: "round" | "tall" | "wide"; parts: string[] };
@@ -13,13 +14,6 @@ export const SCALE: Record<Genes["shape"], [number, number, number]> = {
 // A creature is built only from its genes: rounded body, two parts, a face.
 export type Look = { partsShown: number; mark: string | null };
 
-// S26: a hand-drawn-style ink outline (same EdgesGeometry + LineSegments pattern as components/World.tsx's
-// addOutline). Look only: never raycast, no collision. Geometry itself is never changed.
-function addOutline(mesh: THREE.Mesh): void {
-  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 1), new THREE.LineBasicMaterial({ color: PALETTE.ink }));
-  edge.raycast = () => {};
-  mesh.add(edge);
-}
 const shaded = (mesh: THREE.Mesh): THREE.Mesh => { mesh.castShadow = true; mesh.receiveShadow = true; addOutline(mesh); return mesh; };
 
 // `look` comes from the growth stage: young Prints show fewer parts and older ones get a small mark.

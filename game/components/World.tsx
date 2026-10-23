@@ -7,6 +7,7 @@ import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
 import { SHORE_SIGHTS, shoreSightsForDay } from "@/lib/shoreSights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { addOutline, disposeTree } from "@/lib/outline";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import {
   GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
@@ -131,14 +132,6 @@ function gradientMap(): THREE.DataTexture {
   return t;
 }
 const mat = (color: number | string) => new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
-
-// S26: a hand-drawn-style ink outline, reusing the existing EdgesGeometry + LineSegments pattern.
-// Look only: never raycast, no collision. Call once per mesh after it is positioned/scaled by its parent.
-function addOutline(mesh: THREE.Mesh, color: number | string = PALETTE.ink): void {
-  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 1), new THREE.LineBasicMaterial({ color }));
-  edge.raycast = () => {};
-  mesh.add(edge);
-}
 
 function buildTree(r: number) {
   const g = new THREE.Group();
@@ -742,6 +735,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
     rebuild.current = () => {
+      for (const c of [...dynamic.children]) disposeTree(c); // frees the old Print/egg and their ink outlines
       dynamic.clear();
       const { genes: g, eggPhase: phase, stage: st, species: spId } = live.current;
       printMesh = null;
@@ -1671,6 +1665,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       window.removeEventListener("resize", onResize);
       ring.remove();
       wipe.remove();
+      for (const c of [...dynamic.children]) disposeTree(c);
       zones.dispose(); // frees the zone that is showing, through the same path as leaving
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; }
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
