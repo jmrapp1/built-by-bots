@@ -1,0 +1,15 @@
+{
+  "note": "S24 dream glyph: while the Print sleeps, one ink glyph rises from it, fades, and the next follows. Edit numbers here, no code change. Lengths are metres, times seconds. Glyph numbers index data/scraps.json glyphs. Nothing here is shown as text.",
+  "order": [1, 5, 2, 4, 0, 3],
+  "size": 0.42,
+  "ink": "#d9d2f5",
+  "rise": 9,
+  "rest": 3,
+  "startY": 0.75,
+  "riseBy": 0.9,
+  "driftX": 0.35,
+  "maxOpacity": 0.85,
+  "fadeSeconds": 1.2,
+  "reduced": { "glyph": 1, "y": 1.0, "opacity": 0.45 },
+  "preview": { "glyph": 5, "hour": 23 }
+}

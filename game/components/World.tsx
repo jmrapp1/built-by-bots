@@ -39,6 +39,8 @@ import { allSpotsForDay, nearestSpot as nearestWorldSpot, spotKey, spotsOverride
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { scrapOverride, scrapsFor } from "@/lib/scraps";
+import { DREAM, dreamAt, dreamLevel, dreamOverride } from "@/lib/dream";
+import { buildDreamGlyph, type DreamGlyph } from "@/components/dreamGlyph";
 import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
@@ -259,7 +261,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     cols.circles.push(...doorPosts("garden")); // the posts of the Home door (the Print goes round them like any prop)
     const scene = new THREE.Scene();
     // Light follows the player's local clock (data/daynight.json); ?hour=21 previews a time of day.
-    const override = hourOverride(window.location.search);
+    // S24: ?dream=1|off (dev only) previews the sleeping Print at the bed; without ?hour= it sets the hour to night.
+    const dreamMode = dreamOverride(window.location.search, process.env.NODE_ENV === "production");
+    const override = hourOverride(window.location.search) ?? (dreamMode ? DREAM.preview.hour : null);
     const L0 = lightingAt(override ?? hourOfDay(new Date()));
     scene.background = new THREE.Color(L0.sky);
     scene.fog = new THREE.Fog(L0.fog, WORLD.fog[0], WORLD.fog[1]);
@@ -384,6 +388,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       try { const f = scrapsFor(scrapMode); glyphScraps = buildGlyphScraps(f.bits, f.scale); scene.add(glyphScraps.group); } catch { glyphScraps = null; }
     };
     const dropScraps = () => { try { if (glyphScraps) scene.remove(glyphScraps.group); glyphScraps?.dispose(); } catch { /* nothing */ } glyphScraps = null; };
+    // S24: the dream glyph, one plane. Built with the garden, freed when it is left. Look only.
+    let dreamGlyph: DreamGlyph | null = null, dreamLvl = 0, dreamSet = false;
+    const showDream = () => { if (dreamGlyph) return; try { dreamGlyph = buildDreamGlyph(scene); } catch { dreamGlyph = null; } };
+    const dropDream = () => { try { dreamGlyph?.dispose(); } catch { /* nothing */ } dreamGlyph = null; dreamLvl = 0; };
     const dropShoreSights = () => { try { shoreSights?.dispose(); } catch { /* nothing */ } shoreSights = null; };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
@@ -458,11 +466,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       });
       reportSpots();
     };
-    const stopSpots = () => { dropScraps(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropDream(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showScraps(); startSpots(); };
+    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
@@ -1025,6 +1033,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         } else if (bed === "none" && !engaged && ts >= restartAt) {
           bed = atBed ? "curl" : "yawn"; bedAt = ts; curlFrom = { x: wander.x, z: wander.z };
         }
+        if (dreamMode && !dreamSet && ph === "asleep" && !engaged) { dreamSet = true; bed = "sleep"; bedAt = ts; wander = { ...wander, x: NIGHT.bed.x, z: NIGHT.bed.z, tx: NIGHT.bed.x, tz: NIGHT.bed.z, wait: 1 }; } // S24 dev preview: asleep at the bed at once, once
         const holdStill = bed === "none" && atBed && ph !== "awake";
         let owned = false, yBase = holdStill ? NIGHT.bed.y : 0;
         let bedPose: ReturnType<typeof sleepPose> | null = null;
@@ -1474,6 +1483,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           const cap = shoreSights.update({ t: t / 1000, dt, player: pos, level: shoreLvl, reduced: reducedMotion });
           if (cap) cb.current.onMarginsNote?.(cap);
         } catch { dropShoreSights(); }
+      }
+      if (dreamGlyph) { // S24: only while asleep in the garden; the plane is hidden (not updated) otherwise
+        const asleepNow = bed === "sleep" && zones.is("garden");
+        dreamLvl = dreamLevel(dreamLvl, asleepNow, dt);
+        if (asleepNow || dreamLvl > 0) dreamGlyph.update(dreamAt(t / 1000, true, reducedMotion, dreamMode === "on"), dreamMode === "off" ? 0 : dreamLvl, { x: NIGHT.bed.x, y: NIGHT.bed.y, z: NIGHT.bed.z }, camera);
+        else dreamGlyph.update(dreamAt(0, false, false), 0, { x: 0, y: 0, z: 0 }, camera);
       }
       if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
