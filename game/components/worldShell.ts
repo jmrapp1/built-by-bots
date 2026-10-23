@@ -1,5 +1,7 @@
 // W2: the rendered World round the garden: streamed, instanced chunks, an inked path, tall landmarks and paper-fold horizons.
 // A shell is built when the player is in the garden zone and fully disposed when they leave it (same path as every zone).
+import { crownGeo, plateGeo, poleGeo, seedOf, trunkGeo } from "@/lib/propShapes";
+import { wobbleSphere } from "@/lib/shapes";
 import * as THREE from "three";
 import type { Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
@@ -32,9 +34,9 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
 
   // ---- shared geometry (made once, never per chunk) ----
   const G = {
-    trunk: keep(new THREE.CylinderGeometry(0.18, 0.28, 2.6, 6).translate(0, 1.3, 0)),
-    crownLow: keep(new THREE.ConeGeometry(1.6, 2.6, 7).translate(0, 3.2, 0)),
-    crownHigh: keep(new THREE.ConeGeometry(1.05, 2.2, 7).translate(0, 4.6, 0)),
+    trunk: keep(trunkGeo(0.18, 0.28, 2.6, 6).translate(0, 1.3, 0)),
+    crownLow: keep(crownGeo(1.6, 2.6, "shell:crownLow").translate(0, 3.2, 0)),
+    crownHigh: keep(crownGeo(1.05, 2.2, "shell:crownHigh").translate(0, 4.6, 0)),
     rock: keep(new THREE.DodecahedronGeometry(0.7, 0).translate(0, 0.3, 0)),
     bush: keep(new THREE.IcosahedronGeometry(0.8, 0).scale(1, 0.7, 1).translate(0, 0.45, 0)),
     box: keep(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)),
@@ -91,9 +93,9 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
   // ---- W4: picture signposts (a leaf, a book, a moon; no words). A few small meshes each, made once with the shell and freed with it. ----
   { const wood = keep(new THREE.MeshToonMaterial({ color: "#6b5a44" })), board = keep(new THREE.MeshToonMaterial({ color: "#f1dfae" }));
     const green = keep(new THREE.MeshToonMaterial({ color: "#5e9c76" })), inkM = L.ink, gold = keep(new THREE.MeshToonMaterial({ color: "#e3b64f" }));
-    const pole = keep(new THREE.CylinderGeometry(0.07, 0.09, 1.9, 6).translate(0, 0.95, 0)), plate = keep(new THREE.BoxGeometry(0.9, 0.7, 0.07));
-    const leaf = keep(new THREE.SphereGeometry(0.26, 8, 6).scale(0.55, 1, 0.25)), page = keep(new THREE.BoxGeometry(0.26, 0.36, 0.03));
-    const stem = keep(new THREE.BoxGeometry(0.03, 0.3, 0.02)), kiteG = keep(new THREE.BoxGeometry(0.3, 0.3, 0.03)), kiteTail = keep(new THREE.BoxGeometry(0.07, 0.05, 0.03)), moon = keep(new THREE.TorusGeometry(0.22, 0.06, 6, 14, Math.PI * 1.45));
+    const pole = keep(poleGeo(0.07, 0.09, 1.9).translate(0, 0.95, 0)), plate = keep(plateGeo(0.9, 0.7, 0.07, 2));
+    const leaf = keep(wobbleSphere(0.26, 0.04, seedOf("shell:leaf"), 8).scale(0.55, 1, 0.25)), page = keep(plateGeo(0.26, 0.36, 0.03));
+    const stem = keep(plateGeo(0.03, 0.3, 0.02)), kiteG = keep(plateGeo(0.3, 0.3, 0.03)), kiteTail = keep(plateGeo(0.07, 0.05, 0.03)), moon = keep(new THREE.TorusGeometry(0.22, 0.06, 6, 14, Math.PI * 1.45));
     const sign = (sp: Signpost) => {
       const g = new THREE.Group(); g.position.set(sp.x, 0, sp.z); g.rotation.y = sp.yaw; // the board faces along +z of the group
       g.add(new THREE.Mesh(pole, wood));

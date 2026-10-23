@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { lathe, softBox, wobbleSphere } from "@/lib/shapes";
+import { curl, lathe, leaning, softBox, wobble, wobbleSphere } from "@/lib/shapes";
 
 /** S29 prop builders on top of lib/shapes.ts. Pure geometry, deterministic (seeds come from ids, no random source). Each keeps the bounding size of the primitive it replaces. */
 
@@ -73,4 +73,44 @@ export function decorCyl(rt: number, rb: number, h: number): THREE.BufferGeometr
 /** Decor sphere: a very light wobble (4 percent), seeded from `key`. */
 export function decorSphere(r: number, key: string): THREE.BufferGeometry {
   return wobbleSphere(r, 0.04, seedOf(key), 14);
+}
+
+/** Linear mix. */
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Tree trunk, centred on the origin like CylinderGeometry(rt, rb, h): a flared root that tapers to the top. Widest at the base (rb). */
+export function trunkGeo(rt: number, rb: number, h: number, segments = 7): THREE.BufferGeometry {
+  const y = h / 2, at = (t: number, k: number) => [mix(rb, rt, k), -y + t * h] as [number, number];
+  return lathe([[0, -y], [rb, -y], at(0.14, 0.2), at(0.55, 0.55), [rt, y], [0, y]], segments);
+}
+
+/** Tree crown, centred like ConeGeometry(r, h): a concave-sided cone with a seeded wobble (4 percent) and a curled tip (3 percent of h). Base stays flat-ish at -h/2. */
+export function crownGeo(r: number, h: number, key: string, segments = 7): THREE.BufferGeometry {
+  const y = h / 2;
+  const g = lathe([[0, -y], [r, -y], [r * 0.76, -y + 0.3 * h], [r * 0.4, -y + 0.66 * h], [0, y]], segments);
+  wobble(g, 0.04, seedOf(key));
+  return curl(g, 0.03);
+}
+
+/** One stone tier, centred like CylinderGeometry(rt, rb, h): rounded rims and a slight waist. */
+export function drumGeo(rt: number, rb: number, h: number, segments = 10): THREE.BufferGeometry {
+  const y = h / 2, e = Math.min(0.08, h * 0.12);
+  return lathe([[0, -y], [rb * 0.94, -y], [rb, -y + e], [mix(rb, rt, 0.5) * 0.94, 0], [rt, y - e], [rt * 0.94, y], [0, y]], segments);
+}
+
+/** An open glow pillar, centred like an open CylinderGeometry(rt, rb, h): a flared foot. Faces outward. */
+export function pillarGeo(rt: number, rb: number, h: number, segments = 8): THREE.BufferGeometry {
+  const y = h / 2;
+  return lathe([[rb, -y], [mix(rb, rt, 0.4), -y + 0.1 * h], [mix(rb, rt, 0.75), 0], [rt, y]], segments);
+}
+
+/** Signpost pole, centred like CylinderGeometry(rt, rb, h): a slow taper with a small knob on top (never wider than the foot). */
+export function poleGeo(rt: number, rb: number, h: number, segments = 6): THREE.BufferGeometry {
+  const y = h / 2;
+  return lathe([[0, -y], [rb, -y], [rt, y - 0.12 * h], [rb, y - 0.06 * h], [rt * 0.7, y], [0, y]], segments);
+}
+
+/** A thin rounded plate or board, leaning a few degrees about its centre. */
+export function plateGeo(w: number, h: number, d: number, lean = 0): THREE.BufferGeometry {
+  return leaning(softBox(w, h, d, Math.min(0.06, d / 2, h * 0.15), 1), lean);
 }
