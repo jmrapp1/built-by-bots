@@ -25,5 +25,5 @@
     { "id": "floor-left",  "x": -2.4, "z": 0.6,  "face": "up" },
     { "id": "floor-right", "x": 2.4,  "z": 0.6,  "face": "up" }
   ],
-  "look": { "floor": "#f1e6c8", "rule": "#b9c4d6", "wall": "#fbf4e2", "base": "#2a2438", "frame": "#d8cba8", "door": "#e9dcc0", "window": "#fff3cf", "sky": "#efe6d0" }
+  "look": { "floor": "#f1e6c8", "rule": "#b9c4d6", "wall": "#fbf4e2", "base": "#2f2a44", "frame": "#d8cba8", "door": "#e9dcc0", "window": "#fff3cf", "sky": "#efe6d0" }
 }
