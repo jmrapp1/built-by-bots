@@ -146,7 +146,7 @@ describe("?follow=1 preview switch", () => {
 });
 
 describe("data", () => {
-  const keys = ["key", "promptRadius", "maxSeconds", "stillSeconds", "stillSpeed", "farEnd", "hopSeconds", "hopHeight", "settleSeconds", "gap", "gapTries", "sides", "minGap", "arrive", "baseSpeed", "maxSpeed", "catchUpFrom", "catchUpTo", "routeEvery", "dropEvery", "calmFactor", "text"];
+  const keys = ["key", "promptRadius", "maxSeconds", "stillSeconds", "stillSpeed", "farEnd", "hopSeconds", "hopHeight", "settleSeconds", "gap", "gapTries", "sides", "minGap", "arrive", "baseSpeed", "maxSpeed", "catchUpFrom", "catchUpTo", "routeEvery", "dropEvery", "calmFactor", "text", "slotStep", "maxCompanions", "joinRadius", "focusRadius", "focusMargin", "restSpots", "routeMargin", "routeMax"];
   it("has every key the code reads", () => { for (const k of keys) expect(FOLLOW).toHaveProperty(k); });
   it("sources no stray keys beyond the note", () => expect(Object.keys(FOLLOW).filter((k) => k !== "note" && !keys.includes(k))).toEqual([]));
   it("uses a key that is not already taken", () => {

@@ -79,11 +79,13 @@ const segmentClear = (a: Vec, b: Vec, margin: number, cols: Colliders) => {
 };
 // Waypoints (not including the start) from `from` to `to` that keep a body of `radius` clear of
 // trees, hedges and places. A grid of clear points is searched, then the path is straightened.
-export function routeTo(from: Vec, to: Vec, cols: Colliders, radius: number, size: number = HOME.size): Vec[] {
+export function routeTo(from: Vec, to: Vec, cols: Colliders, radius: number, size: number = HOME.size, area?: { x0: number; x1: number; z0: number; z1: number }): Vec[] {
   const m = radius + 0.15;
   if (segmentClear(from, to, m, cols)) return [to];
   const lim = size / 2 - radius - 1, step = 2, pts: Vec[] = [from, to];
-  for (let x = -lim; x <= lim; x += step) for (let z = -lim; z <= lim; z += step) if (!insideAny({ x, z }, m, cols)) pts.push({ x, z });
+  // `area` (S33) limits the search grid to a window, so a route in the wide World never builds a grid of the whole map.
+  const a = area ?? { x0: -lim, x1: lim, z0: -lim, z1: lim };
+  for (let x = a.x0; x <= a.x1; x += step) for (let z = a.z0; z <= a.z1; z += step) if (!insideAny({ x, z }, m, cols)) pts.push({ x, z });
   const dist = new Array(pts.length).fill(Infinity), prev = new Array(pts.length).fill(-1), done = new Array(pts.length).fill(false);
   dist[0] = 0;
   for (;;) {

@@ -12,11 +12,11 @@ import { PROP_EDGE_ANGLE, blotGeo, crownGeo, hedgeGeo, inkwellGeo, pageGeo, pill
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import { buildCreatureOld, shapesOverride } from "@/lib/creatureOld";
 import {
-  GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Place, type Vec, type Wander,
+  GARDEN, HOME, cameraDistance, colliders, hoverY, movePlayer, nearestPlace, newWander, printInReach, stepWander, type Colliders, type Place, type Vec, type Wander,
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
-import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, clampPitch, cameraHeights, type FollowState } from "@/lib/follow";
+import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, followRouteTo, homeGoal, chooseFocus, joiners, restSpot, clampPitch, cameraHeights, type FollowState } from "@/lib/follow";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { canFidget, fidgetOffsets, fidgetOverride, seedFrom, seeded, startState, stepFidget, type FidgetState } from "@/lib/fidget";
@@ -65,6 +65,9 @@ import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/componen
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
 type Props = {
   genes: Genes | null;
+  prints?: PrintInfo[]; // S33: every owned Print; the one in `genes` is the focused one (card, feeding), the rest walk about the garden too
+  focusId?: string | null;
+  onFocus?: (id: string) => void; // the player walked up to another Print: the page makes it the focused one
   species?: string;
   stage?: string;
   eggPhase: EggPhase;
@@ -276,13 +279,15 @@ function buildPlayer() {
   return g;
 }
 
-export default function World({ genes, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export type PrintInfo = { id: string; genes: Genes; species: string; stage: string; worn: string | null };
+
+export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose });
-  cb.current = { onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose };
+  const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose });
+  cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose };
   // Latest props for the render loop, which is created once.
-  const live = useRef({ npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
-  live.current = { npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
+  const live = useRef({ prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
+  live.current = { prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
   // When the server accepts a feed the Print reacts. The loop reads this time stamp.
   const reactAt = useRef(-1);
   const seenTick = useRef(fedTick);
@@ -290,7 +295,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     if (fedTick !== seenTick.current) { seenTick.current = fedTick; reactAt.current = performance.now(); }
   }, [fedTick]);
   const rebuild = useRef<() => void>(() => {});
-  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species, guideGlow]);
+  const printsKey = (prints ?? []).map((q) => `${q.id}|${q.species}|${q.stage}|${q.worn ?? ""}|${q.genes.hue}|${q.genes.shape}|${q.genes.parts.join(",")}`).join(";");
+  useEffect(() => { rebuild.current(); }, [genes, eggPhase, stage, species, guideGlow, printsKey, focusId]);
 
   useEffect(() => {
     const el = mount.current!;
@@ -730,6 +736,13 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let strokeEnd = -1;
     let wander: Wander | null = null;
     let printMesh: THREE.Group | null = null;
+    // S33: every other owned Print walks about too (a light version of the focused one's life). Client only, nothing stored.
+    type Walk = { route: Vec[]; leg: number; at: number };
+    type Other = { id: string; idx: number; mesh: THREE.Group; w: Wander; base: number; joined: boolean; slot: number; walk: Walk };
+    let others: Other[] = [];
+    const wanderBy = new Map<string, Wander>();
+    let primaryId: string | null = null, swapped = false, focusAsked: string | null = null;
+    const homeWalk: Walk = { route: [], leg: 0, at: -1 };
     // Idle fidgets (lib/fidget.ts): small additive offsets on the standing Print; none when it is busy. Client only, nothing saved.
     const fidgetPick = fidgetOverride(window.location.search, process.env.NODE_ENV === "production");
     let fidgetRng = seeded(1), fidgetS: FidgetState = startState(fidgetRng, fidgetPick), fidgetYaw = 0, fidgetEyes: THREE.Object3D[] = [], fidgetBlinked = false;
@@ -756,6 +769,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       for (const c of [...dynamic.children]) disposeTree(c); // frees the old Print/egg and their ink outlines
       dynamic.clear();
       const { genes: g, eggPhase: phase, stage: st, species: spId } = live.current;
+      for (const o of others) wanderBy.set(o.id, o.w);
+      others = [];
       printMesh = null;
       if (g) {
         const sd = stageById(st);
@@ -781,7 +796,29 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           }
         }
         attachCos(cosId); // a rebuild keeps what is worn, with no motion
-        wander = wander ?? newWander({ x: nest.x, z: nest.z + 2 });
+        const pid = live.current.focusId ?? "_";
+        if (wander && primaryId) wanderBy.set(primaryId, wander);
+        if (primaryId !== null && primaryId !== pid) { swapped = true; focusAsked = null; }
+        primaryId = pid;
+        wander = wanderBy.get(pid) ?? wander ?? newWander({ x: nest.x, z: nest.z + 2 });
+      }
+      if (g) {
+        let n = 0;
+        for (const q of live.current.prints ?? []) {
+          if (q.id === (live.current.focusId ?? "_")) continue;
+          const sd = stageById(q.stage);
+          const mesh = buildCreature(q.genes, { partsShown: sd.partsShown, mark: sd.mark }, q.species);
+          const base = GARDEN.print.scale * sd.scale;
+          mesh.scale.setScalar(base);
+          const cos = buildCosmetic(q.worn, q.species, q.genes.shape);
+          if (cos) { mesh.add(cos); poseCosmetic(cos, 1, 1, 0); }
+          dynamic.add(mesh);
+          const side = n % 2 ? 1 : -1;
+          const w = wanderBy.get(q.id) ?? newWander({ x: nest.x + side * (1.8 + 0.9 * Math.floor(n / 2)), z: nest.z + 2 + (n % 3) });
+          mesh.position.set(w.x, 0, w.z);
+          others.push({ id: q.id, idx: n, mesh, w, base, joined: false, slot: 0, walk: { route: [], leg: 0, at: -1 } });
+          n++;
+        }
       }
       if (phase !== "none") {
         const egg = buildEgg();
@@ -968,6 +1005,51 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // The player walks the whole World; collision data for the streamed chunks comes from the pure map, never from what is drawn.
     const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: cols.boxes } : cols);
+    const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8)], boxes: cols.boxes } : cols);
+    const FAR: Vec = { x: 1e6, z: 1e6 };
+    // One frame of walking to a goal anywhere in the World, along a route that is re-planned every routeEvery seconds.
+    const walkTo = (w: Wander, st: Walk, goal: Vec, speed: number, dt: number, ts: number, gc: Colliders, player: Vec): { w: Wander; moving: boolean } => {
+      const R = GARDEN.print.radius;
+      if (ts >= st.at) { st.route = followRouteTo(w, goal, gc, R); st.leg = 0; st.at = ts + FOLLOW.routeEvery; }
+      while (st.leg < st.route.length - 1 && Math.hypot(st.route[st.leg].x - w.x, st.route[st.leg].z - w.z) < 0.3) st.leg++;
+      const g = st.leg < st.route.length - 1 ? st.route[st.leg] : goal;
+      const m = followMove(w, g, speed, dt, player, gc, R);
+      return { w: { ...w, x: m.pos.x, z: m.pos.z, tx: m.pos.x, tz: m.pos.z, wait: 1, heading: m.moving && m.heading !== null ? m.heading : w.heading }, moving: m.moving };
+    };
+    // The other Prints: by day they wander Home, come along on a walk, head back home afterwards, and at bedtime settle by the bed.
+    const stepOthers = (dt: number, ts: number, ph: ReturnType<typeof sleepPhase>, t: number) => {
+      const R = GARDEN.print.radius, fo = followOn(followS);
+      for (const o of others) {
+        const gc = colsAt(o.w.x, o.w.z);
+        let moving = false, sleeping = false;
+        if (!fo && o.joined) { o.joined = false; o.w = { ...o.w, tx: o.w.x, tz: o.w.z, wait: 1.2 }; }
+        if (fo && o.joined) {
+          const dP = Math.hypot(o.w.x - pos.x, o.w.z - pos.z);
+          if (dP > FOLLOW.farEnd) { o.joined = false; o.w = { ...o.w, wait: 1.2 }; }
+          else {
+            const tgt = followTarget(pos, followHead, gc, R, o.slot);
+            if (tgt) { const r = walkTo(o.w, o.walk, tgt, followSpeed(Math.hypot(tgt.x - o.w.x, tgt.z - o.w.z)), dt, ts + o.idx * 0.1, gc, pos); o.w = r.w; moving = r.moving; }
+            else o.w = { ...o.w, heading: Math.atan2(pos.x - o.w.x, pos.z - o.w.z) };
+          }
+        } else if (ph !== "awake") {
+          const spot = restSpot(NIGHT.bed, o.idx);
+          if (Math.hypot(spot.x - o.w.x, spot.z - o.w.z) > 0.3) { const r = walkTo(o.w, o.walk, spot, NIGHT.walkSpeed, dt, ts + o.idx * 0.1, gc, FAR); o.w = r.w; moving = r.moving; }
+          else { sleeping = true; o.w = { ...o.w, tx: o.w.x, tz: o.w.z, wait: 1 }; }
+        } else {
+          const hg = homeGoal(o.w);
+          if (hg) { const r = walkTo(o.w, o.walk, hg, FOLLOW.baseSpeed, dt, ts + o.idx * 0.1, gc, FAR); o.w = r.w; moving = r.moving; }
+          else o.w = stepWander(o.w, dt, rng, R, GARDEN.print.speed, gc);
+        }
+        let dy = o.w.heading - o.mesh.rotation.y;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        o.mesh.rotation.order = "YXZ";
+        o.mesh.rotation.y += dy * Math.min(1, dt * 8);
+        o.mesh.rotation.x = moving ? 0.07 : 0;
+        o.mesh.position.set(o.w.x, moving || sleeping ? 0 : Math.abs(Math.sin(t / 300 + o.idx)) * 0.03, o.w.z);
+        const sq = sleeping ? 0.88 : 1, wide = 1 + (1 - sq) * 0.5;
+        o.mesh.scale.set(o.base * wide, o.base * sq, o.base * wide);
+      }
+    };
     const tick = (t: number) => {
       for (const rp of ripples) {
         const r = ripple((t / 6000) % 1, rp.offset, reducedMotion);
@@ -1110,6 +1192,8 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         const engaged = holdStart >= 0 || reacting || strokeStart >= 0;
         // Bedtime. The hour decides; being fed or stroked wakes the Print gently and it settles again later.
         const ts = t / 1000, ph = sleepPhase(hourNow), R = GARDEN.print.radius;
+        if (swapped) { swapped = false; bed = "none"; followS = FOLLOWIDLE; pondS = PONDIDLE; hideS = hideCancel(); hideRoute = []; holdStart = -1; } // another Print is now the focused one: it starts fresh from where it stands
+        const away = !!homeGoal(wander); // outside Home after a walk: it heads back before bed, a visit or a game
         const atBed = Math.hypot(wander.x - NIGHT.bed.x, wander.z - NIGHT.bed.z) < 0.6;
         if (engaged) {
           restartAt = ts + NIGHT.napSeconds;
@@ -1119,7 +1203,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         if (ph === "awake") {
           if (bed === "yawn" || bed === "walk") bed = "none";
           if (!engaged && (bed === "curl" || bed === "sleep" || (bed === "none" && atBed))) { bed = "wake"; bedAt = ts; wakeMove = true; wakeFrom = { x: wander.x, z: wander.z }; }
-        } else if (bed === "none" && !engaged && ts >= restartAt) {
+        } else if (bed === "none" && !engaged && !away && ts >= restartAt) {
           bed = atBed ? "curl" : "yawn"; bedAt = ts; curlFrom = { x: wander.x, z: wander.z };
         }
         if (dreamMode && ph === "asleep" && !engaged && (bed === "none" || bed === "yawn" || bed === "walk" || bed === "curl")) { dreamSet = true; bed = "sleep"; bedAt = ts; wander = { ...wander, x: NIGHT.bed.x, z: NIGHT.bed.z, tx: NIGHT.bed.x, tz: NIGHT.bed.z, wait: 1 }; } // S24 dev preview: asleep at the bed at once, and again after a feed or stroke wakes it
@@ -1171,7 +1255,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         }
         if (pondBusy(pondS) && (engaged || !awakeNow)) { pondS = PONDIDLE; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1 }; pondNextAt = ts + nextVisitDelay(Math.random()); }
         if (followActive(followS) && ts >= pondNextAt) pondNextAt = ts + retryDelay(Math.random()); // a walk together goes first; the visit tries again later
-        if (!pondBusy(pondS) && !hideBusy(hideS) && !followActive(followS) && awakeNow && !engaged && ts >= pondNextAt) {
+        if (!pondBusy(pondS) && !hideBusy(hideS) && !followActive(followS) && !away && awakeNow && !engaged && ts >= pondNextAt) {
           if (canStartVisit(hourNow, true, wander)) pondS = pondStart();
           else pondNextAt = ts + retryDelay(Math.random());
         }
@@ -1215,7 +1299,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           hideS = hideCancel(); hideRoute = []; wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1.2 }; hideNextAt = ts + nextGameDelay(Math.random());
         }
         if (followActive(followS) && ts >= hideNextAt) hideNextAt = ts + hideRetry(Math.random()); // same for hide and seek
-        if (!hideBusy(hideS) && !followActive(followS) && awakeNow && !engaged && !pondBusy(pondS) && sit.phase === "standing" && ts >= hideNextAt) {
+        if (!hideBusy(hideS) && !followActive(followS) && !away && awakeNow && !engaged && !pondBusy(pondS) && sit.phase === "standing" && ts >= hideNextAt) {
           if (canStartGame(hourNow, true, true, wander, pos)) hideS = hideStart();
           else hideNextAt = ts + hideRetry(Math.random());
         }
@@ -1257,7 +1341,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           const busy = hold || !!sk || pgStart >= 0;
           const offer = { hour: hourNow, awake: awakeNow, busy, panel, distance: dPrint, following: followActive(followS) };
           if (followActive(followS) && followInterrupted({ awake: awakeNow, hour: hourNow, busy: hold, panel, garden: gardenNow, distance: dPrint })) followS = followEnd(followS);
-          const begin = () => { followS = followStart(); followRoute = []; followLeg = 0; followRouteAt = -1; };
+          const begin = () => {
+            followS = followStart(); followRoute = []; followLeg = 0; followRouteAt = -1;
+            const ids = joiners(pos, others.map((o) => ({ id: o.id, x: o.w.x, z: o.w.z }))); // the nearest Prints come along too, each in its own place behind
+            for (const o of others) { const k = ids.indexOf(o.id); o.joined = k >= 0; o.slot = k + 1; o.walk.at = -1; }
+          };
           if (followWant) {
             followWant = false;
             if (followOn(followS)) followS = followEnd(followS);
@@ -1274,7 +1362,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
               if (was === "on" && followS.phase === "on") {
                 const gc = gardenCols(), tgt = followTarget(pos, followHead, gc, GARDEN.print.radius);
                 if (tgt) {
-                  if (ts >= followRouteAt) { followRoute = routeTo(wander, tgt, gc, GARDEN.print.radius); followLeg = 0; followRouteAt = ts + FOLLOW.routeEvery; }
+                  if (ts >= followRouteAt) { followRoute = followRouteTo(wander, tgt, gc, GARDEN.print.radius); followLeg = 0; followRouteAt = ts + FOLLOW.routeEvery; }
                   while (followLeg < followRoute.length - 1 && Math.hypot(followRoute[followLeg].x - wander.x, followRoute[followLeg].z - wander.z) < 0.3) followLeg++;
                   const goal = followLeg < followRoute.length - 1 ? followRoute[followLeg] : tgt;
                   const m = followMove(wander, goal, followSpeed(Math.hypot(tgt.x - wander.x, tgt.z - wander.z)), dt, pos, gc, GARDEN.print.radius);
@@ -1293,7 +1381,17 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         hideSide += (sideWant - hideSide) * Math.min(1, dt * 8);
         if (Math.abs(hideSide) < 0.001) hideSide = 0;
         const hideDir = hideS.perp ?? { x: 0, z: 0 };
-        if (!engaged && !owned && !holdStill && !pondOwned && !hideOwned && !followActive(followS)) wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        if (!engaged && !owned && !holdStill && !pondOwned && !hideOwned && !followActive(followS)) {
+          const hg = homeGoal(wander);
+          if (hg) wander = walkTo(wander, homeWalk, hg, FOLLOW.baseSpeed, dt, ts, colsAt(wander.x, wander.z), FAR).w;
+          else wander = stepWander(wander, dt, rng, GARDEN.print.radius, GARDEN.print.speed, cols);
+        }
+        stepOthers(dt, ts, ph, t);
+        // The nearest Print is the one the card, feeding and stroking use. It only changes while the focused one is idle.
+        if (others.length && primaryId && zones.is("garden") && !travel && !engaged && !followActive(followS) && bed === "none" && !pondBusy(pondS) && !hideBusy(hideS) && sit.phase === "standing") {
+          const nid = chooseFocus(pos, [{ id: primaryId, x: wander.x, z: wander.z }, ...others.map((o) => ({ id: o.id, x: o.w.x, z: o.w.z }))], primaryId);
+          if (nid && nid !== primaryId && nid !== focusAsked) { focusAsked = nid; cb.current.onFocus?.(nid); }
+        }
         // Pose: the reaction wins, then stroking, otherwise rest.
         const stroked = strokeStart >= 0 ? (t - strokeStart) / 1000 : -1;
         const released = strokeEnd >= 0 ? (t - strokeEnd) / 1000 : 0;
