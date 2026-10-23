@@ -1,0 +1,36 @@
+{
+  "note": "S32: bug watching. A few quiet paper insects live at set places by day. Stand still near one and it carries on with its small life; the Print may glance at it. Nothing is caught or scored and nothing is shown as text. Kill switch: bugWatching.enabled (false = nothing is built or run). Times are seconds, distances metres. Nothing here is shown to players.",
+  "bugWatching": {
+    "enabled": true,
+    "stillSeconds": 2.5,
+    "driftAwaySpeed": 0.6,
+    "awayMax": 4,
+    "returnDelaySeconds": 4,
+    "fadeSeconds": 20,
+    "watchEaseSeconds": 1.2,
+    "selectEverySeconds": 0.5,
+    "noticeCheckSeconds": 6,
+    "noticeChance": 0.25,
+    "noticeHoldSeconds": 4,
+    "noticeCooldownSeconds": 90,
+    "noticeTilt": 0.12,
+    "maxActiveInsects": 12,
+    "maxPerSpot": 3,
+    "activationRadius": 30,
+    "preview": { "stillSeconds": 0.5, "noticeChance": 1, "noticeCooldownSeconds": 20, "activationRadius": 200 },
+    "reduced": { "hopSeconds": 7, "hopMoveSeconds": 1.2, "anchors": 3, "wingOpen": 0.35 },
+    "kinds": {
+      "flutterer": { "size": 0.22, "wingBeatHz": 5, "wanderRadius": 2.2, "speed": 0.5, "height": 0.7, "paper": "#fffaf0", "ink": "#2f2a44" },
+      "beetle": { "size": 0.16, "wingBeatHz": 0.6, "wanderRadius": 0.9, "speed": 0.08, "height": 0.04, "paper": "#d8c7a0", "ink": "#2f2a44" },
+      "dragonfly": { "size": 0.2, "wingBeatHz": 7, "wanderRadius": 2.6, "speed": 0.7, "height": 1.1, "paper": "#dfe9ea", "ink": "#4a4360" }
+    },
+    "spots": [
+      { "id": "garden-flutterer", "zone": "garden", "x": -9, "z": -2, "radius": 6, "kind": "flutterer", "count": 2 },
+      { "id": "garden-pond-dragonfly", "zone": "garden", "x": -11, "z": 8, "radius": 6, "kind": "dragonfly", "count": 1 },
+      { "id": "garden-leaf-beetle", "zone": "garden", "x": 8, "z": 13, "radius": 6, "kind": "beetle", "count": 2 },
+      { "id": "world-meadow-flutterer", "zone": "world", "x": 46, "z": 24, "radius": 6, "kind": "flutterer", "count": 2 },
+      { "id": "world-west-beetle", "zone": "world", "x": -42, "z": 38, "radius": 6, "kind": "beetle", "count": 2 },
+      { "id": "world-north-dragonfly", "zone": "world", "x": 28, "z": -34, "radius": 6, "kind": "dragonfly", "count": 1 }
+    ]
+  }
+}

@@ -51,6 +51,9 @@ import { dayNumber } from "@/lib/npcs";
 import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
+import { NOTICEIDLE, bugConfig, bugPreview, createBugSim, noticeTick, type NoticeState } from "@/lib/bugs";
+import { buildBugScene } from "@/components/bugScene";
+import { seeded as bugSeeded } from "@/lib/fidget";
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
@@ -649,6 +652,14 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let sit: SitState = STANDING;
     let sitFrom: Vec = { x: 0, z: 0 };
     let hourNow = override ?? hourOfDay(new Date());
+    // S32: bug watching. With bugWatching.enabled false createBugSim returns null: nothing is built, no loop work, no glance.
+    const bugPrev = bugPreview(window.location.search, process.env.NODE_ENV === "production");
+    const bugSim = createBugSim(bugConfig(bugPrev));
+    const bugScene = bugSim ? buildBugScene(bugSim.cfg) : null;
+    if (bugScene) scene.add(bugScene.group);
+    const bugReduced = bugPrev === "reduced";
+    let bugNotice: NoticeState = NOTICEIDLE, bugGlance = -1, bugGlanceK = 0;
+    const bugRoll = bugSeeded(0x5eed32);
     const anchors = fireflyAnchors();
     const flies = new THREE.InstancedMesh(
       new THREE.SphereGeometry(1, 8, 6),
@@ -1376,6 +1387,16 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           const mode = followOn(followS) ? "on" : !followActive(followS) && gardenNow && canOfferFollow(offer) ? "can" : "off";
           if (mode !== followShown) { followShown = mode; cb.current.onFollow?.(mode); }
         }
+        // Bug watching: a rare, short glance at a nearby insect while the Print is idle. It never starts, and ends at once, if the Print
+        // is fed, stroked, following, at the pond, hiding, asleep, sitting or flying. The check runs on a timer, not every frame.
+        if (bugSim) {
+          const idle = !engaged && awakeNow && !owned && !holdStill && !pondOwned && !hideOwned && !followActive(followS) && !sk && !travel && sit.phase === "standing" && zones.is("garden");
+          const sp = idle ? bugSim.spotAt(wander.x, wander.z) : -1;
+          const r = noticeTick(bugNotice, ts, sp >= 0, bugRoll, bugSim.cfg);
+          bugNotice = r.state;
+          bugGlance = r.active && sp >= 0 ? sp : -1;
+          if (bugGlance >= 0) wander = { ...wander, tx: wander.x, tz: wander.z, wait: 1 };
+        }
         // The peek leans out sideways; it is eased so an interrupt never snaps the Print back.
         const sideWant = hidePoseV && hideS.perp ? hidePoseV.side : 0;
         hideSide += (sideWant - hideSide) * Math.min(1, dt * 8);
@@ -1399,13 +1420,15 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         const pose = engaged ? (bedPose && bed === "wake" ? mixPose(bedPose, reactPose, 0.7) : reactPose) : bedPose ?? pondPoseV ?? hidePoseV ?? followPoseV ?? reactPose;
         const watching = !engaged && skAt !== null && sk !== null && printWatches(awakeNow, wander);
         const watchHop = watching && sk ? watcherHop(sk.plan, skAge, reducedMotion) : 0;
-        const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : watching && skAt ? Math.atan2(skAt.x - wander.x, skAt.z - wander.z) : wander.heading;
+        const bugAt = bugSim && bugGlance >= 0 ? bugSim.cfg.spots[bugGlance] : null;
+        const faceTarget = engaged ? Math.atan2(pos.x - wander.x, pos.z - wander.z) : bugAt ? Math.atan2(bugAt.x - wander.x, bugAt.z - wander.z) : watching && skAt ? Math.atan2(skAt.x - wander.x, skAt.z - wander.z) : wander.heading;
         printMesh.rotation.order = "YXZ";
         printMesh.rotation.y -= fidgetYaw; // take last frame's glance off before turning toward the target
         let dy = faceTarget + (hidePoseV && !engaged ? hidePoseV.spin : 0) - printMesh.rotation.y;
         dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         printMesh.rotation.y += dy * Math.min(1, dt * 8);
-        printMesh.rotation.x = pose.lean;
+        bugGlanceK += ((bugAt && !engaged ? 1 : 0) - bugGlanceK) * Math.min(1, dt * (reducedMotion ? 3 : 4));
+        printMesh.rotation.x = pose.lean + (bugSim ? bugSim.cfg.noticeTilt * bugGlanceK : 0);
         // Idle fidgets: only while standing still by day with nothing else going on.
         const fidgetCan = canFidget({
           day: ph === "awake" && bed === "none", standing: wander.wait > 0, engaged,
@@ -1521,6 +1544,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         }
         for (; ri < ringPool.length; ri++) ringPool[ri].visible = false;
         for (; di < splashDrops.length; di++) splashDrops[di].visible = false;
+      }
+
+      if (bugSim && bugScene) {
+        const mvKeys = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c));
+        bugSim.step(dt, pos, zones.is("garden") && !travel, mvKeys || dragging, hourNow);
+        bugScene.update(bugSim, t / 1000, reducedMotion || bugReduced, pos, () => 0);
       }
 
       // Fireflies glow from dusk to dawn.
@@ -1804,6 +1833,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       for (const m of hideDrops) { scene.remove(m); (m.material as THREE.Material).dispose(); }
       scene.remove(flies);
+      if (bugScene) { scene.remove(bugScene.group); bugScene.dispose(); }
       flies.geometry.dispose();
       (flies.material as THREE.Material).dispose();
       spots.forEach((o) => { scene.remove(o.g); o.glow.geometry.dispose(); o.body.geometry.dispose(); (o.glow.material as THREE.Material).dispose(); (o.body.material as THREE.Material).dispose(); });
