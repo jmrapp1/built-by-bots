@@ -59,7 +59,7 @@ import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
-import { moonPhase, skyEnabled, zenithAt } from "@/lib/sky";
+import { moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -462,8 +462,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // S31a: the sky dome (and, in the garden, the sun and moon). Built on entering the garden or the Margins, freed on leaving. Home has none.
     const skyPhase = moonPhase(localDay(new Date())); // the moon's phase for the local calendar day
     const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
+    const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
     let skyScene: SkyScene | null = null;
-    const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins }); lightClock = 0; } catch { skyScene = null; } };
+    const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins, stars: !margins && starsOn }); lightClock = 0; } catch { skyScene = null; } };
     const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
     const enterMarginsZone = () => {
       dropSky(); showSky(true); // the garden dome (with sun and moon) is swapped for the Margins one
@@ -1678,7 +1679,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       }
       const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
-      if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase });
+      if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase, weather: zones.is("garden") ? weatherNow(hourNow).tint : 0 });
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     };

@@ -108,5 +108,24 @@
       "name": "waning crescent",
       "offset": 0.55
     }
-  ]
+  ],
+  "stars": {
+    "count": 240,
+    "seed": 7,
+    "minElevation": 0.06,
+    "distance": 218,
+    "color": "#f4efd8",
+    "small": 0.45,
+    "big": 0.8,
+    "bigShare": 0.25,
+    "glyphShare": 0.1,
+    "glyph": 1.5,
+    "glyphInner": 0.32,
+    "maxAlpha": 0.95,
+    "weatherDim": 0.7,
+    "twinkleDepth": 0.35,
+    "twinkleSeconds": 9,
+    "glareRadius": 0.9,
+    "glareSoft": 0.5
+  }
 }
