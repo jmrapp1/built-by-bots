@@ -1,0 +1,14 @@
+{
+  "note": "S25 ink drizzle: some days, for a few hours, a soft drizzle of tiny ink drops falls in the Garden. Hours are the player's local clock, seconds and metres otherwise. Edit numbers here, no code change. Nothing here is shown as text.",
+  "blockDays": 8,
+  "wetPerBlock": 2,
+  "lengthHours": [2, 4],
+  "startHours": [0, 20],
+  "fadeSeconds": 20,
+  "night": { "from": 19.5, "to": 6, "easeHours": 1, "drops": 0.45, "tint": 0.6, "opacity": 0.6, "speed": 0.7 },
+  "drops": { "count": 260, "reducedCount": 14, "halfWidth": 8, "height": 6, "streak": 0.22, "speed": 3.2, "speedSpread": 0.35, "clearAroundPrint": 0.8, "clearHeight": 2.2, "reducedStreak": 0.5 },
+  "ink": "#4a4f73",
+  "opacity": 0.55,
+  "tint": { "color": "#8f949f", "sky": 0.32, "fog": 0.32, "hemisphere": 0.2, "sunDim": 0.22 },
+  "glance": { "gap": [18, 40], "previewGap": 3, "minIntensity": 0.5 }
+}

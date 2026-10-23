@@ -40,3 +40,7 @@ export function dreamLevel(cur: number, asleep: boolean, dt: number): number {
 
 export const validGlyphs = (): boolean =>
   [...raw.order, raw.reduced.glyph, raw.preview.glyph].every((g) => Number.isInteger(g) && g >= 0 && g < GLYPH_IDS.length);
+
+// Dev preview only: the camera yaw that looks from `from` toward the bed (the camera sits behind the player, so the
+// player faces (-sin yaw, -cos yaw)). With ?dream= the page starts looking at the bed instead of away from it.
+export const bedYaw = (from: { x: number; z: number }, bed: { x: number; z: number }): number => Math.atan2(from.x - bed.x, from.z - bed.z);
