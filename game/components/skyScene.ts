@@ -1,6 +1,8 @@
-// S31a: the sky dome, the paper sun and the pale moon. One gradient dome centred on the camera, drawn first, no depth, no fog.
-// Look only: nothing here is raycast, saved, sent or collides. Sun and moon are opaque flat shapes that melt into the sky colour
-// as they set (not transparent, so they can never be sorted over the world). Freed whole by dispose().
+// S31a/b: the sky dome, the paper sun and moon, and the stars. One gradient dome centred on the camera, drawn first, no depth, no fog.
+// Look only: nothing here is raycast, saved, sent or collides. The dome, sun and moon are opaque flat shapes (drawn before the
+// world, which paints over them) and the sun and moon melt into the sky colour as they set. The stars are the one transparent
+// piece (for their fade): they are depth-TESTED but never depth-written, so ridges, props and the horizon hide them, and they
+// sit inside the camera far plane so the world can occlude them. Freed whole by dispose().
 import * as THREE from "three";
 import { SKY, STARS, domeColor, glare, starAt, starLevel, twinkle, marginsZenith, moonLevel, moonDir, moonOffset, moonShade, sunDir, sunLevel, type Dir } from "@/lib/sky";
 
@@ -136,7 +138,7 @@ export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margi
     starAlpha = new Float32Array(starOf.length * 4);
     for (let v = 0; v < starOf.length; v++) { starAlpha[v * 4] = base.r; starAlpha[v * 4 + 1] = base.g; starAlpha[v * 4 + 2] = base.b; starAlpha[v * 4 + 3] = 0; }
     g.setAttribute("color", new THREE.BufferAttribute(starAlpha, 4).setUsage(THREE.DynamicDrawUsage));
-    const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthTest: false, depthWrite: false, fog: false });
+    const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthTest: true, depthWrite: false, fog: false }); // tested against the world, never written: the world hides them
     starMesh = new THREE.Mesh(g, m);
     starMesh.renderOrder = -95; starMesh.frustumCulled = false; starMesh.raycast = () => {}; starMesh.visible = false;
     group.add(starMesh); owned.push(g, m);

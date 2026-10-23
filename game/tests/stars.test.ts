@@ -73,4 +73,13 @@ describe("stars (S31b)", () => {
     const w = readFileSync("components/World.tsx", "utf8");
     expect(w).toContain("stars: !margins && starsOn");
   });
+  it("the transparent star material is depth-tested (never transparent with depthTest off), and the dome, sun and moon stay opaque", () => {
+    const src = readFileSync("components/skyScene.ts", "utf8");
+    const mats = src.match(/new THREE\.Mesh\w*Material\(\{[^}]*\}\)/g) ?? [];
+    expect(mats.length).toBeGreaterThanOrEqual(3);
+    for (const m of mats) if (/transparent:\s*true/.test(m)) { expect(m).not.toMatch(/depthTest:\s*false/); expect(m).toMatch(/depthTest:\s*true/); expect(m).toMatch(/depthWrite:\s*false/); }
+    expect(mats.filter((m) => /transparent:\s*true/.test(m))).toHaveLength(1); // only the stars
+    const sky = JSON.parse(readFileSync("data/sky.json", "utf8")), world = JSON.parse(readFileSync("data/world.json", "utf8"));
+    expect(sky.stars.distance).toBeLessThan(world.cameraFar);
+  });
 });
