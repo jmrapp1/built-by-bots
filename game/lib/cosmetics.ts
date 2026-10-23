@@ -3,6 +3,7 @@
 // for the shapes. Nothing is saved or sent in this slice.
 import data from "@/data/cosmetics.json";
 import { SPECIES } from "@/lib/species";
+import SIL from "@/data/silhouettes.json";
 
 export type Shape = "round" | "tall" | "wide";
 export type Anchor = { x: number; y: number; z: number; rotY: number; scale: number; spread?: number; flat?: number };
@@ -13,7 +14,7 @@ export const COSMETIC_IDS = COSMETICS.map((c) => c.id);
 export const ANCHOR_NAMES = ["headTop", "headCrown", "headSide", "face", "neck", "hang"] as const;
 export const isCosmetic = (id: unknown): id is string => typeof id === "string" && COSMETIC_IDS.includes(id);
 
-const AXES: Record<Shape, [number, number, number]> = { round: [1, 1, 1], tall: [0.85, 1.3, 0.85], wide: [1.25, 0.85, 1.1] }; // the same stretch lib/creature.ts gives each shape
+const AXES = SIL.envelope as Record<Shape, [number, number, number]>; // one source with lib/creature.ts: data/silhouettes.json
 const smooth = (n: number) => { const t = Math.min(1, Math.max(0, n)); return t * t * (3 - 2 * t); };
 const easeOut = (n: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, n)), 3);
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
