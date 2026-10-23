@@ -3,6 +3,7 @@
 import data from "@/data/sky.json";
 import { KEYS, lerpColor, lightingAt, type Key } from "@/lib/daynight";
 import { dayNumber } from "@/lib/npcs";
+import { nightness } from "@/lib/weather";
 
 export const SKY = data;
 export type SkyMode = "off";
@@ -78,3 +79,47 @@ export function moonShade(offset: number, arc = 14): [number, number][] {
 
 /** Margins keep the same horizon but a gentler zenith. */
 export const marginsZenith = (horizon: string, zenith: string): string => lerpColor(horizon, zenith, SKY.margins.zenithKeep);
+
+// ---- S31b: stars. The same field every night: positions come from an integer hash of the index, never from chance. ----
+export const STARS = SKY.stars;
+export type StarsMode = "off";
+
+// Dev-only switch: ?stars=off draws no stars (the dome, sun and moon stay). Ignored (null) in production.
+export const starsOverride = (search: string, isProduction: boolean): StarsMode | null =>
+  isProduction ? null : new URLSearchParams(search).get("stars") === "off" ? "off" : null;
+export const starsEnabled = (search: string, isProduction: boolean): boolean => STARS.count > 0 && starsOverride(search, isProduction) !== "off";
+
+export const starHash = (n: number): number => {
+  let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul(STARS.seed, 0x85ebca6b)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+};
+const unit = (n: number): number => starHash(n) / 4294967296;
+
+export type Star = { dir: Dir; kind: "small" | "big" | "glyph"; size: number; phase: number; spin: number };
+
+/** Star i: a fixed spot on the upper dome (area-uniform), a size class, a twinkle phase and a spin for the glyph marks. */
+export function starAt(i: number): Star {
+  const y = STARS.minElevation + (1 - STARS.minElevation) * unit(i * 5 + 1), az = unit(i * 5 + 2) * Math.PI * 2, r = Math.sqrt(1 - y * y);
+  const roll = unit(i * 5 + 3);
+  const kind = roll < STARS.glyphShare ? "glyph" : roll < STARS.glyphShare + STARS.bigShare ? "big" : "small";
+  const size = kind === "glyph" ? STARS.glyph : kind === "big" ? STARS.big : STARS.small;
+  return { dir: { x: r * Math.cos(az), y, z: r * Math.sin(az) }, kind, size, phase: unit(i * 5 + 4), spin: unit(i * 5 + 5) * Math.PI };
+}
+
+/** How strongly the stars show: nightness, less under the weather grey (0..1). 0 by day, 1 at deep night with dry weather at most maxAlpha. */
+export const starLevel = (hour: number, weatherTint = 0): number =>
+  nightness(hour) * STARS.maxAlpha * (1 - STARS.weatherDim * Math.min(1, Math.max(0, weatherTint)));
+
+/** A very slow twinkle, 1 = full. Fixed at 1 with reduced motion. */
+export const twinkle = (s: Star, t: number, reduced: boolean): number =>
+  reduced ? 1 : 1 - STARS.twinkleDepth * (0.5 + 0.5 * Math.sin((t / STARS.twinkleSeconds + s.phase) * Math.PI * 2));
+
+/** 0 right at the sun, easing to 1 away from it. Only matters while the sun is up (scaled by its level), so dawn glare hides the stars near it. */
+export function glare(star: Dir, sun: Dir, sunLvl: number): number {
+  if (sunLvl <= 0) return 1;
+  const ang = Math.acos(Math.min(1, Math.max(-1, star.x * sun.x + star.y * sun.y + star.z * sun.z)));
+  const near = 1 - smooth((ang - STARS.glareRadius * (1 - STARS.glareSoft)) / (STARS.glareRadius * STARS.glareSoft + 1e-9));
+  return 1 - near * sunLvl;
+}
