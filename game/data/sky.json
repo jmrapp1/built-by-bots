@@ -261,5 +261,54 @@
     "heavy": 1.25,
     "greyMix": 0.55,
     "maxAlpha": 0.85
+  },
+  "haze": {
+    "note": "S31e distance haze. Data only: no new objects. Per key hour a haze strength (0..1) and a tint (warm at dawn and dusk). Fog colour is mixed toward the tint by haze x fogMix, and the hill colours by haze x hillMix (farther layers a little more). `enabled` false, ?haze=off (dev only) or every strength 0 gives exactly today's fog and hills. Sun, moon, stars and clouds are unfogged and keep their colours. Garden only.",
+    "enabled": true,
+    "fogMix": 0.35,
+    "hillMix": 0.4,
+    "farBoost": 0.5,
+    "keys": [
+      {
+        "hour": 0,
+        "haze": 0.1,
+        "tint": "#33385c"
+      },
+      {
+        "hour": 5.5,
+        "haze": 0.2,
+        "tint": "#5a5080"
+      },
+      {
+        "hour": 7,
+        "haze": 0.55,
+        "tint": "#f7c9a0"
+      },
+      {
+        "hour": 11,
+        "haze": 0.2,
+        "tint": "#f4ecdc"
+      },
+      {
+        "hour": 16.5,
+        "haze": 0.3,
+        "tint": "#f6dcb0"
+      },
+      {
+        "hour": 18.5,
+        "haze": 0.6,
+        "tint": "#f0b090"
+      },
+      {
+        "hour": 20.5,
+        "haze": 0.25,
+        "tint": "#6a5a88"
+      },
+      {
+        "hour": 22,
+        "haze": 0.1,
+        "tint": "#33385c"
+      }
+    ]
   }
 }
