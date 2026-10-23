@@ -81,3 +81,25 @@ describe("S29b builders", () => {
     for (let i = 0; i < p.count; i += 7) expect(p.getX(i) * n.getX(i) + p.getZ(i) * n.getZ(i)).toBeGreaterThan(0);
   });
 });
+
+import { blotGeo, hedgeGeo, inkwellGeo, pageGeo, pillowGeo, plinthGeo, tableGeo } from "@/lib/propShapes";
+
+describe("S29c builders", () => {
+  const dims = (g: THREE.BufferGeometry) => { finite(g); return size(g); };
+  it("plinth, table and inkwell keep the old cylinder size", () => {
+    let s = dims(plinthGeo(0.8, 0.9, 0.5)); near(s.y, 0.5); near(s.x, 1.8);
+    s = dims(tableGeo(0.9, 0.7)); near(s.y, 0.7); near(s.x, 1.8);
+    s = dims(inkwellGeo(0.3, 0.25, 0.4)); near(s.y, 0.4); near(s.x, 0.6);
+    s = dims(inkwellGeo(0.3, 0.25, 0.4, 3)); near(s.y, 0.4, 0.1);
+  });
+  it("hedges, pages and pillows keep the old box size", () => {
+    for (const [w, d] of [[6, 0.8], [0.8, 5], [7, 0.8]] as const) { const s = dims(hedgeGeo(w, 1.1, d, "h")); near(s.x, w); near(s.y, 1.1); near(s.z, d); }
+    let s = dims(pageGeo(1.1, 0.04, 0.8)); near(s.x, 1.1); near(s.z, 0.8);
+    s = dims(pillowGeo(0.5, 0.18, 0.4)); near(s.x, 0.5); near(s.z, 0.4); near(s.y, 0.18, 0.15);
+  });
+  it("blot and cushion keep the sphere size and are seeded", () => {
+    const s = dims(blotGeo(1.1, 0.2, "a")); near(s.x, 2.2, 0.2); near(s.y, 2.2, 0.2);
+    same(blotGeo(1.1, 0.2, "a"), blotGeo(1.1, 0.2, "a"));
+    same(hedgeGeo(6, 1.1, 0.8, "x"), hedgeGeo(6, 1.1, 0.8, "x"));
+  });
+});
