@@ -8,6 +8,7 @@ import type { Vec } from "@/lib/world";
 import { PALETTE } from "@/lib/palette";
 import { addOutline, disposeTree, OUTLINE_ANGLE } from "@/lib/outline";
 import { makeToonGradient } from "@/lib/inkToon";
+import { PROP_EDGE_ANGLE, capGeo, postGeo } from "@/lib/propShapes";
 
 export const OFF = 400; // the Margins sit this far along x from the garden; positions inside are local
 
@@ -39,11 +40,11 @@ export function buildGate(d: Vec): THREE.Group {
   const s = MARGINS.gate.postOffset;
   const post = mat("#d8cba8"), edge = mat(PALETTE.ink), paper = new THREE.MeshToonMaterial({ color: PALETTE.paper, side: THREE.DoubleSide, gradientMap: gm() });
   for (const k of [-1, 1]) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.34, 2.5, 0.22), post);
-    p.position.set(k * s, 1.25, 0);
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.12, 0.3), edge);
+    const p = new THREE.Mesh(postGeo(0.34, k === -1 ? 2.44 : 2.5, 0.22, 0, 0.05), post);
+    p.position.set(k * s, k === -1 ? 1.22 : 1.25, 0);
+    const cap = new THREE.Mesh(capGeo(0.42, 0.12, 0.3), edge);
     cap.position.set(k * s, 2.54, 0);
-    addOutline(p); addOutline(cap, PALETTE.paper);
+    addOutline(p, undefined, PROP_EDGE_ANGLE); addOutline(cap, PALETTE.paper, PROP_EDGE_ANGLE);
     g.add(p, cap);
   }
   const arch = new THREE.Mesh(new THREE.TorusGeometry(s, 0.09, 6, 20, Math.PI), edge);
