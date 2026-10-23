@@ -1,0 +1,16 @@
+{
+  "_note": "Shape rule (see README). Counts of raw new THREE.{Sphere,Box,Cone,Cylinder}Geometry per file may only go down; lower a number here when you reduce it. Exempt files may hold any number (invisible helpers, hit areas, particles, glows, ripples, rain, scraps, flat or tiny effects).",
+  "exempt": [],
+  "baseline": {
+    "components/World.tsx": 21,
+    "components/decorScene.ts": 5,
+    "components/homeScene.ts": 8,
+    "components/marginsScene.ts": 20,
+    "components/npcScene.ts": 26,
+    "components/sightScene.ts": 4,
+    "components/spotsScene.ts": 1,
+    "components/worldShell.ts": 13,
+    "lib/cosmeticsBuild.ts": 13,
+    "lib/creature.ts": 13
+  }
+}
