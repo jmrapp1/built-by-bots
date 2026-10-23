@@ -7,11 +7,10 @@
     "components/World.tsx": 21,
     "components/decorScene.ts": 2,
     "components/homeScene.ts": 3,
-    "components/marginsScene.ts": 18,
+    "components/marginsScene.ts": 8,
     "components/npcScene.ts": 26,
     "components/sightScene.ts": 4,
-    "components/spotsScene.ts": 1,
-    "components/worldShell.ts": 13,
+    "components/worldShell.ts": 3,
     "lib/cosmeticsBuild.ts": 13,
     "lib/creature.ts": 3
   }

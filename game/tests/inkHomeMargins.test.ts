@@ -22,7 +22,7 @@ describe("S26b home and margins", () => {
   });
   it("curved meshes get no outline: lathe hills, bush spheres, and glints are not outlined", () => {
     const s = src("components/marginsScene.ts");
-    expect(s).toMatch(/SphereGeometry\(1, 10, 8\)[^\n]*, false\)/);
+    expect(s).toMatch(/wobbleSphere\(1, [^\n]*, false\)/); // the bush: a wobbled sphere, still no outline
     expect(s).not.toMatch(/addOutline\((m|hill)/);
   });
   it("the 60 degree rule: boxes keep 12 edges, smooth shapes draw no interior lines", () => {

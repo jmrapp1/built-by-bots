@@ -52,3 +52,32 @@ describe("S29 prop builders", () => {
     expect(src).not.toMatch(/Math\.random|fetch\(|new THREE\.(Box|Sphere|Cylinder|Cone)Geometry/);
   });
 });
+
+import { crownGeo, drumGeo, pillarGeo, plateGeo, poleGeo, trunkGeo } from "@/lib/propShapes";
+import { leaning, softBox } from "@/lib/shapes";
+
+describe("S29b builders", () => {
+  const dims = (g: THREE.BufferGeometry) => { finite(g); return size(g); };
+  it("trunks keep the old cylinder size", () => {
+    for (const [rt, rb, h] of [[0.35, 0.5, 2.6], [0.18, 0.28, 2.6]] as const) { const s = dims(trunkGeo(rt, rb, h)); near(s.y, h); near(s.x, 2 * rb, 0.1); near(s.z, 2 * rb, 0.1); }
+  });
+  it("crowns keep the old cone size and are seeded", () => {
+    for (const [r, h] of [[1.5, 1.8], [1.1, 1.5], [1.6, 2.6], [1.05, 2.2]] as const) { const s = dims(crownGeo(r, h, "k")); near(s.y, h); near(s.x, 2 * r); near(s.z, 2 * r); }
+    same(crownGeo(1.5, 1.8, "a"), crownGeo(1.5, 1.8, "a"));
+    expect(Array.from(crownGeo(1.5, 1.8, "a").attributes.position.array)).not.toEqual(Array.from(crownGeo(1.5, 1.8, "b").attributes.position.array));
+  });
+  it("stone tiers, pillars and poles keep the old size", () => {
+    let s = dims(drumGeo(1, 1.06, 0.7)); near(s.y, 0.7); near(s.x, 2.12); 
+    s = dims(pillarGeo(0.08, 0.2, 4)); near(s.y, 4); near(s.x, 0.4);
+    const old = size(new THREE.CylinderGeometry(0.07, 0.09, 1.9, 6)); s = dims(poleGeo(0.07, 0.09, 1.9)); near(s.y, 1.9); near(s.x, old.x); near(s.z, old.z);
+  });
+  it("plates, pages and the shelf body keep the old box size", () => {
+    let s = dims(plateGeo(0.9, 0.7, 0.07, 2)); near(s.x, 0.9); near(s.y, 0.7);
+    s = dims(plateGeo(0.26, 0.36, 0.03)); near(s.x, 0.26); near(s.y, 0.36);
+    s = dims(leaning(softBox(1, 2.4, 1, 0.05, 1), 1)); near(s.x, 1); near(s.y, 2.4); near(s.z, 1);
+  });
+  it("pillar faces point outward", () => {
+    const g = pillarGeo(0.08, 0.2, 4), p = g.attributes.position, n = g.attributes.normal;
+    for (let i = 0; i < p.count; i += 7) expect(p.getX(i) * n.getX(i) + p.getZ(i) * n.getZ(i)).toBeGreaterThan(0);
+  });
+});

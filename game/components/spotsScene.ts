@@ -1,6 +1,7 @@
 // W5: the folded pages lying in the World today. Built on entering the garden zone, freed on leaving. Shapes only, no text.
 // A page is a small folded paper on the ground with a thin glow that can be seen from a distance; an opened one is gone.
 import * as THREE from "three";
+import { pillarGeo } from "@/lib/propShapes";
 import { SPOTS, spotKey, type WorldSpot } from "@/lib/worldSpots";
 
 export type SpotsScene = {
@@ -22,7 +23,7 @@ export function buildSpotsScene(spots: WorldSpot[]): SpotsScene {
   const glow = own(new THREE.MeshBasicMaterial({ color: M.glow, transparent: true, opacity: 0.28, depthWrite: false }));
   const sheet = own(new THREE.PlaneGeometry(0.9, 0.7));
   const fold = own(new THREE.PlaneGeometry(0.9, 0.35));
-  const pillar = own(new THREE.CylinderGeometry(0.08, 0.2, M.pillarHeight, 8, 1, true));
+  const pillar = own(pillarGeo(0.08, 0.2, M.pillarHeight));
   const rows = new Map<string, { g: THREE.Group; spot: WorldSpot; since: number; phase: number }>();
   for (const s of spots) {
     const g = new THREE.Group();

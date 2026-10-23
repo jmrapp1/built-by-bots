@@ -8,7 +8,8 @@ import type { Vec } from "@/lib/world";
 import { PALETTE } from "@/lib/palette";
 import { addOutline, disposeTree, OUTLINE_ANGLE } from "@/lib/outline";
 import { makeToonGradient } from "@/lib/inkToon";
-import { PROP_EDGE_ANGLE, capGeo, postGeo } from "@/lib/propShapes";
+import { leaning, softBox, wobbleSphere } from "@/lib/shapes";
+import { PROP_EDGE_ANGLE, capGeo, crownGeo, drumGeo, postGeo, seedOf, trunkGeo } from "@/lib/propShapes";
 
 export const OFF = 400; // the Margins sit this far along x from the garden; positions inside are local
 
@@ -108,8 +109,8 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
   // Instanced scenery.
   const dummy = new THREE.Object3D();
   // Sharp creases only (60 degrees), merged over every instance into one LineSegments: one draw call, no lines on curved faces.
-  const instanceOutline = (geo: THREE.BufferGeometry, items: { x: number; y: number; z: number; sx: number; sy: number; sz: number; ry?: number; rz?: number }[], color: number | string = PALETTE.ink) => {
-    const edges = new THREE.EdgesGeometry(geo, OUTLINE_ANGLE), src = edges.getAttribute("position"), v = new THREE.Vector3(), out: number[] = [];
+  const instanceOutline = (geo: THREE.BufferGeometry, items: { x: number; y: number; z: number; sx: number; sy: number; sz: number; ry?: number; rz?: number }[], color: number | string = PALETTE.ink, angle = OUTLINE_ANGLE) => {
+    const edges = new THREE.EdgesGeometry(geo, angle), src = edges.getAttribute("position"), v = new THREE.Vector3(), out: number[] = [];
     for (const it of items) {
       dummy.position.set(it.x, it.y, it.z); dummy.scale.set(it.sx, it.sy, it.sz); dummy.rotation.set(0, it.ry ?? 0, it.rz ?? 0); dummy.updateMatrix();
       for (let i = 0; i < src.count; i++) { v.fromBufferAttribute(src, i).applyMatrix4(dummy.matrix); out.push(v.x, v.y, v.z); }
@@ -122,7 +123,7 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
     lines.raycast = () => {}; lines.frustumCulled = false;
     group.add(lines);
   };
-  const instanced = (geo: THREE.BufferGeometry, material: THREE.Material, items: { x: number; y: number; z: number; sx: number; sy: number; sz: number; ry?: number; rz?: number }[], ink = true) => {
+  const instanced = (geo: THREE.BufferGeometry, material: THREE.Material, items: { x: number; y: number; z: number; sx: number; sy: number; sz: number; ry?: number; rz?: number }[], ink = true, angle = OUTLINE_ANGLE) => {
     const im = new THREE.InstancedMesh(keep(geo), material, Math.max(1, items.length));
     items.forEach((it, i) => {
       dummy.position.set(it.x, it.y, it.z);
@@ -135,23 +136,23 @@ export function buildMarginsScene(layout: Layout): MarginsScene {
     im.instanceMatrix.needsUpdate = true;
     im.frustumCulled = false;
     group.add(im);
-    if (ink) instanceOutline(geo, items);
+    if (ink) instanceOutline(geo, items, PALETTE.ink, angle);
     return im;
   };
   const gy = (x: number, z: number) => heightAt(x, z, layout.hills);
-  instanced(new THREE.CylinderGeometry(0.35, 0.5, 2.6, 7), keep(mat(PALETTE.ink)), layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 1.3, z: t.z, sx: t.r, sy: 1, sz: t.r })));
+  instanced(trunkGeo(0.35, 0.5, 2.6, 7), keep(mat(PALETTE.ink)), layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 1.3, z: t.z, sx: t.r, sy: 1, sz: t.r })));
   const leaf = keep(mat(PALETTE.moss)), leaf2 = keep(mat(PALETTE.moss));
-  instanced(new THREE.ConeGeometry(1.5, 1.8, 7), leaf, layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 3.0, z: t.z, sx: t.r, sy: 1, sz: t.r })));
-  instanced(new THREE.ConeGeometry(1.1, 1.5, 7), leaf2, layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 4.0, z: t.z, sx: t.r, sy: 1, sz: t.r })));
-  instanced(new THREE.SphereGeometry(1, 10, 8), keep(mat(PALETTE.moss)), layout.bushes.map((b) => ({ x: b.x, y: gy(b.x, b.z) + b.r * 0.55, z: b.z, sx: b.r * 1.15, sy: b.r * 0.8, sz: b.r * 1.15 })), false); // sphere: no outline
+  instanced(crownGeo(1.5, 1.8, "margins:crown1"), leaf, layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 3.0, z: t.z, sx: t.r, sy: 1, sz: t.r })));
+  instanced(crownGeo(1.1, 1.5, "margins:crown2"), leaf2, layout.trees.map((t) => ({ x: t.x, y: gy(t.x, t.z) + 4.0, z: t.z, sx: t.r, sy: 1, sz: t.r })));
+  instanced(wobbleSphere(1, 0.05, seedOf("margins:bush"), 10), keep(mat(PALETTE.moss)), layout.bushes.map((b) => ({ x: b.x, y: gy(b.x, b.z) + b.r * 0.55, z: b.z, sx: b.r * 1.15, sy: b.r * 0.8, sz: b.r * 1.15 })), false); // sphere: no outline
   // Stone-like page stacks (three layers each) and leaning shelves.
   const stone = keep(mat("#9aa6b8")), stone2 = keep(mat("#b4becd")), carve = keep(mat(PALETTE.inkSoft));
-  instanced(new THREE.CylinderGeometry(1, 1.06, 0.7, 10), stone, layout.stacks.map((s) => ({ x: s.x, y: 0.35, z: s.z, sx: s.r, sy: 1, sz: s.r, ry: s.x })));
-  instanced(new THREE.CylinderGeometry(1, 1.04, 0.7, 10), stone2, layout.stacks.map((s) => ({ x: s.x, y: 1.05, z: s.z, sx: s.r * 0.82, sy: 1, sz: s.r * 0.82, ry: s.z })));
-  instanced(new THREE.CylinderGeometry(1, 1.04, 0.7, 10), stone, layout.stacks.map((s) => ({ x: s.x, y: 1.75, z: s.z, sx: s.r * 0.6, sy: 1, sz: s.r * 0.6, ry: s.x + s.z })));
-  instanced(new THREE.BoxGeometry(0.25, 0.7, 0.05), carve, layout.stacks.map((s) => ({ x: s.x + s.r * 0.97, y: 0.45, z: s.z, sx: 1, sy: 1, sz: 1, ry: Math.PI / 2 })));
-  instanced(new THREE.BoxGeometry(1, 2.4, 1), stone2, layout.shelves.map((b) => ({ x: b.x, y: 1.2, z: b.z, sx: b.w, sy: 1, sz: b.d, rz: 0.05 })));
-  instanced(new THREE.BoxGeometry(1, 0.1, 1), carve, layout.shelves.flatMap((b) => [0.7, 1.4, 2.0].map((y) => ({ x: b.x, y, z: b.z, sx: b.w * 1.03, sy: 1, sz: b.d * 1.2 }))));
+  instanced(drumGeo(1, 1.06, 0.7), stone, layout.stacks.map((s) => ({ x: s.x, y: 0.35, z: s.z, sx: s.r, sy: 1, sz: s.r, ry: s.x })));
+  instanced(drumGeo(1, 1.04, 0.7), stone2, layout.stacks.map((s) => ({ x: s.x, y: 1.05, z: s.z, sx: s.r * 0.82, sy: 1, sz: s.r * 0.82, ry: s.z })));
+  instanced(drumGeo(1, 1.04, 0.7), stone, layout.stacks.map((s) => ({ x: s.x, y: 1.75, z: s.z, sx: s.r * 0.6, sy: 1, sz: s.r * 0.6, ry: s.x + s.z })));
+  instanced(softBox(0.25, 0.7, 0.05, 0.02, 1), carve, layout.stacks.map((s) => ({ x: s.x + s.r * 0.97, y: 0.45, z: s.z, sx: 1, sy: 1, sz: 1, ry: Math.PI / 2 })), true, PROP_EDGE_ANGLE);
+  instanced(leaning(softBox(1, 2.4, 1, 0.05, 1), 1), stone2, layout.shelves.map((b) => ({ x: b.x, y: 1.2, z: b.z, sx: b.w, sy: 1, sz: b.d, rz: 0.05 })), true, PROP_EDGE_ANGLE);
+  instanced(softBox(1, 0.1, 1, 0.03, 1), carve, layout.shelves.flatMap((b) => [0.7, 1.4, 2.0].map((y) => ({ x: b.x, y, z: b.z, sx: b.w * 1.03, sy: 1, sz: b.d * 1.2 }))), true, PROP_EDGE_ANGLE);
 
   // The way back: a gate with the arch, so it can be seen from afar.
   const home = buildGate({ x: -gateFrame("home").d.x, z: -gateFrame("home").d.z });
