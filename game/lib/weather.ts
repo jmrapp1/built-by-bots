@@ -8,7 +8,7 @@ import type { FidgetState } from "@/lib/fidget";
 
 export const WEATHER = raw;
 export type WeatherMode = "on" | "off";
-export type Weather = { intensity: number; tint: number; density: number; opacity: number; speed: number };
+export type Weather = { intensity: number; tint: number; density: number; opacity: number; speed: number; night: number };
 
 // Dev-only preview: ?weather=1 forces full drizzle at once; ?weather=off forces dry. Ignored (null) in production. Nothing is saved.
 export const weatherOverride = (search: string, isProduction: boolean): WeatherMode | null => {
@@ -53,7 +53,7 @@ export function nightness(hour: number): number {
   return h >= 12 ? up : down;
 }
 
-const NONE: Weather = { intensity: 0, tint: 0, density: 0, opacity: 0, speed: 0 };
+const NONE: Weather = { intensity: 0, tint: 0, density: 0, opacity: 0, speed: 0, night: 0 };
 const fadeH = raw.fadeSeconds / 3600;
 // Window strength: 0 outside, 0 at both ends, easing in and out over fadeSeconds, 1 in between.
 export function windowLevel(w: Window | null, hour: number): number {
@@ -72,7 +72,7 @@ export function weatherAt(day: number, hour: number, reduced: boolean, force: We
   const night = nightness(hour), n = raw.night;
   const mix = (a: number, b: number) => a + (b - a) * night;
   const density = reduced ? raw.drops.reducedCount / raw.drops.count : level * mix(1, n.drops);
-  return { intensity: level, tint: level * mix(1, n.tint), density, opacity: level * raw.opacity * mix(1, n.opacity), speed: mix(1, n.speed) };
+  return { intensity: level, tint: level * mix(1, n.tint), density, opacity: level * raw.opacity * mix(1, n.opacity), speed: mix(1, n.speed), night };
 }
 
 // The existing lighting, a touch greyer. Blends toward one grey; daynight.json is not touched. tint 0 returns it unchanged.

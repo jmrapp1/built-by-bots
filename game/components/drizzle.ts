@@ -13,6 +13,7 @@ export type Drizzle = {
 export function buildDrizzle(scene: THREE.Scene): Drizzle {
   const D = WEATHER.drops, n = D.count, W = D.halfWidth * 2, clear2 = D.clearAroundPrint * D.clearAroundPrint;
   const bases: DropBase[] = Array.from({ length: n }, (_, i) => dropBase(i));
+  const inkNight = new THREE.Color(WEATHER.night.ink);
   const arr = new Float32Array(n * 6);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(arr, 3).setUsage(THREE.DynamicDrawUsage));
@@ -37,6 +38,7 @@ export function buildDrizzle(scene: THREE.Scene): Drizzle {
       }
       geo.setDrawRange(0, shown * 2);
       geo.attributes.position.needsUpdate = true;
+      mat.color.set(WEATHER.ink).lerp(inkNight, w.night);
       mat.opacity = w.opacity;
       object.visible = true;
     },

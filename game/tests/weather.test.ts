@@ -67,7 +67,7 @@ describe("ink drizzle (S25)", () => {
   it("the dev preview forces full drizzle, or dry", () => {
     for (const h of [3, 12, 23]) {
       expect(weatherAt(day0, h, false, "on").intensity).toBe(1);
-      expect(weatherAt(day0, h, false, "off")).toEqual({ intensity: 0, tint: 0, density: 0, opacity: 0, speed: 0 });
+      expect(weatherAt(day0, h, false, "off")).toEqual({ intensity: 0, tint: 0, density: 0, opacity: 0, speed: 0, night: 0 });
     }
   });
   it("night is dimmer and sparser than day; both still drizzle", () => {
