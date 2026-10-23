@@ -1033,7 +1033,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         } else if (bed === "none" && !engaged && ts >= restartAt) {
           bed = atBed ? "curl" : "yawn"; bedAt = ts; curlFrom = { x: wander.x, z: wander.z };
         }
-        if (dreamMode && !dreamSet && ph === "asleep" && !engaged) { dreamSet = true; bed = "sleep"; bedAt = ts; wander = { ...wander, x: NIGHT.bed.x, z: NIGHT.bed.z, tx: NIGHT.bed.x, tz: NIGHT.bed.z, wait: 1 }; } // S24 dev preview: asleep at the bed at once, once
+        if (dreamMode && ph === "asleep" && !engaged && (bed === "none" || bed === "yawn" || bed === "walk" || bed === "curl")) { dreamSet = true; bed = "sleep"; bedAt = ts; wander = { ...wander, x: NIGHT.bed.x, z: NIGHT.bed.z, tx: NIGHT.bed.x, tz: NIGHT.bed.z, wait: 1 }; } // S24 dev preview: asleep at the bed at once, and again after a feed or stroke wakes it
         const holdStill = bed === "none" && atBed && ph !== "awake";
         let owned = false, yBase = holdStill ? NIGHT.bed.y : 0;
         let bedPose: ReturnType<typeof sleepPose> | null = null;
