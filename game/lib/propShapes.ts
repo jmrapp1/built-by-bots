@@ -162,3 +162,22 @@ export function pageGeo(w: number, h: number, d: number): THREE.BufferGeometry {
 export function blotGeo(r: number, amount: number, key: string): THREE.BufferGeometry {
   return wobbleSphere(r, amount, seedOf(key), 18);
 }
+
+/** S30 room wall slab, centred like BoxGeometry(w, h, d): rounded edges (r 0.03) and a slight bow in the thin direction along its long side (zero at both ends, so corners still meet). `bow` is the peak push (positive = +thin axis); `lean` tilts the top (degrees, about its base). */
+export function wallGeo(w: number, h: number, d: number, bow = 0.03, lean = 0): THREE.BufferGeometry {
+  const g = softBox(w, h, d, 0.03, 3), p = g.attributes.position as THREE.BufferAttribute;
+  const alongX = w >= d, len = alongX ? w : d;
+  if (bow) {
+    for (let i = 0; i < p.count; i++) {
+      const u = ((alongX ? p.getX(i) : p.getZ(i)) + len / 2) / len, k = bow * Math.sin(Math.PI * u);
+      if (alongX) p.setZ(i, p.getZ(i) + k); else p.setX(i, p.getX(i) + k);
+    }
+    g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+  }
+  return leanFromBase(g, lean);
+}
+
+/** S30 baseboard strip: a thin rounded slab whose right end dips into the floor by 0.01 (a hand-laid strip). */
+export function baseboardGeo(w: number, h: number, d: number): THREE.BufferGeometry {
+  return dipEnds(softBox(w, h, d, 0.02, 2), 0.01);
+}

@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { HOME_ROOM, doorFrame, doorPosts } from "@/lib/home";
 import { addOutline, disposeTree } from "@/lib/outline";
 import { makeToonGradient } from "@/lib/inkToon";
-import { PROP_EDGE_ANGLE, capGeo, dipEnds, lintelGeo, postGeo } from "@/lib/propShapes";
+import { PROP_EDGE_ANGLE, baseboardGeo, capGeo, dipEnds, lintelGeo, postGeo, wallGeo } from "@/lib/propShapes";
 
 export type HomeScene = { group: THREE.Group; dispose(): void };
 
@@ -27,17 +27,18 @@ export function buildHomeScene(): HomeScene {
 
   // Walls: paper with an ink baseboard. The south wall has a gap for the door.
   const wall = toon(L.wall), base = toon(L.base), t = R.wallThickness, h = R.wallHeight, gap = HOME_ROOM.door.postOffset;
-  const wallBox = (w: number, d: number, x: number, z: number) => {
-    mesh(new THREE.BoxGeometry(w, h, d), wall, x, h / 2, z, true);
-    mesh(new THREE.BoxGeometry(w + 0.02, 0.28, d + 0.02), base, x, 0.14, z);
+  // Each wall bows a hair in its middle; the west wall also leans half a degree outward (S30).
+  const wallBox = (w: number, d: number, x: number, z: number, bow = 0.03, lean = 0) => {
+    mesh(wallGeo(w, h, d, bow, lean), wall, x, h / 2, z, true);
+    mesh(baseboardGeo(w + 0.02, 0.28, d + 0.02), base, x, 0.14, z);
   };
-  wallBox(R.width + 2 * t, t, 0, -R.depth / 2 - t / 2);
-  wallBox(t, R.depth, -R.width / 2 - t / 2, 0);
-  wallBox(t, R.depth, R.width / 2 + t / 2, 0);
+  wallBox(R.width + 2 * t, t, 0, -R.depth / 2 - t / 2, -0.03);
+  wallBox(t, R.depth, -R.width / 2 - t / 2, 0, -0.03, -0.5);
+  wallBox(t, R.depth, R.width / 2 + t / 2, 0, 0.03);
   const sw = R.width / 2 - gap;
-  wallBox(sw, t, -R.width / 2 + sw / 2, R.depth / 2 + t / 2);
-  wallBox(sw, t, R.width / 2 - sw / 2, R.depth / 2 + t / 2);
-  mesh(new THREE.BoxGeometry(gap * 2, h - 2.4, t), wall, 0, 2.4 + (h - 2.4) / 2, R.depth / 2 + t / 2, true); // the wall above the doorway
+  wallBox(sw, t, -R.width / 2 + sw / 2, R.depth / 2 + t / 2, 0.02);
+  wallBox(sw, t, R.width / 2 - sw / 2, R.depth / 2 + t / 2, 0.02);
+  mesh(wallGeo(gap * 2, h - 2.4, t, 0), wall, 0, 2.4 + (h - 2.4) / 2, R.depth / 2 + t / 2, true); // the wall above the doorway (flat: it butts the lintel)
 
   // The door: two frame posts and a lintel, with the way out left open. Same page-edge look as the gate.
   const frame = toon(L.frame), { g, d } = doorFrame("room"), yaw = Math.atan2(d.x, d.z);
