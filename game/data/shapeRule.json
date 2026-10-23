@@ -5,9 +5,9 @@
   ],
   "baseline": {
     "components/World.tsx": 21,
-    "components/decorScene.ts": 5,
-    "components/homeScene.ts": 8,
-    "components/marginsScene.ts": 20,
+    "components/decorScene.ts": 2,
+    "components/homeScene.ts": 3,
+    "components/marginsScene.ts": 18,
     "components/npcScene.ts": 26,
     "components/sightScene.ts": 4,
     "components/spotsScene.ts": 1,

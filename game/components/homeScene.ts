@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { HOME_ROOM, doorFrame, doorPosts } from "@/lib/home";
 import { addOutline, disposeTree } from "@/lib/outline";
 import { makeToonGradient } from "@/lib/inkToon";
+import { PROP_EDGE_ANGLE, capGeo, dipEnds, lintelGeo, postGeo } from "@/lib/propShapes";
 
 export type HomeScene = { group: THREE.Group; dispose(): void };
 
@@ -42,9 +43,9 @@ export function buildHomeScene(): HomeScene {
   const frame = toon(L.frame), { g, d } = doorFrame("room"), yaw = Math.atan2(d.x, d.z);
   const door = new THREE.Group(); door.position.set(g.x, 0, g.z); door.rotation.y = yaw; group.add(door);
   for (const p of doorPosts("room")) {
-    const post = new THREE.Mesh(keep(new THREE.BoxGeometry(0.3, 2.5, 0.3)), frame); post.position.set(p.x - g.x, 1.25, p.z - g.z); post.rotation.y = -yaw; addOutline(post); door.add(post);
+    const post = new THREE.Mesh(keep(postGeo(0.3, 2.5, 0.3)), frame); post.position.set(p.x - g.x, 1.25, p.z - g.z); post.rotation.y = -yaw; addOutline(post, undefined, PROP_EDGE_ANGLE); door.add(post);
   }
-  const lintel = new THREE.Mesh(keep(new THREE.BoxGeometry(gap * 2 + 0.3, 0.22, 0.34)), base); lintel.position.set(0, 2.45, 0); addOutline(lintel); door.add(lintel);
+  const lintel = new THREE.Mesh(keep(dipEnds(lintelGeo(gap * 2 + 0.3, 0.22, 0.34), 0.01)), base); lintel.position.set(0, 2.45, 0); addOutline(lintel, undefined, PROP_EDGE_ANGLE); door.add(lintel);
 
   // A window of soft light on the north wall, and a pale glow patch on the floor under it (the "soft light"; the scene light itself is fixed daylight).
   const win = toon(L.window, THREE.DoubleSide); (win as THREE.MeshToonMaterial).emissive = new THREE.Color(L.window); (win as THREE.MeshToonMaterial).emissiveIntensity = 0.55;
@@ -67,10 +68,10 @@ export function buildGardenDoor(): HomeScene {
   const { g, d } = doorFrame("garden"); group.position.set(g.x, 0, g.z); group.rotation.y = Math.atan2(d.x, d.z);
   const s = HOME_ROOM.door.postOffset;
   for (const k of [-1, 1]) {
-    const p = new THREE.Mesh(keep(new THREE.BoxGeometry(0.3, 2.5, 0.3)), post); p.position.set(k * s, 1.25, 0); addOutline(p); group.add(p);
-    const cap = new THREE.Mesh(keep(new THREE.BoxGeometry(0.4, 0.12, 0.4)), ink); cap.position.set(k * s, 2.56, 0); addOutline(cap, "#fffaf0"); group.add(cap);
+    const p = new THREE.Mesh(keep(postGeo(0.3, 2.5, 0.3, k === 1 ? 1.5 : 0)), post); p.position.set(k * s, 1.25, 0); addOutline(p, undefined, PROP_EDGE_ANGLE); group.add(p);
+    const cap = new THREE.Mesh(keep(capGeo(0.4, 0.12, 0.4)), ink); cap.position.set(k * s, 2.56, 0); addOutline(cap, "#fffaf0", PROP_EDGE_ANGLE); group.add(cap);
   }
-  const lintel = new THREE.Mesh(keep(new THREE.BoxGeometry(s * 2 + 0.3, 0.24, 0.34)), ink); lintel.position.set(0, 2.5, 0); addOutline(lintel, "#fffaf0"); group.add(lintel);
+  const lintel = new THREE.Mesh(keep(lintelGeo(s * 2 + 0.3, 0.24, 0.34)), ink); lintel.position.set(0, 2.5, 0); addOutline(lintel, "#fffaf0", PROP_EDGE_ANGLE); group.add(lintel);
   const sheet = new THREE.Mesh(keep(new THREE.PlaneGeometry(s * 2 - 0.3, 2.2)), paper); const a = 1.2; sheet.position.set(-s + Math.cos(a), 1.2, Math.sin(a)); sheet.rotation.y = -a; group.add(sheet); // a paper door, swung open into the room
   return { group, dispose() { group.removeFromParent(); disposeTree(group); for (const o of own) o.dispose(); own.length = 0; } };
 }

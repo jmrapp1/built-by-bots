@@ -6,9 +6,10 @@ import { PALETTE } from "@/lib/palette";
 // capsules, the egg) draw nothing across their curved faces. Look only: never raycast, no collision.
 export const OUTLINE_ANGLE = 60;
 
-export function addOutline(mesh: THREE.Mesh, color: number | string = PALETTE.ink): void {
+// `angle` is lowered (to about 40) for rounded boxes, whose corners are two ~45 degree steps that the default would skip.
+export function addOutline(mesh: THREE.Mesh, color: number | string = PALETTE.ink, angle: number = OUTLINE_ANGLE): void {
   const edge = new THREE.LineSegments(
-    new THREE.EdgesGeometry(mesh.geometry, OUTLINE_ANGLE),
+    new THREE.EdgesGeometry(mesh.geometry, angle),
     new THREE.LineBasicMaterial({ color }),
   );
   edge.raycast = () => {};

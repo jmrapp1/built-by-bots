@@ -2,6 +2,7 @@
 // Everything is procedural and owned here: dispose() frees all of it. Rules and motion live in lib/decor.ts, numbers in data/decor.json.
 import * as THREE from "three";
 import { HOME_ROOM } from "@/lib/home";
+import { decorBox, decorCyl, decorSphere } from "@/lib/propShapes";
 import { DECOR, M, PLOT_POSES, advanceSlot, decorationOf, inkDrops, markerPose, newSlot, setSlot, slotPose, type Decoration, type Placed, type Slot } from "@/lib/decor";
 
 export type DecorScene = {
@@ -53,10 +54,10 @@ export function buildDecorScene(): DecorScene {
       const mat = new THREE.MeshToonMaterial({ color: colour(q.c), transparent: true });
       if (q.glow) { mat.emissive = new THREE.Color(colour(q.c)); mat.emissiveIntensity = q.glow; }
       mats.push(mat);
-      const geo = q.t === "box" ? new THREE.BoxGeometry(q.s[0], q.s[1], q.s[2])
-        : q.t === "cyl" ? new THREE.CylinderGeometry(q.s[0], q.s[1], q.s[2], 14)
-        : q.t === "sphere" ? new THREE.SphereGeometry(q.s[0], 14, 10)
-        : new THREE.CylinderGeometry(q.s[0], q.s[0], 0.004, 28);
+      const geo = q.t === "box" ? decorBox(q.s[0], q.s[1], q.s[2])
+        : q.t === "cyl" ? decorCyl(q.s[0], q.s[1], q.s[2])
+        : q.t === "sphere" ? decorSphere(q.s[0], `${d.id}:${mats.length}`)
+        : new THREE.CylinderGeometry(q.s[0], q.s[0], 0.004, 28); // a flat disc: exempt-style, stays raw
       const m = new THREE.Mesh(geo, mat); m.position.set(q.p[0], q.p[1], q.p[2]); if (q.ry) m.rotation.y = q.ry;
       obj.add(m);
     }
