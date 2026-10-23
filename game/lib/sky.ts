@@ -145,9 +145,10 @@ const luma = (c: string) => { const [r, g, b] = hex(c); return (0.299 * r + 0.58
 const dim = (c: string, k: number) => "#" + ((1 << 24) | (Math.round(hex(c)[0] * k) << 16) | (Math.round(hex(c)[1] * k) << 8) | Math.round(hex(c)[2] * k)).toString(16).slice(1);
 
 /** A layer's colour: the tint (darkened as the sky darkens, so night hills are not bright) mixed with the hour's sky colour. */
-export function hillColor(skyColor: string, l: HillLayer): string {
+export function hillColor(skyColor: string, l: HillLayer, haze?: Haze | null): string {
   const k = Math.min(1, Math.max(HILLS.nightFloor, luma(skyColor) / HILLS.dayLuma));
-  return lerpColor(skyColor, dim(l.tint, k), l.mix);
+  const base = lerpColor(skyColor, dim(l.tint, k), l.mix);
+  return haze ? hazeHill(base, haze, HILLS.list.indexOf(l)) : base;
 }
 
 // ---- S31d: drifting paper clouds. Flat torn-paper shapes high on the sky; same shapes and places every day, drift is a pure function of time. ----
@@ -206,4 +207,32 @@ export const cloudAlpha = (hour: number, weather = 0): number => {
 export function cloudColor(hour: number, weather = 0): string {
   const dusk = lerpColor(CLOUDS.day, CLOUDS.dusk, smooth(nightness(hour) * 2));
   return lerpColor(dusk, CLOUDS.grey, CLOUDS.greyMix * clamp01(weather));
+}
+
+// ---- S31e: distance haze. A strength and a tint per key hour; the fog and the hills are mixed toward it. Data only: zero haze changes nothing. ----
+export const HAZE = SKY.haze;
+export type HazeMode = "off";
+export type Haze = { amount: number; tint: string };
+
+// Dev-only switch: ?haze=off gives today's fog and hills. Ignored (null) in production.
+export const hazeOverride = (search: string, isProduction: boolean): HazeMode | null =>
+  isProduction ? null : new URLSearchParams(search).get("haze") === "off" ? "off" : null;
+export const hazeEnabled = (search: string, isProduction: boolean): boolean => HAZE.enabled && hazeOverride(search, isProduction) !== "off";
+
+const HAZE_KEYS: Key[] = HAZE.keys.map((k, i) => ({ ...KEYS[i % KEYS.length], hour: k.hour, sky: k.tint, hemisphereIntensity: k.haze }));
+/** The haze at this hour: strength (0..1) and warm tint, eased between the keys. */
+export function hazeAt(hour: number): Haze {
+  const l = lightingAt(hour, HAZE_KEYS);
+  return { amount: clamp01(l.hemisphereIntensity), tint: l.sky };
+}
+
+/** Fog colour with haze. Zero haze (or none) returns the fog colour untouched, so today's look is exact. */
+export function hazeFog(fog: string, haze: Haze | null | undefined): string {
+  const t = haze ? haze.amount * HAZE.fogMix : 0;
+  return t > 0 ? lerpColor(fog, haze!.tint, t) : fog;
+}
+/** Hill colour with haze: farther layers get a little more (index 0 = nearest). */
+export function hazeHill(color: string, haze: Haze | null | undefined, layer: number): string {
+  const n = Math.max(1, HILLS.list.length - 1), t = haze ? haze.amount * HAZE.hillMix * (1 + HAZE.farBoost * (layer / n)) : 0;
+  return t > 0 ? lerpColor(color, haze!.tint, Math.min(1, t)) : color;
 }

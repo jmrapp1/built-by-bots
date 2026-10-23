@@ -3,6 +3,7 @@
 import { crownGeo, moundGeo, plateGeo, poleGeo, seedOf, tailGeo, trunkGeo, unitBoxGeo, unitConeGeo, unitCrownGeo, unitCylGeo, unitTrunkGeo } from "@/lib/propShapes";
 import { wobbleSphere } from "@/lib/shapes";
 import * as THREE from "three";
+import type { Haze } from "@/lib/sky";
 import { buildHills } from "@/components/hillsScene";
 import type { Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
@@ -18,7 +19,7 @@ export type WorldShell = {
   update(x: number, z: number, all?: boolean): void;
   /** Collision circles close to a point (pure data, so correct even for chunks not drawn yet). */
   circlesNear(x: number, z: number, reach: number): Circle[];
-  setSky(c: THREE.ColorRepresentation): void;
+  setSky(c: THREE.ColorRepresentation, haze?: Haze | null): void;
   stats(): ShellStats;
   dispose(): void;
 };
@@ -133,7 +134,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean } = 
     m.frustumCulled = false; group.add(m); ridges.push(m);
   }
   const sky = new THREE.Color("#f6f1e4");
-  const setSky = (c: THREE.ColorRepresentation) => { sky.set(c); hills?.setSky(c); ridges.forEach((m, k) => (m.material as THREE.MeshBasicMaterial).color.copy(sky).multiplyScalar(0.8 + k * 0.06)); };
+  const setSky = (c: THREE.ColorRepresentation, haze?: Haze | null) => { sky.set(c); hills?.setSky(c, haze); ridges.forEach((m, k) => (m.material as THREE.MeshBasicMaterial).color.copy(sky).multiplyScalar(0.8 + k * 0.06)); };
 
   // ---- chunks ----
   const chunks = new Map<string, Chunk>();

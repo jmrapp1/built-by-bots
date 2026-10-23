@@ -2,14 +2,14 @@
 // opaque materials (so nothing here can be sorted over the world), depth-written like the old ridges; fog is off because they
 // stand beyond the fog's far edge and take their own colour from the hour's sky. Freed whole by dispose().
 import * as THREE from "three";
-import { HILLS, hillColor, hillLayers, hillTop } from "@/lib/sky";
+import { HILLS, type Haze, hillColor, hillLayers, hillTop } from "@/lib/sky";
 
 export type Hills = {
   group: THREE.Group;
   /** Follow the player. */
   update(x: number, z: number): void;
   /** Re-tint every layer from the current sky colour. */
-  setSky(c: THREE.ColorRepresentation): void;
+  setSky(c: THREE.ColorRepresentation, haze?: Haze | null): void;
   dispose(): void;
 };
 
@@ -34,7 +34,7 @@ export function buildHills(parent: THREE.Object3D): Hills {
   return {
     group,
     update(x, z) { group.position.set(x, 0, z); },
-    setSky(c) { const s = "#" + new THREE.Color(c).getHexString(); layers.forEach((l, i) => mats[i].color.set(hillColor(s, l))); },
+    setSky(c, haze) { const s = "#" + new THREE.Color(c).getHexString(); layers.forEach((l, i) => mats[i].color.set(hillColor(s, l, haze))); },
     dispose() { parent.remove(group); for (const o of owned) o.dispose(); },
   };
 }

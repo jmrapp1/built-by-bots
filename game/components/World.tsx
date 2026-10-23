@@ -59,7 +59,7 @@ import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
-import { cloudsEnabled, hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
+import { cloudsEnabled, hazeAt, hazeEnabled, hazeFog, hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -466,6 +466,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
     const cloudsOn = cloudsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31d: none in the Margins or Home
+    const hazeOn = hazeEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31e: haze in the garden; off = today's fog exactly
     const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins, stars: !margins && starsOn, clouds: !margins && cloudsOn }); lightClock = 0; } catch { skyScene = null; } };
     const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
     const enterMarginsZone = () => {
@@ -915,11 +916,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       hourNow = override ?? hourOfDay(new Date());
       const L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
       (scene.background as THREE.Color).set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
-      (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.fog);
+      const haze = hazeOn && zones.is("garden") ? hazeAt(hourNow) : null;
+      (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : hazeFog(L.fog, haze));
       (edge.material as THREE.MeshBasicMaterial).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
       mg?.setSky(L.sky);
       if (skyScene) skyScene.setColors(L.sky, lerpColor(zenithAt(hourNow), L.sky, zones.is("garden") ? weatherNow(hourNow).tint * 0.6 : 0));
-      shell?.setSky(L.sky);
+      shell?.setSky(L.sky, haze);
       hemi.color.set(L.hemisphereSky);
       hemi.groundColor.set(L.hemisphereGround);
       hemi.intensity = L.hemisphereIntensity;
