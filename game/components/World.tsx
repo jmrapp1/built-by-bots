@@ -39,8 +39,11 @@ import { allSpotsForDay, nearestSpot as nearestWorldSpot, spotKey, spotsOverride
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { scrapOverride, scrapsFor } from "@/lib/scraps";
-import { DREAM, dreamAt, dreamLevel, dreamOverride } from "@/lib/dream";
+import { DREAM, bedYaw, dreamAt, dreamLevel, dreamOverride } from "@/lib/dream";
 import { buildDreamGlyph, type DreamGlyph } from "@/components/dreamGlyph";
+import { buildDrizzle, type Drizzle } from "@/components/drizzle";
+import { localDay, nextGlanceGap, startGlance, weatherAt, weatherLight, weatherOverride, WEATHER } from "@/lib/weather";
+import { dayNumber } from "@/lib/npcs";
 import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
 import { WORLD, atOverride } from "@/lib/worldMap";
@@ -264,7 +267,12 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // S24: ?dream=1|off (dev only) previews the sleeping Print at the bed; without ?hour= it sets the hour to night.
     const dreamMode = dreamOverride(window.location.search, process.env.NODE_ENV === "production");
     const override = hourOverride(window.location.search) ?? (dreamMode ? DREAM.preview.hour : null);
-    const L0 = lightingAt(override ?? hourOfDay(new Date()));
+    // S25: ?weather=1|off (dev only) forces the ink drizzle on or off; otherwise the local date and hour decide. Garden only.
+    const weatherMode = weatherOverride(window.location.search, process.env.NODE_ENV === "production");
+    const weatherReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const weatherNow = (h: number) => weatherAt(dayNumber(localDay(new Date())) ?? 0, h, weatherReduced, weatherMode);
+    const h0 = override ?? hourOfDay(new Date());
+    const L0 = weatherLight(lightingAt(h0), weatherNow(h0).tint);
     scene.background = new THREE.Color(L0.sky);
     scene.fog = new THREE.Fog(L0.fog, WORLD.fog[0], WORLD.fog[1]);
     const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, WORLD.cameraFar);
@@ -306,7 +314,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     scene.add(player);
     player.rotation.y = Math.PI; // start facing away from the camera
     let pos = { x: GARDEN.player.start[0], z: GARDEN.player.start[1] };
-    let yaw = 0;
+    let yaw = dreamMode ? bedYaw({ x: pos.x, z: pos.z }, NIGHT.bed) : 0; // S25 follow-up: ?dream= starts with the camera facing the bed (dev only)
     let pitch = GARDEN.camera.pitch;
     let camPos = new THREE.Vector3();
     let camInit = false;
@@ -390,6 +398,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const dropScraps = () => { try { if (glyphScraps) scene.remove(glyphScraps.group); glyphScraps?.dispose(); } catch { /* nothing */ } glyphScraps = null; };
     // S24: the dream glyph, one plane. Built with the garden, freed when it is left. Look only.
     let dreamGlyph: DreamGlyph | null = null, dreamLvl = 0, dreamSet = false;
+    // S25: the ink drizzle, one line object. Built with the garden, freed when it is left. Look only.
+    let drizzle: Drizzle | null = null, glanceWait = nextGlanceGap(0.5, weatherMode === "on");
+    const showDrizzle = () => { if (drizzle) return; try { drizzle = buildDrizzle(scene); } catch { drizzle = null; } };
+    const dropDrizzle = () => { try { drizzle?.dispose(); } catch { /* nothing */ } drizzle = null; };
     const showDream = () => { if (dreamGlyph) return; try { dreamGlyph = buildDreamGlyph(scene); } catch { dreamGlyph = null; } };
     const dropDream = () => { try { dreamGlyph?.dispose(); } catch { /* nothing */ } dreamGlyph = null; dreamLvl = 0; };
     const dropShoreSights = () => { try { shoreSights?.dispose(); } catch { /* nothing */ } shoreSights = null; };
@@ -466,11 +478,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       });
       reportSpots();
     };
-    const stopSpots = () => { dropScraps(); dropDream(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showScraps(); startSpots(); };
+    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
@@ -827,7 +839,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let lightClock = 0;
     const applyLight = () => {
       hourNow = override ?? hourOfDay(new Date());
-      const L = lightingAt(zones.is("home") ? HOME_ROOM.light.hour : hourNow); // the room has fixed soft daylight; no clock inside
+      const L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
       (scene.background as THREE.Color).set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
       (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.fog);
       (edge.material as THREE.MeshBasicMaterial).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
@@ -1226,6 +1238,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
           panel: !!live.current.locked || !!live.current.mapOpen,
           moving: ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c)),
         });
+        if (fidgetCan && !reducedMotion && weatherNow(hourNow).intensity >= WEATHER.glance.minIntensity) { // S25: it drizzles, so now and then a look around (the existing glance)
+          glanceWait -= dt;
+          if (glanceWait <= 0) { glanceWait = nextGlanceGap(fidgetRng(), weatherMode === "on"); fidgetS = startGlance(fidgetS, fidgetRng()); }
+        }
         fidgetS = stepFidget(fidgetS, dt, fidgetCan, fidgetRng, reducedMotion, fidgetPick);
         const fo = fidgetOffsets(fidgetS, reducedMotion);
         fidgetYaw = fo.yaw;
@@ -1489,6 +1505,10 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
         dreamLvl = dreamLevel(dreamLvl, asleepNow, dt);
         if (asleepNow || dreamLvl > 0) dreamGlyph.update(dreamAt(t / 1000, true, reducedMotion, dreamMode === "on"), dreamMode === "off" ? 0 : dreamLvl, { x: NIGHT.bed.x, y: NIGHT.bed.y, z: NIGHT.bed.z }, camera);
         else dreamGlyph.update(dreamAt(0, false, false), 0, { x: 0, y: 0, z: 0 }, camera);
+      }
+      if (drizzle) { // S25: only in the garden, and only while it drizzles; the object is hidden (not updated) when dry
+        if (zones.is("garden")) drizzle.update(weatherNow(hourNow), t / 1000, reducedMotion, { x: pos.x, z: pos.z }, wander ? { x: wander.x, z: wander.z } : { x: NIGHT.bed.x, z: NIGHT.bed.z });
+        else drizzle.object.visible = false;
       }
       if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
