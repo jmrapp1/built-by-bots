@@ -16,7 +16,7 @@ import {
 } from "@/lib/world";
 import { ripple } from "@/lib/ripple";
 import { growthPulse, stageById } from "@/lib/growth";
-import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, type FollowState } from "@/lib/follow";
+import { FOLLOW, FOLLOWIDLE, canOfferFollow, followActive, followAdvance, followDrops, followEnd, followInterrupted, followMove, followOn, followOverride, followPose, followSpeed, followStart, followTarget, clampPitch, cameraHeights, type FollowState } from "@/lib/follow";
 import { PLAY, feedPose, feedPuffs, holdDone, holdProgress, strokePose, strokePuffs, type Puff } from "@/lib/play";
 import { FORAGE, dropOffset, inReach, shimmer, sinceReady, spotReady } from "@/lib/forage";
 import { canFidget, fidgetOffsets, fidgetOverride, seedFrom, seeded, startState, stepFidget, type FidgetState } from "@/lib/fidget";
@@ -891,7 +891,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const pm = (e: PointerEvent) => {
       if (!dragging) return;
       yaw -= e.movementX * GARDEN.camera.turnSpeed;
-      pitch = Math.min(1.2, Math.max(0.1, pitch + e.movementY * GARDEN.camera.turnSpeed));
+      pitch = clampPitch(pitch + e.movementY * GARDEN.camera.turnSpeed);
     };
     dom.addEventListener("pointerdown", pd);
     dom.addEventListener("pointerup", pu);
@@ -1656,10 +1656,11 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       const walkDist = zones.is("home") ? cameraDistance({ x: pos.x - ROOM_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, roomCols) : zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
-      target.set(pos.x, ground + GARDEN.camera.height * 0.7, pos.z);
+      const hs = cameraHeights(ground, pitch, dist);
+      target.set(pos.x, hs.look, pos.z);
       const want = new THREE.Vector3(
         pos.x + (dir.x / flat) * dist * Math.cos(pitch),
-        ground + GARDEN.camera.height + Math.sin(pitch) * dist,
+        hs.cam,
         pos.z + (dir.z / flat) * dist * Math.cos(pitch),
       );
       if (!camInit) { camPos.copy(want); camInit = true; }

@@ -101,3 +101,19 @@ export function followDrops(s: FollowState, moving: boolean, reduced = false): F
   for (let j = 0; j < 3; j++) { const p = puffAt(k - j, s.total - (k - j) * FOLLOW.dropEvery, false); if (p) out.push({ ...p, tone: "ink" }); }
   return out;
 }
+
+/** Clamp a mouse-driven camera pitch to the data limits (negative = looking up past the horizon). */
+export function clampPitch(p: number): number {
+  return Math.min(GARDEN.camera.maxPitch, Math.max(GARDEN.camera.minPitch, p));
+}
+
+/**
+ * Camera and look-at heights for a pitch. The camera never drops below `minHeight` above the ground; when
+ * the raw height would, the whole view is lifted by the shortfall, so the look direction (up at the sky) is kept.
+ */
+export function cameraHeights(ground: number, pitch: number, dist: number): { cam: number; look: number } {
+  const c = GARDEN.camera;
+  const raw = ground + c.height + Math.sin(pitch) * dist;
+  const cam = Math.max(raw, ground + c.minHeight);
+  return { cam, look: ground + c.height * 0.7 + (cam - raw) };
+}

@@ -1,7 +1,7 @@
 {
   "size": 40,
   "player": { "speed": 4, "jogSpeed": 7, "radius": 0.4, "hoverHeight": 0.2, "bob": 0.05, "start": [0, 9] },
-  "camera": { "distance": 6, "minDistance": 1.5, "height": 1.6, "pitch": 0.45, "smoothing": 6, "turnSpeed": 0.005 },
+  "camera": { "distance": 6, "minDistance": 1.5, "height": 1.6, "pitch": 0.45, "minPitch": -0.55, "maxPitch": 1.2, "minHeight": 0.5, "smoothing": 6, "turnSpeed": 0.005 },
   "interactRadius": 2.2,
   "print": { "speed": 0.8, "radius": 0.5, "scale": 0.7, "feedReach": 1.8 },
   "places": [
