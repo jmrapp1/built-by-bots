@@ -59,7 +59,7 @@ import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
-import { moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
+import { hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -463,6 +463,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     const skyPhase = moonPhase(localDay(new Date())); // the moon's phase for the local calendar day
     const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
     const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
+    const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
     const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins, stars: !margins && starsOn }); lightClock = 0; } catch { skyScene = null; } };
     const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
@@ -539,7 +540,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
+    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene, { hills: hillsOn }); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).

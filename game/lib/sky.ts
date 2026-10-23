@@ -123,3 +123,29 @@ export function glare(star: Dir, sun: Dir, sunLvl: number): number {
   const near = 1 - smooth((ang - STARS.glareRadius * (1 - STARS.glareSoft)) / (STARS.glareRadius * STARS.glareSoft + 1e-9));
   return 1 - near * sunLvl;
 }
+
+// ---- S31c: layered distant hills. Rings of smooth ridges far beyond the walkable world; nothing collides with them. ----
+export const HILLS = SKY.hills;
+export type HillsMode = "off";
+
+// Dev-only switch: ?hills=off draws no hill layers and the old jagged ridges stay. Ignored (null) in production.
+export const hillsOverride = (search: string, isProduction: boolean): HillsMode | null =>
+  isProduction ? null : new URLSearchParams(search).get("hills") === "off" ? "off" : null;
+export const hillsEnabled = (search: string, isProduction: boolean): boolean => HILLS.layers > 0 && hillsOverride(search, isProduction) !== "off";
+
+export type HillLayer = (typeof HILLS.list)[number];
+/** The layers actually drawn: the first `layers` of the list. */
+export const hillLayers = (): HillLayer[] => HILLS.list.slice(0, Math.max(0, HILLS.layers));
+
+/** Height of a layer's top at angle `a` (radians round the player): base plus a few sines with whole-number frequencies, so the ring closes. */
+export const hillTop = (l: HillLayer, a: number): number => l.sines.reduce((h, [f, amp, ph]) => h + amp * Math.sin(f * a + ph), l.base);
+
+const hex = (c: string) => [(parseInt(c.slice(1), 16) >> 16) & 255, (parseInt(c.slice(1), 16) >> 8) & 255, parseInt(c.slice(1), 16) & 255];
+const luma = (c: string) => { const [r, g, b] = hex(c); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+const dim = (c: string, k: number) => "#" + ((1 << 24) | (Math.round(hex(c)[0] * k) << 16) | (Math.round(hex(c)[1] * k) << 8) | Math.round(hex(c)[2] * k)).toString(16).slice(1);
+
+/** A layer's colour: the tint (darkened as the sky darkens, so night hills are not bright) mixed with the hour's sky colour. */
+export function hillColor(skyColor: string, l: HillLayer): string {
+  const k = Math.min(1, Math.max(HILLS.nightFloor, luma(skyColor) / HILLS.dayLuma));
+  return lerpColor(skyColor, dim(l.tint, k), l.mix);
+}

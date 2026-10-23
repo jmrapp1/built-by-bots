@@ -3,6 +3,7 @@
 import { crownGeo, moundGeo, plateGeo, poleGeo, seedOf, tailGeo, trunkGeo, unitBoxGeo, unitConeGeo, unitCrownGeo, unitCylGeo, unitTrunkGeo } from "@/lib/propShapes";
 import { wobbleSphere } from "@/lib/shapes";
 import * as THREE from "three";
+import { buildHills } from "@/components/hillsScene";
 import type { Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import {
@@ -27,7 +28,7 @@ const mats = (look: { crown: string; trunk: string; rock: string; bush: string }
   rock: new THREE.MeshToonMaterial({ color: look.rock }), bush: new THREE.MeshToonMaterial({ color: look.bush }),
 });
 
-export function buildWorldShell(scene: THREE.Scene): WorldShell {
+export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
   const own: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T): T => { own.push(x); return x; };
@@ -117,8 +118,10 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
   }
 
   // ---- paper-fold horizons: three jagged ridge rings that follow the player; fogged, tinted from the sky ----
+  // S31c: with the layered hills on, the old ridges are not built (they stay here as the fallback: layers 0 or ?hills=off).
+  const hills = opts.hills ? buildHills(group) : null;
   const ridges: THREE.Mesh[] = [];
-  for (let k = 0; k < 3; k++) {
+  for (let k = 0; k < (hills ? 0 : 3); k++) {
     const seg = 160, pos: number[] = [], idx: number[] = [], R = WORLD.fog[1] * (0.9 + k * 0.04);
     for (let i = 0; i <= seg; i++) {
       const a = (i / seg) * Math.PI * 2, h = 12 + k * 6 + 8 * Math.abs(Math.sin(a * (3 + k) + k)) + 4 * Math.sin(a * 11 + k * 2); // fold-like peaks
@@ -130,7 +133,7 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     m.frustumCulled = false; group.add(m); ridges.push(m);
   }
   const sky = new THREE.Color("#f6f1e4");
-  const setSky = (c: THREE.ColorRepresentation) => { sky.set(c); ridges.forEach((m, k) => (m.material as THREE.MeshBasicMaterial).color.copy(sky).multiplyScalar(0.8 + k * 0.06)); };
+  const setSky = (c: THREE.ColorRepresentation) => { sky.set(c); hills?.setSky(c); ridges.forEach((m, k) => (m.material as THREE.MeshBasicMaterial).color.copy(sky).multiplyScalar(0.8 + k * 0.06)); };
 
   // ---- chunks ----
   const chunks = new Map<string, Chunk>();
@@ -204,6 +207,7 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
 
   const update = (x: number, z: number, all = false) => {
     ridges.forEach((m) => m.position.set(x, 0, z));
+    hills?.update(x, z);
     const want = chunksAround(x, z, WORLD.fog[1] + WORLD.chunk * 0.5), keep2 = new Set(want.map(([a, b]) => chunkKey(a, b)));
     let made = 0;
     for (const [a, b] of want) { if (!all && made >= WORLD.buildsPerFrame) break; const k = chunkKey(a, b); if (!chunks.has(k)) { build(a, b); made++; } }
