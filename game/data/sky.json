@@ -230,5 +230,36 @@
         ]
       }
     ]
+  },
+  "clouds": {
+    "note": "S31d drifting paper clouds. Look only. `count` 0 (or ?clouds=off in dev) draws none. Flat torn-paper polygons on a cap of the sky at `distance` m (inside the camera far plane), shapes and places from an integer hash of the index, drift = a pure function of time (azimuth speed in radians a second, wraps round). Reduced motion: no drift. Colour: cream by day to grey-violet at dusk; opacity falls to `nightAlpha` of its day value at deep night. Weather (0..1) raises cover from `calm` clouds up to `count` and the opacity by `heavy`.",
+    "count": 9,
+    "calm": 5,
+    "seed": 13,
+    "distance": 190,
+    "minElevation": 0.2,
+    "maxElevation": 0.78,
+    "width": [
+      34,
+      66
+    ],
+    "aspect": [
+      0.28,
+      0.42
+    ],
+    "points": 13,
+    "jitter": 0.32,
+    "speed": [
+      0.0035,
+      0.0085
+    ],
+    "day": "#f7f1e0",
+    "dusk": "#8f86a6",
+    "grey": "#aaa7b4",
+    "alpha": 0.62,
+    "nightAlpha": 0.07,
+    "heavy": 1.25,
+    "greyMix": 0.55,
+    "maxAlpha": 0.85
   }
 }

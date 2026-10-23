@@ -78,7 +78,7 @@ describe("stars (S31b)", () => {
     const mats = src.match(/new THREE\.Mesh\w*Material\(\{[^}]*\}\)/g) ?? [];
     expect(mats.length).toBeGreaterThanOrEqual(3);
     for (const m of mats) if (/transparent:\s*true/.test(m)) { expect(m).not.toMatch(/depthTest:\s*false/); expect(m).toMatch(/depthTest:\s*true/); expect(m).toMatch(/depthWrite:\s*false/); }
-    expect(mats.filter((m) => /transparent:\s*true/.test(m))).toHaveLength(1); // only the stars
+    expect(mats.filter((m) => /transparent:\s*true/.test(m))).toHaveLength(2); // only the stars and the clouds (S31d)
     const sky = JSON.parse(readFileSync("data/sky.json", "utf8")), world = JSON.parse(readFileSync("data/world.json", "utf8"));
     expect(sky.stars.distance).toBeLessThan(world.cameraFar);
   });

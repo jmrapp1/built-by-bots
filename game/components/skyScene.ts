@@ -1,23 +1,23 @@
 // S31a/b: the sky dome, the paper sun and moon, and the stars. One gradient dome centred on the camera, drawn first, no depth, no fog.
 // Look only: nothing here is raycast, saved, sent or collides. The dome, sun and moon are opaque flat shapes (drawn before the
-// world, which paints over them) and the sun and moon melt into the sky colour as they set. The stars are the one transparent
-// piece (for their fade): they are depth-TESTED but never depth-written, so ridges, props and the horizon hide them, and they
+// world, which paints over them) and the sun and moon melt into the sky colour as they set. The stars and the clouds are the only transparent
+// pieces (for their fade): they are depth-TESTED but never depth-written, so ridges, props and the horizon hide them, and they
 // sit inside the camera far plane so the world can occlude them. Freed whole by dispose().
 import * as THREE from "three";
-import { SKY, STARS, domeColor, glare, starAt, starLevel, twinkle, marginsZenith, moonLevel, moonDir, moonOffset, moonShade, sunDir, sunLevel, type Dir } from "@/lib/sky";
+import { CLOUDS, SKY, STARS, cloudAlpha, cloudAt, cloudAzimuth, cloudColor, cloudDir, cloudPresence, domeColor, glare, starAt, starLevel, twinkle, marginsZenith, moonLevel, moonDir, moonOffset, moonShade, sunDir, sunLevel, type Dir } from "@/lib/sky";
 
 export type SkyScene = {
   group: THREE.Group;
   /** Colours: the horizon (today's sky colour, with any weather grey) and the zenith for this hour. About once a second is plenty. */
   setColors(horizon: string, zenith: string): void;
   /** Every frame: follow the camera and place the sun and moon for the hour. */
-  update(a: { at: THREE.Vector3; hour: number; t: number; reduced: boolean; phase: number; weather?: number }): void;
+  update(a: { at: THREE.Vector3; hour: number; t: number; reduced: boolean; phase: number; weather?: number; cover?: number }): void;
   dispose(): void;
 };
 
 const flat = (color: string) => new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthTest: false, depthWrite: false, fog: false });
 
-export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margins: boolean; stars?: boolean }): SkyScene {
+export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margins: boolean; stars?: boolean; clouds?: boolean }): SkyScene {
   const D = SKY.dome, group = new THREE.Group();
   group.name = "sky";
   const owned: { dispose(): void }[] = [];
@@ -144,6 +144,48 @@ export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margi
     group.add(starMesh); owned.push(g, m);
   }
 
+  // --- S31d: clouds: one mesh of flat torn-paper fans, 9 shapes, one draw call. Re-placed by time each frame (a pure function). Nearer than the
+  // stars and sun (190 m), so a thin cloud can pass over them; depth-tested against the world like the stars, never depth-written. ---
+  let cloudMesh: THREE.Mesh | null = null, cloudPos: Float32Array | null = null, cloudCol: Float32Array | null = null;
+  const cloudList = opts.clouds && CLOUDS.count > 0 ? Array.from({ length: CLOUDS.count }, (_, i) => cloudAt(i)) : [];
+  const perCloud = CLOUDS.points * 3;
+  if (cloudList.length) {
+    cloudPos = new Float32Array(cloudList.length * perCloud * 3); cloudCol = new Float32Array(cloudList.length * perCloud * 4);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(cloudPos, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("color", new THREE.BufferAttribute(cloudCol, 4).setUsage(THREE.DynamicDrawUsage));
+    const m = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthTest: true, depthWrite: false, fog: false });
+    cloudMesh = new THREE.Mesh(g, m);
+    cloudMesh.renderOrder = -85; cloudMesh.frustumCulled = false; cloudMesh.raycast = () => {}; cloudMesh.visible = false;
+    group.add(cloudMesh); owned.push(g, m);
+  }
+  const up = new THREE.Vector3(0, 1, 0), cv = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), cc = new THREE.Color();
+  let cloudKey = "";
+  const updateClouds = (hour: number, t: number, reduced: boolean, weather: number) => {
+    if (!cloudMesh || !cloudPos || !cloudCol) return;
+    const a = cloudAlpha(hour, weather);
+    cloudMesh.visible = a > 0.004;
+    if (!cloudMesh.visible) return;
+    const key = reduced ? `r|${hour.toFixed(2)}|${weather.toFixed(2)}` : "";
+    if (reduced && key === cloudKey) return; // still clouds: nothing moves, so nothing to redo (colour changes with the hour only slowly)
+    cloudKey = key;
+    cc.set(cloudColor(hour, weather));
+    let p = 0, q = 0;
+    cloudList.forEach((c, i) => {
+      const d = cloudDir(c, cloudAzimuth(c, t, reduced)), pres = cloudPresence(i, weather) * a;
+      cv.set(d.x, d.y, d.z); e1.crossVectors(up, cv).normalize(); e2.crossVectors(cv, e1);
+      const ct = Math.cos(c.tilt), st = Math.sin(c.tilt), n = c.poly.length;
+      const put = (x: number, y: number) => {
+        const X = x * ct - y * st, Y = x * st + y * ct;
+        cloudPos![p++] = cv.x * CLOUDS.distance + e1.x * X + e2.x * Y; cloudPos![p++] = cv.y * CLOUDS.distance + e1.y * X + e2.y * Y; cloudPos![p++] = cv.z * CLOUDS.distance + e1.z * X + e2.z * Y;
+        cloudCol![q++] = cc.r; cloudCol![q++] = cc.g; cloudCol![q++] = cc.b; cloudCol![q++] = pres;
+      };
+      for (let k = 0; k < n; k++) { const A = c.poly[k], B = c.poly[(k + 1) % n]; put(0, 0); put(A[0], A[1]); put(B[0], B[1]); }
+    });
+    (cloudMesh.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (cloudMesh.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+  };
+
   scene.add(group);
   const api: SkyScene = {
     group,
@@ -152,7 +194,7 @@ export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margi
       for (let i = 0; i < ups.length; i++) { tmp.set(domeColor(horizon, zenith, ups[i])); col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b; }
       (geo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
     },
-    update({ at, hour, t, reduced, phase, weather = 0 }) {
+    update({ at, hour, t, reduced, phase, weather = 0, cover = 0 }) {
       group.position.copy(at);
       if (starMesh && starAlpha) {
         const lvl = starLevel(hour, weather);
@@ -166,6 +208,7 @@ export function buildSkyScene(scene: THREE.Scene, opts: { bodies: boolean; margi
           (starMesh.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true;
         }
       }
+      updateClouds(hour, t, reduced, cover);
       if (!opts.bodies) return;
       place(sunG, sunMats, sunDir(hour), S.distance, sunLevel(hour));
       if (raysG) raysG.rotation.z = reduced ? 0 : t * S.spin;

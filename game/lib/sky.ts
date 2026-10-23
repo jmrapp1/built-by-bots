@@ -149,3 +149,61 @@ export function hillColor(skyColor: string, l: HillLayer): string {
   const k = Math.min(1, Math.max(HILLS.nightFloor, luma(skyColor) / HILLS.dayLuma));
   return lerpColor(skyColor, dim(l.tint, k), l.mix);
 }
+
+// ---- S31d: drifting paper clouds. Flat torn-paper shapes high on the sky; same shapes and places every day, drift is a pure function of time. ----
+export const CLOUDS = SKY.clouds;
+export type CloudsMode = "off";
+
+// Dev-only switch: ?clouds=off draws no clouds. Ignored (null) in production.
+export const cloudsOverride = (search: string, isProduction: boolean): CloudsMode | null =>
+  isProduction ? null : new URLSearchParams(search).get("clouds") === "off" ? "off" : null;
+export const cloudsEnabled = (search: string, isProduction: boolean): boolean => CLOUDS.count > 0 && cloudsOverride(search, isProduction) !== "off";
+
+export const cloudHash = (n: number): number => {
+  let h = (Math.imul(n | 0, 0x9e3779b1) ^ Math.imul(CLOUDS.seed, 0xc2b2ae35)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+};
+const cu = (n: number): number => cloudHash(n) / 4294967296;
+const between = (r: number[], u: number) => r[0] + (r[1] - r[0]) * u;
+const KEYS_PER = 4 + 2 * 32; // hash slots reserved per cloud, so the points never overlap the next cloud's
+
+export type Cloud = { az0: number; y: number; width: number; height: number; speed: number; tilt: number; poly: [number, number][] };
+
+/** Cloud i: where it starts, how high, how big, how fast it drifts and its torn outline (x across, y up, in metres at the cloud distance, centred on 0,0). */
+export function cloudAt(i: number): Cloud {
+  const b = i * KEYS_PER, width = between(CLOUDS.width, cu(b + 2)), height = width * between(CLOUDS.aspect, cu(b + 3));
+  const poly: [number, number][] = [];
+  for (let k = 0; k < CLOUDS.points; k++) {
+    const a = (k / CLOUDS.points) * Math.PI * 2, r = 1 - CLOUDS.jitter * cu(b + 4 + k);
+    poly.push([Math.cos(a) * r * width / 2, Math.sin(a) * r * height / 2]);
+  }
+  return { az0: cu(b + 0) * Math.PI * 2, y: between([CLOUDS.minElevation, CLOUDS.maxElevation], cu(b + 1)), width, height, speed: between(CLOUDS.speed, cu(b + 66)), tilt: (cu(b + 67) - 0.5) * 0.3, poly };
+}
+
+/** Where cloud i is at time t seconds: azimuth wraps round 0..2pi. With reduced motion it never moves. */
+export const cloudAzimuth = (c: Cloud, t: number, reduced: boolean): number => {
+  const a = c.az0 + (reduced ? 0 : c.speed * t), tau = Math.PI * 2;
+  return ((a % tau) + tau) % tau;
+};
+/** Unit direction of the cloud's centre for an azimuth. */
+export const cloudDir = (c: Cloud, az: number): Dir => { const r = Math.sqrt(1 - c.y * c.y); return { x: r * Math.cos(az), y: c.y, z: r * Math.sin(az) }; };
+
+/** How present cloud i is (0..1): `calm` clouds on a dry day, up to all of them as the weather level (0..1) rises. */
+export const cloudPresence = (i: number, weather: number): number => {
+  const w = clamp01(weather), shown = CLOUDS.calm + (CLOUDS.count - CLOUDS.calm) * w;
+  return clamp01(shown - i);
+};
+
+/** Opacity of the clouds: thin by day, heavier with weather, nearly gone at night. Never above maxAlpha. */
+export const cloudAlpha = (hour: number, weather = 0): number => {
+  const n = nightness(hour);
+  return Math.min(CLOUDS.maxAlpha, CLOUDS.alpha * (1 + (CLOUDS.heavy - 1) * clamp01(weather)) * (1 - (1 - CLOUDS.nightAlpha) * n));
+};
+
+/** Cloud colour: cream by day, grey-violet toward dusk and night, a little greyer with weather. */
+export function cloudColor(hour: number, weather = 0): string {
+  const dusk = lerpColor(CLOUDS.day, CLOUDS.dusk, smooth(nightness(hour) * 2));
+  return lerpColor(dusk, CLOUDS.grey, CLOUDS.greyMix * clamp01(weather));
+}
