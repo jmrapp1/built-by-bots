@@ -9,8 +9,7 @@
         "components/marginsScene.ts": 8,
     "components/npcScene.ts": 26,
     "components/sightScene.ts": 4,
-    "components/worldShell.ts": 3,
-    "lib/cosmeticsBuild.ts": 13,
+        "lib/cosmeticsBuild.ts": 13,
     "lib/creature.ts": 3
   }
 }

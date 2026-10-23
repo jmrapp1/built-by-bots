@@ -9,7 +9,7 @@ import { PALETTE } from "@/lib/palette";
 import { addOutline, disposeTree, OUTLINE_ANGLE } from "@/lib/outline";
 import { makeToonGradient } from "@/lib/inkToon";
 import { leaning, softBox, wobbleSphere } from "@/lib/shapes";
-import { PROP_EDGE_ANGLE, capGeo, crownGeo, drumGeo, postGeo, seedOf, trunkGeo } from "@/lib/propShapes";
+import { PROP_EDGE_ANGLE, archGeo, tornSheetGeo, capGeo, crownGeo, drumGeo, postGeo, seedOf, trunkGeo } from "@/lib/propShapes";
 
 export const OFF = 400; // the Margins sit this far along x from the garden; positions inside are local
 
@@ -48,9 +48,9 @@ export function buildGate(d: Vec): THREE.Group {
     addOutline(p, undefined, PROP_EDGE_ANGLE); addOutline(cap, PALETTE.paper, PROP_EDGE_ANGLE);
     g.add(p, cap);
   }
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(s, 0.09, 6, 20, Math.PI), edge);
+  const arch = new THREE.Mesh(archGeo(s), edge);
   arch.position.set(0, 2.5, 0);
-  const sheet = new THREE.Mesh(new THREE.CircleGeometry(s * 0.98, 20, 0, Math.PI), paper); // the torn paper filling the top of the arch
+  const sheet = new THREE.Mesh(tornSheetGeo(s * 0.98, "gate:sheet"), paper); // the torn paper filling the top of the arch
   sheet.position.set(0, 2.5, -0.02);
   sheet.scale.set(1, 0.55, 1);
   g.add(arch, sheet);
