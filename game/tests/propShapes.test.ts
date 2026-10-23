@@ -129,3 +129,42 @@ describe("S30 home walls", () => {
     expect(readFileSync(join(__dirname, "..", "lib/home.ts"), "utf8")).not.toMatch(/from "three"/);
   });
 });
+
+import { archGeo, moundGeo, tailGeo, tornSheetGeo, unitBoxGeo, unitConeGeo, unitCrownGeo, unitCylGeo, unitTrunkGeo } from "@/lib/propShapes";
+
+describe("S30b shell landmarks and arch", () => {
+  it("unit shapes keep the old unit primitive sizes (base on y=0)", () => {
+    let s = size(unitBoxGeo()); finite(unitBoxGeo()); near(s.x, 1); near(s.y, 1); near(s.z, 1);
+    s = size(unitConeGeo()); near(s.x, 2); near(s.y, 1); near(s.z, 2);
+    s = size(unitConeGeo(0.06)); finite(unitConeGeo(0.06)); near(s.y, 1, 0.05);
+    s = size(unitCylGeo()); near(s.x, 2); near(s.y, 1); near(s.z, 2);
+    for (const g of [unitBoxGeo(), unitConeGeo(), unitCylGeo(), unitTrunkGeo(), unitCrownGeo("k"), moundGeo("m")]) { g.computeBoundingBox(); expect(Math.abs(g.boundingBox!.min.y)).toBeLessThan(0.02); }
+  });
+  it("crowns, mounds and trunks are finite and sized; keys make them differ", () => {
+    const c = size(unitCrownGeo("a")); finite(unitCrownGeo("a")); near(c.x, 2, 0.1); near(c.y, 1, 0.05);
+    const m = size(moundGeo("a")); finite(moundGeo("a")); near(m.x, 2, 0.1); near(m.y, 1, 0.1);
+    const t = size(unitTrunkGeo()); near(t.x, 2, 0.1); near(t.y, 1);
+    same(unitCrownGeo("a"), unitCrownGeo("a"));
+    expect(Array.from(unitCrownGeo("a").attributes.position.array)).not.toEqual(Array.from(unitCrownGeo("b").attributes.position.array));
+    expect(Array.from(moundGeo("a").attributes.position.array)).not.toEqual(Array.from(moundGeo("b").attributes.position.array));
+    finite(tailGeo());
+  });
+  it("the arch is not a torus: finite, sized like the old arch, deterministic, left foot lower than right", () => {
+    const s = 1.5, g = archGeo(s); finite(g);
+    const z = size(g); near(z.x, 2 * (s + 0.09), 0.1); near(z.y, s + 0.09, 0.15);
+    same(g, archGeo(s));
+    expect(g.index).not.toBeNull();
+    const p = g.attributes.position; let lowL = Infinity, lowR = Infinity;
+    for (let i = 0; i < p.count; i++) { if (p.getX(i) < 0) lowL = Math.min(lowL, p.getY(i)); else lowR = Math.min(lowR, p.getY(i)); }
+    expect(lowL).toBeLessThan(lowR - 0.03);
+    const src = readFileSync(join(__dirname, "..", "components/marginsScene.ts"), "utf8");
+    expect(src).not.toMatch(/TorusGeometry|CircleGeometry\(s/);
+  });
+  it("the torn sheet is finite, seeded, ragged and has a notch", () => {
+    const g = tornSheetGeo(1.47, "k"); finite(g); same(g, tornSheetGeo(1.47, "k"));
+    expect(Array.from(g.attributes.position.array)).not.toEqual(Array.from(tornSheetGeo(1.47, "j").attributes.position.array));
+    const p = g.attributes.position, rs = new Set<number>(); for (let i = 1; i < p.count; i++) rs.add(Math.round(Math.hypot(p.getX(i), p.getY(i)) * 1000));
+    expect(rs.size).toBeGreaterThan(5);
+    const s = size(g); near(s.x, 2.94, 0.1); near(s.y, 1.47, 0.1);
+  });
+});

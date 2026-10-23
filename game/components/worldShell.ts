@@ -1,6 +1,6 @@
 // W2: the rendered World round the garden: streamed, instanced chunks, an inked path, tall landmarks and paper-fold horizons.
 // A shell is built when the player is in the garden zone and fully disposed when they leave it (same path as every zone).
-import { crownGeo, plateGeo, poleGeo, seedOf, trunkGeo } from "@/lib/propShapes";
+import { crownGeo, moundGeo, plateGeo, poleGeo, seedOf, tailGeo, trunkGeo, unitBoxGeo, unitConeGeo, unitCrownGeo, unitCylGeo, unitTrunkGeo } from "@/lib/propShapes";
 import { wobbleSphere } from "@/lib/shapes";
 import * as THREE from "three";
 import type { Circle } from "@/lib/world";
@@ -39,9 +39,15 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     crownHigh: keep(crownGeo(1.05, 2.2, "shell:crownHigh").translate(0, 4.6, 0)),
     rock: keep(new THREE.DodecahedronGeometry(0.7, 0).translate(0, 0.3, 0)),
     bush: keep(new THREE.IcosahedronGeometry(0.8, 0).scale(1, 0.7, 1).translate(0, 0.45, 0)),
-    box: keep(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)),
-    cone: keep(new THREE.ConeGeometry(1, 1, 4).translate(0, 0.5, 0)),
-    cyl: keep(new THREE.CylinderGeometry(1, 1, 1, 8).translate(0, 0.5, 0)),
+    box: keep(unitBoxGeo()),
+    cone: keep(unitConeGeo()),
+    spike: keep(unitConeGeo(0.06)),
+    trunkU: keep(unitTrunkGeo()),
+    crowns: ["a", "b", "c", "d"].map((k) => keep(unitCrownGeo(`bigtree:${k}`))),
+    mounds: [keep(moundGeo("hill:a")), keep(moundGeo("hill:b"))],
+    tail: keep(tailGeo()),
+    pole: keep(poleGeo(0.8, 1, 1, 8).translate(0, 0.5, 0)),
+    cyl: keep(unitCylGeo()),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
   };
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
@@ -137,13 +143,13 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
     const g = new THREE.Group(); g.position.set(l.x, 0, l.z);
     const add = (geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy: number, sz: number, y = 0, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.y = y; m.rotation.y = rotY; g.add(m); return m; };
     if (l.kind === "tower") { // the Page Tower: a stack of pages with an ink band and a red cap
-      add(G.box, L.paper, l.r * 2, l.h * 0.78, l.r * 2); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.5); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.22);
-      add(G.cone, L.red, l.r * 3, l.h * 0.26, l.r * 3, l.h * 0.78, Math.PI / 4);
+      add(G.box, L.paper, l.r * 2, l.h * 0.3, l.r * 2); add(G.box, L.paper, l.r * 1.94, l.h * 0.26, l.r * 2.04, l.h * 0.3, 0.05); add(G.box, L.paper, l.r * 2.03, l.h * 0.22, l.r * 1.96, l.h * 0.56, -0.04); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.5); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.22);
+      add(G.spike, L.red, l.r * 3, l.h * 0.26, l.r * 3, l.h * 0.78, Math.PI / 4); // the cap's tip bends (the spec's curled top page is not done)
     } else if (l.kind === "spire") { // the Bookmark Spire: a thin ribbon-like spike
-      add(G.cone, L.red, l.r * 1.6, l.h, l.r * 0.5); add(G.cone, L.ink, l.r * 0.5, l.h * 0.98, l.r * 1.6);
+      add(G.spike, L.red, l.r * 1.6, l.h, l.r * 0.5); add(G.cone, L.ink, l.r * 0.5, l.h * 0.98, l.r * 1.6);
     } else if (l.kind === "bigtree") { // the Great Ink Tree
-      add(G.cyl, L.ink, l.r * 0.7, l.h * 0.4, l.r * 0.7);
-      for (const [y, s] of [[0.3, 3.4], [0.5, 2.6], [0.68, 1.8], [0.84, 1]] as const) add(G.cone, L.leaf, l.r * s, l.h * 0.3, l.r * s, l.h * y, 0.3 * s);
+      add(G.trunkU, L.ink, l.r * 0.7, l.h * 0.4, l.r * 0.7);
+      ([[0.3, 3.4], [0.5, 2.6], [0.68, 1.8], [0.84, 1]] as const).forEach(([y, s], i) => { const c = add(G.crowns[i], L.leaf, l.r * s * (i === 1 ? 1.12 : 1), l.h * 0.3, l.r * s * (i === 1 ? 0.88 : 1), l.h * y, 0.3 * s); if (i === 1) c.position.x = l.r * 0.5; }); // the second tier is lopsided
     } else if (l.kind === "shelves") { // the Bookshelf Wall: a long wall of shelves, rows of book spines of varied colour and height, ledges, both faces
       const W = l.r * 4, D = l.r * 0.5, rows = 6, rowH = (l.h * 0.88) / rows, rnd = (i: number) => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
       add(G.box, L.shelfDark, W, l.h * 0.9, D * 0.8, 0, 0); // dark back panel, slightly set in, so the spines read against it
@@ -164,10 +170,10 @@ export function buildWorldShell(scene: THREE.Scene): WorldShell {
       for (let i = 0; i < 9; i++) { const t = i / 8 - 0.5, y = 3.2 * (1 - 4 * t * t) + 0.6; add(G.box, L.deck, 4, 0.5, 3.6, y, 0).position.z = t * 28; }
       for (const s of [-1, 1]) { add(G.cyl, L.ink, 0.25, l.h * 0.5, 0.25, 0).position.z = s * 15; const lamp = add(G.lamp, L.glow, 1.4, 1.4, 1.4, l.h * 0.52); lamp.position.z = s * 15; lamp.castShadow = false; }
     } else if (l.kind === "hill") { // the Paper-Kite Hill: a broad folded hill with a red paper kite flying above it
-      add(G.cone, L.hill, l.r * 2.2, l.h * 0.8, l.r * 2.2, 0, Math.PI / 4); add(G.cone, L.hill, l.r * 1.3, l.h * 0.95, l.r * 1.3, 0, 0.3);
-      const kite = add(G.box, L.kite, 2.6, 2.6, 0.12, l.h * 1.0, 0); kite.rotation.z = Math.PI / 4; add(G.cyl, L.ink, 0.06, l.h * 0.12, 0.06, l.h * 0.86);
+      add(G.mounds[0], L.hill, l.r * 2.2, l.h * 0.8, l.r * 2.2, 0, Math.PI / 4); add(G.mounds[1], L.hill, l.r * 1.3, l.h * 0.95, l.r * 1.3, 0, 0.3);
+      const kite = add(G.box, L.kite, 2.6, 2.6, 0.12, l.h * 1.0, 0); kite.rotation.z = Math.PI / 4; const tail = add(G.tail, L.kite, 1, 2.4, 1, l.h * 1.0 - 0.92); tail.position.x = -0.92; // the tail hangs from the kite's lowest corner and curls add(G.cyl, L.ink, 0.06, l.h * 0.12, 0.06, l.h * 0.86);
     } else { // the Lantern Post: a pole with a warm light that reads through fog
-      add(G.cyl, L.ink, l.r * 0.28, l.h * 0.9, l.r * 0.28); const lamp = add(G.lamp, L.glow, l.r * 1.3, l.r * 1.3, l.r * 1.3, l.h * 0.94);
+      const pole = add(G.pole, L.ink, l.r * 0.28, l.h * 0.9, l.r * 0.28); pole.rotation.z = 0.03; const lamp = add(G.lamp, L.glow, l.r * 1.3, l.r * 1.3, l.r * 1.3, l.h * 0.94); lamp.position.x = -Math.sin(0.03) * l.h * 0.9; // the pole leans a little
       lamp.castShadow = false;
     }
     return g;

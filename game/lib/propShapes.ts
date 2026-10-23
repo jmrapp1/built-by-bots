@@ -181,3 +181,70 @@ export function wallGeo(w: number, h: number, d: number, bow = 0.03, lean = 0): 
 export function baseboardGeo(w: number, h: number, d: number): THREE.BufferGeometry {
   return dipEnds(softBox(w, h, d, 0.02, 2), 0.01);
 }
+
+/** S30b shell landmark shapes. Unit shapes sit on y=0 and rise to y=1; the landmark scales them per instance. */
+
+/** Unit box (1x1x1, base on y=0) with tiny rounded edges. */
+export function unitBoxGeo(): THREE.BufferGeometry { return softBox(1, 1, 1, 0.03, 1).translate(0, 0.5, 0); }
+
+/** Unit 4-sided cone (radius 1, height 1, base on y=0) with concave sides; the tip bends by `bend` (fraction of height). */
+export function unitConeGeo(bend = 0): THREE.BufferGeometry {
+  const g = lathe([[0, 0], [1, 0], [0.55, 0.4], [0.22, 0.75], [0, 1]], 4);
+  return bend ? curl(g, bend) : g;
+}
+
+/** Unit 8-sided cylinder (radius 1, height 1, base on y=0) with rounded rims. */
+export function unitCylGeo(): THREE.BufferGeometry { return lathe([[0, 0], [0.9, 0], [1, 0.03], [1, 0.97], [0.9, 1], [0, 1]], 8); }
+
+/** Unit tree trunk (radius 1 at the foot, height 1, base on y=0): flared root, taper to 0.5 at the top. */
+export function unitTrunkGeo(): THREE.BufferGeometry { return trunkGeo(0.5, 1, 1, 8).translate(0, 0.5, 0); }
+
+/** Unit tree crown (radius 1, height 1, base on y=0), seeded by `key` so no two alike. */
+export function unitCrownGeo(key: string): THREE.BufferGeometry { return crownGeo(1, 1, key, 7).translate(0, 0.5, 0); }
+
+/** Unit hill mound (radius 1, height 1, base on y=0): a smooth bump with a seeded wobble. */
+export function moundGeo(key: string): THREE.BufferGeometry {
+  const g = lathe([[0, 1], [0.18, 0.97], [0.45, 0.8], [0.72, 0.45], [0.92, 0.15], [1, 0]], 10);
+  return wobble(g, 0.05, seedOf(key));
+}
+
+/** Unit hanging tail (0.08 wide, 1 long, hangs from y=0 down to y=-1): a thin strip whose end curls. */
+export function tailGeo(): THREE.BufferGeometry { return curl(softBox(0.08, 1, 0.03, 0.01, 1).translate(0, -0.5, 0), 0.12); }
+
+/** The Margins arch: a half-ring tube swept along a half circle of radius `s` with a width that varies, the left foot a touch lower. Not a torus. Spans x in [-s, s], y in [0, s] (feet at y=0, the left foot reaching 0.06 lower). */
+export function archGeo(s: number, tube = 0.09): THREE.BufferGeometry {
+  const N = 28, M = 6, pos: number[] = [], idx: number[] = [];
+  for (let i = 0; i <= N; i++) {
+    const th = (i / N) * Math.PI, w = tube * (0.88 + 0.24 * Math.sin(th * 3 + 1)), drop = 0.06 * Math.pow(Math.max(0, (th - 2.4) / (Math.PI - 2.4)), 2);
+    const cx = Math.cos(th), cy = Math.sin(th);
+    for (let j = 0; j < M; j++) {
+      const a = (j / M) * Math.PI * 2, rr = Math.cos(a) * w, zz = Math.sin(a) * w * 1.1;
+      pos.push((s + rr) * cx, (s + rr) * cy - drop, zz);
+    }
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < M; j++) {
+    const a = i * M + j, b = i * M + ((j + 1) % M), c = (i + 1) * M + j, d = (i + 1) * M + ((j + 1) % M);
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+  return g;
+}
+
+/** The torn paper under the arch: a half-disc fan of radius `s` (xy plane, flat side on y=0) with a ragged rim and one notch. Seeded by `key`. Double-sided material expected. */
+export function tornSheetGeo(s: number, key: string): THREE.BufferGeometry {
+  const N = 20, seed = seedOf(key), notch = 6 + (seed % 7), pos: number[] = [0, 0, 0], idx: number[] = [];
+  const rnd = (i: number) => { const v = Math.sin((i + (seed % 1000)) * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+  for (let i = 0; i <= N; i++) {
+    const th = (i / N) * Math.PI;
+    let r = s * (0.94 + 0.06 * rnd(i));
+    if (Math.abs(i - notch) <= 1) r *= i === notch ? 0.86 : 0.93;
+    pos.push(r * Math.cos(th), r * Math.sin(th), 0);
+  }
+  for (let i = 1; i <= N; i++) idx.push(0, i, i + 1);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+  return g;
+}
