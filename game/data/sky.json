@@ -237,8 +237,8 @@
     "calm": 5,
     "seed": 13,
     "distance": 190,
-    "minElevation": 0.2,
-    "maxElevation": 0.78,
+    "minElevation": 0.06,
+    "maxElevation": 0.45,
     "width": [
       34,
       66
