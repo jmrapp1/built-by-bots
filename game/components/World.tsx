@@ -8,6 +8,7 @@ import { SHORE_SIGHTS, shoreSightsForDay } from "@/lib/shoreSights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { addOutline, disposeTree } from "@/lib/outline";
+import { PROP_EDGE_ANGLE, blotGeo, crownGeo, hedgeGeo, inkwellGeo, pageGeo, pillowGeo, plateGeo, plinthGeo, poleGeo, tableGeo, trunkGeo } from "@/lib/propShapes";
 import { buildCreature, buildEgg, type Genes } from "@/lib/creature";
 import { buildCreatureOld, shapesOverride } from "@/lib/creatureOld";
 import {
@@ -136,13 +137,13 @@ const mat = (color: number | string) => new THREE.MeshToonMaterial({ color, grad
 
 function buildTree(r: number) {
   const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.35, r * 0.5, 2.6, 8), mat(PALETTE.ink));
+  const trunk = new THREE.Mesh(trunkGeo(r * 0.35, r * 0.5, 2.6, 8), mat(PALETTE.ink));
   trunk.position.y = 1.3;
   trunk.castShadow = true; trunk.receiveShadow = true; addOutline(trunk);
   g.add(trunk);
   const leaf = mat(PALETTE.moss);
   for (const [y, s] of [[3.0, 1.5], [3.9, 1.1], [4.6, 0.7]] as const) {
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(s * r * 1.5, 1.6, 7), leaf);
+    const cone = new THREE.Mesh(crownGeo(s * r * 1.5, 1.6, `garden-tree-${y}`, 7), leaf);
     cone.position.y = y;
     cone.castShadow = true; cone.receiveShadow = true; addOutline(cone);
     g.add(cone);
@@ -163,12 +164,12 @@ function buildPlace(p: Place): THREE.Object3D {
       break;
     }
     case "egg": {
-      const plinth = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 0.5, 20), stone);
+      const plinth = new THREE.Mesh(plinthGeo(0.8, 0.9, 0.5, 20), stone);
       plinth.position.y = 0.25;
       plinth.castShadow = true; plinth.receiveShadow = true; addOutline(plinth);
-      const page = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.8), paper);
+      const page = new THREE.Mesh(pageGeo(1.1, 0.04, 0.8), paper);
       page.position.y = 0.52;
-      page.castShadow = true; page.receiveShadow = true; addOutline(page);
+      page.castShadow = true; page.receiveShadow = true; addOutline(page, undefined, PROP_EDGE_ANGLE);
       g.add(plinth, page);
       break;
     }
@@ -181,10 +182,10 @@ function buildPlace(p: Place): THREE.Object3D {
       break;
     }
     case "scenery": {
-      const table = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.7, 20), mat(PALETTE.sepia));
+      const table = new THREE.Mesh(tableGeo(0.9, 0.7, 20), mat(PALETTE.sepia));
       table.position.y = 0.35;
       table.castShadow = true; table.receiveShadow = true; addOutline(table);
-      const well = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.4, 16), ink);
+      const well = new THREE.Mesh(inkwellGeo(0.3, 0.25, 0.4, 3, 16), ink);
       well.position.y = 0.9;
       well.castShadow = true; well.receiveShadow = true; addOutline(well);
       g.add(table, well);
@@ -192,18 +193,18 @@ function buildPlace(p: Place): THREE.Object3D {
     }
     case "rest": {
       // An ink-blot bench with a soft cushion and a little pillow.
-      const blot = new THREE.Mesh(new THREE.SphereGeometry(1.1, 20, 12), mat(PALETTE.ink));
+      const blot = new THREE.Mesh(blotGeo(1.1, 0.2, "garden-blot"), mat(PALETTE.ink));
       blot.scale.set(1.5, 0.3, 1);
       blot.position.y = 0.3;
       blot.castShadow = true; blot.receiveShadow = true; addOutline(blot);
-      const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 12), mat(PALETTE.blush));
+      const cushion = new THREE.Mesh(blotGeo(0.9, 0.08, "garden-cushion"), mat(PALETTE.blush));
       cushion.scale.set(1.3, 0.28, 0.85);
       cushion.position.y = 0.62;
       cushion.castShadow = true; cushion.receiveShadow = true; addOutline(cushion);
-      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), mat(PALETTE.paper));
+      const pillow = new THREE.Mesh(pillowGeo(0.5, 0.18, 0.4), mat(PALETTE.paper));
       pillow.position.set(-0.7, 0.82, 0);
       pillow.rotation.set(0, 0.4, 0.25);
-      pillow.castShadow = true; pillow.receiveShadow = true; addOutline(pillow);
+      pillow.castShadow = true; pillow.receiveShadow = true; addOutline(pillow, undefined, PROP_EDGE_ANGLE);
       g.add(blot, cushion, pillow);
       break;
     }
@@ -241,14 +242,14 @@ function buildPlace(p: Place): THREE.Object3D {
     }
     case "notice": {
       for (const x of [-0.7, 0.7]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2, 0.12), mat(PALETTE.sepia));
+        const post = new THREE.Mesh(poleGeo(0.055, 0.065, 2, 6), mat(PALETTE.sepia));
         post.position.set(x, 1, 0);
         post.castShadow = true; post.receiveShadow = true; addOutline(post);
         g.add(post);
       }
-      const board = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 0.08), paper);
+      const board = new THREE.Mesh(plateGeo(1.8, 1.0, 0.08, 1.5), paper);
       board.position.y = 1.7;
-      board.castShadow = true; board.receiveShadow = true; addOutline(board);
+      board.castShadow = true; board.receiveShadow = true; addOutline(board, undefined, PROP_EDGE_ANGLE);
       g.add(board);
       break;
     }
@@ -348,9 +349,9 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
 
     for (const t of GARDEN.trees) { const m = buildTree(t.r); m.position.set(t.x, 0, t.z); scene.add(m); }
     for (const h of GARDEN.hedges) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(h.w, 1.1, h.d), mat(PALETTE.moss));
+      const m = new THREE.Mesh(hedgeGeo(h.w, 1.1, h.d, `garden-hedge-${h.x}-${h.z}`), mat(PALETTE.moss));
       m.position.set(h.x, 0.55, h.z);
-      m.castShadow = true; m.receiveShadow = true; addOutline(m);
+      m.castShadow = true; m.receiveShadow = true; addOutline(m, undefined, PROP_EDGE_ANGLE);
       scene.add(m);
     }
     for (const p of GARDEN.places) scene.add(buildPlace(p));

@@ -114,3 +114,51 @@ export function poleGeo(rt: number, rb: number, h: number, segments = 6): THREE.
 export function plateGeo(w: number, h: number, d: number, lean = 0): THREE.BufferGeometry {
   return leaning(softBox(w, h, d, Math.min(0.06, d / 2, h * 0.15), 1), lean);
 }
+
+/** S29c garden props. */
+
+/** Stepped plinth, centred like CylinderGeometry(rt, rb, h): a wide foot, a narrow waist step and a rounded top. */
+export function plinthGeo(rt: number, rb: number, h: number, segments = 20): THREE.BufferGeometry {
+  const y = h / 2, e = h * 0.12;
+  return lathe([[0, -y], [rb * 0.96, -y], [rb, -y + e], [rb, -y + 0.28 * h], [mix(rb, rt, 0.5) * 0.9, -y + 0.34 * h], [rt * 0.94, y - 0.3 * h], [rt, y - e], [rt * 0.96, y], [0, y]], segments);
+}
+
+/** Round table, centred like CylinderGeometry(r, r, h): a thick rounded top edge on a slightly narrower pedestal. */
+export function tableGeo(r: number, h: number, segments = 20): THREE.BufferGeometry {
+  const y = h / 2, e = h * 0.12;
+  return lathe([[0, -y], [r * 0.8, -y], [r * 0.9, -y + e], [r * 0.72, -y + 0.3 * h], [r * 0.72, y - 0.3 * h], [r, y - 0.28 * h], [r, y - e], [r * 0.94, y], [0, y]], segments);
+}
+
+/** An ink pot, centred like CylinderGeometry(rt, rb, h): round belly, short neck, lipped rim, tipped `lean` degrees about its base. */
+export function inkwellGeo(rt: number, rb: number, h: number, lean = 0, segments = 14): THREE.BufferGeometry {
+  const y = h / 2, w = Math.max(rt, rb);
+  const g = lathe([[0, -y], [rb * 0.8, -y], [w, -y + 0.2 * h], [w * 0.92, -y + 0.55 * h], [rt * 0.7, -y + 0.78 * h], [rt, y - 0.08 * h], [rt, y], [rt * 0.6, y], [0, y - 0.1 * h]], segments);
+  return leanFromBase(g, lean);
+}
+
+/** Garden hedge: a soft, slightly wobbled block (4 percent, seeded from `key`) of the old box size. */
+export function hedgeGeo(w: number, h: number, d: number, key: string): THREE.BufferGeometry {
+  return wobble(softBox(w, h, d, Math.min(0.2, w * 0.4, d * 0.4), 3), 0.04, seedOf(key));
+}
+
+/** A small cushion with a dent in the top middle (pushed down by `dent`). */
+export function pillowGeo(w: number, h: number, d: number, dent = 0.025): THREE.BufferGeometry {
+  const g = softBox(w, h, d, 0.07, 2), p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) {
+    if (p.getY(i) < h * 0.4) continue;
+    const k = Math.max(0, 1 - Math.hypot(p.getX(i) / (w * 0.35), p.getZ(i) / (d * 0.35)));
+    p.setY(i, p.getY(i) - dent * k);
+  }
+  g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+  return g;
+}
+
+/** A page lying flat with its far edge curled up (0.1 of its thickness scale, see curl). */
+export function pageGeo(w: number, h: number, d: number): THREE.BufferGeometry {
+  return curl(softBox(w, h, d, Math.min(0.015, h * 0.4), 1), 0.1);
+}
+
+/** Garden bench lump: a wobbly sphere of radius r (seeded from `key`), scaled by the caller. */
+export function blotGeo(r: number, amount: number, key: string): THREE.BufferGeometry {
+  return wobbleSphere(r, amount, seedOf(key), 18);
+}

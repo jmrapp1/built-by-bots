@@ -4,7 +4,7 @@
     "lib/creatureOld.ts"
   ],
   "baseline": {
-    "components/World.tsx": 21,
+    "components/World.tsx": 9,
     "components/decorScene.ts": 2,
     "components/homeScene.ts": 3,
     "components/marginsScene.ts": 8,

@@ -48,8 +48,8 @@ describe("S26 ink look pass", () => {
     // every added-looking Geometry(...) call that isn't EdgesGeometry still has a sibling in the source
     // (a loose smoke check: the known geometry constructors used before S26 are all still present with their args)
     expect(s).toContain("new THREE.SphereGeometry(0.6, 32, 24)"); // pre-S28 creature body, kept in creatureOld.ts
-    expect(s).toContain("new THREE.CylinderGeometry(r * 0.35, r * 0.5, 2.6, 8)"); // tree trunk, unchanged
-    expect(s).toContain("new THREE.BoxGeometry(h.w, 1.1, h.d)"); // hedge, unchanged
+    expect(s).toContain("trunkGeo(r * 0.35, r * 0.5, 2.6, 8)"); // tree trunk, same size (S29c)
+    expect(s).toContain("hedgeGeo(h.w, 1.1, h.d,"); // hedge, same size (S29c)
   });
 
   it("lighting helper is untouched: lightingAt still returns the same shape of value", () => {
