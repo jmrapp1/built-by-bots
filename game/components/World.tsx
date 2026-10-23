@@ -32,7 +32,7 @@ import {
   HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
   hideStart, nextGameDelay, pickSpot, previewSpot, retryDelay as hideRetry, spotBehind, withSpot, type HideState,
 } from "@/lib/hide";
-import { hourOfDay, hourOverride, lightingAt } from "@/lib/daynight";
+import { hourOfDay, hourOverride, lerpColor, lightingAt } from "@/lib/daynight";
 import {
   MARGINS, along, arrivalPath, arrivalYaw, buildField, gateFrame, gatePath, generateLayout, heightAt, holdStep, homePoint, glintOpacity, homePath, inGateZone, marginsOverrides, nearestSpot,
   pathLength, pointAlong, spotsForDay, spotsLeft, travelFrame, unfoldSeconds, utcDay, wipeOffset, type Field, type Layout, type Spot,
@@ -58,6 +58,8 @@ import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/ho
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
+import { buildSkyScene, type SkyScene } from "@/components/skyScene";
+import { moonPhase, skyEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 
 export type EggPhase = "none" | "unclaimed" | "in-nest" | "daily";
@@ -457,7 +459,14 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     wipe.className = "page-wipe";
     wipe.style.display = "none";
     el.appendChild(wipe);
+    // S31a: the sky dome (and, in the garden, the sun and moon). Built on entering the garden or the Margins, freed on leaving. Home has none.
+    const skyPhase = moonPhase(localDay(new Date())); // the moon's phase for the local calendar day
+    const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
+    let skyScene: SkyScene | null = null;
+    const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins }); lightClock = 0; } catch { skyScene = null; } };
+    const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
     const enterMarginsZone = () => {
+      dropSky(); showSky(true); // the garden dome (with sun and moon) is swapped for the Margins one
       if (!mLayout || !mField) { mLayout = generateLayout(); mField = buildField(mLayout.cols); mCols = mLayout.cols; }
       mg = buildMarginsScene(mLayout);
       scene.add(mg.group);
@@ -489,6 +498,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       report();
     };
     const leaveMarginsZone = () => {
+      dropSky();
       dropNpcs();
       dropSights();
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; } // freed on every leave: no growing memory
@@ -528,7 +538,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
+    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
@@ -536,6 +546,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
     let decor: DecorScene | null = null, decorShown: Placed | null = null; // ?decor=stub only; built with the room, freed with it
     const roomCols = roomColliders();
     const enterHomeZone = () => {
+      dropSky(); // a room has no sky
       room = buildHomeScene(); room.group.position.x = ROOM_OFF; scene.add(room.group);
       if (live.current.decorPlaced) { decor = buildDecorScene(); room.group.add(decor.group); decorShown = live.current.decorPlaced; decor.snap(decorShown); }
       (scene.fog as THREE.Fog).near = HOME_ROOM.light.fog[0]; (scene.fog as THREE.Fog).far = HOME_ROOM.light.fog[1];
@@ -904,6 +915,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       (scene.fog as THREE.Fog).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.fog);
       (edge.material as THREE.MeshBasicMaterial).color.set(zones.is("home") ? HOME_ROOM.look.sky : L.sky);
       mg?.setSky(L.sky);
+      if (skyScene) skyScene.setColors(L.sky, lerpColor(zenithAt(hourNow), L.sky, zones.is("garden") ? weatherNow(hourNow).tint * 0.6 : 0));
       shell?.setSky(L.sky);
       hemi.color.set(L.hemisphereSky);
       hemi.groundColor.set(L.hemisphereGround);
@@ -1666,6 +1678,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       }
       const n = travel ? null : zones.is("margins") ? mNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
+      if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase });
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     };
@@ -1681,6 +1694,7 @@ export default function World({ genes, species = "blotling", stage = "blot", egg
       ring.remove();
       wipe.remove();
       for (const c of [...dynamic.children]) disposeTree(c);
+      dropSky();
       zones.dispose(); // frees the zone that is showing, through the same path as leaving
       if (mg) { scene.remove(mg.group); mg.dispose(); mg = null; }
       for (const m of [...ringPool, ...splashDrops]) { scene.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }

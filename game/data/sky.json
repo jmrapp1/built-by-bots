@@ -1,0 +1,112 @@
+{
+  "note": "S31a sky dome, sun and moon. Look only. `enabled` false (or ?sky=off in dev) draws nothing and leaves the flat background colour. zenith keys mirror data/daynight.json (same hours).",
+  "enabled": true,
+  "dome": {
+    "radius": 235,
+    "rings": 14,
+    "segments": 28,
+    "belowHorizon": 0.2,
+    "curve": 0.7
+  },
+  "margins": {
+    "zenithKeep": 0.5
+  },
+  "zenith": [
+    {
+      "hour": 0,
+      "color": "#161a38"
+    },
+    {
+      "hour": 5.5,
+      "color": "#23254f"
+    },
+    {
+      "hour": 7,
+      "color": "#c9b4b8"
+    },
+    {
+      "hour": 11,
+      "color": "#d9e2ea"
+    },
+    {
+      "hour": 16.5,
+      "color": "#e3dcc6"
+    },
+    {
+      "hour": 18.5,
+      "color": "#b98f9a"
+    },
+    {
+      "hour": 20.5,
+      "color": "#2a2858"
+    },
+    {
+      "hour": 22,
+      "color": "#161a38"
+    }
+  ],
+  "sun": {
+    "rise": 6.5,
+    "set": 19,
+    "maxElevation": 0.82,
+    "lean": -0.42,
+    "distance": 205,
+    "radius": 15,
+    "disc": "#fff0c4",
+    "ink": "#4a3f3a",
+    "ringWidth": 1.2,
+    "rays": 10,
+    "rayLength": 7,
+    "rayWidth": 1.4,
+    "rayGap": 4,
+    "fadeFrom": -0.03,
+    "fadeTo": 0.1,
+    "spin": 0.04
+  },
+  "moon": {
+    "distance": 205,
+    "radius": 12,
+    "disc": "#f1eee0",
+    "ink": "#6b6a86",
+    "ringWidth": 0.7,
+    "fadeFrom": 0,
+    "fadeTo": 0.16,
+    "stepDays": 3.7,
+    "shade": "#bdbdd2",
+    "segments": 28
+  },
+  "phases": [
+    {
+      "name": "new",
+      "offset": 0
+    },
+    {
+      "name": "waxing crescent",
+      "offset": -0.55
+    },
+    {
+      "name": "first quarter",
+      "offset": -1.0
+    },
+    {
+      "name": "waxing gibbous",
+      "offset": -1.5
+    },
+    {
+      "name": "full",
+      "offset": 2.6
+    },
+    {
+      "name": "waning gibbous",
+      "offset": 1.5
+    },
+    {
+      "name": "last quarter",
+      "offset": 1.0
+    },
+    {
+      "name": "waning crescent",
+      "offset": 0.55
+    }
+  ]
+}
