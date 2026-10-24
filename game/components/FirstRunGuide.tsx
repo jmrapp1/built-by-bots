@@ -4,8 +4,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
 import { PLAY } from "@/lib/play";
+import { snackHintOn } from "@/lib/firstTen";
 import { hourOfDay, hourOverride } from "@/lib/daynight";
-import { GUIDE_TEXT, STEPS, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
+import { GUIDE_TEXT, STEPS, snackPointerOn, type Hint, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -39,14 +40,15 @@ export default function FirstRunGuide(raw: GuideProps) {
   const [fedNow, setFedNow] = useState(raw.preview === "stroke" || raw.preview === "map"); // the feed step finished in this visit
   const [done, setDone] = useState<Step[]>([]);
   const [read, setRead] = useState(false);
-  const [dismissed, setDismissed] = useState<Step[]>([]);
+  const [dismissed, setDismissed] = useState<Hint[]>([]);
   const store = useRef<ReturnType<typeof browserStore>>(null);
   const start = useRef<{ x: number; z: number } | null>(null);
   const fed0 = useRef(p.fedTick);
   const stroke0 = useRef(p.strokeTick ?? 0);
   const mapWas = useRef(!!p.mapOpen);
-  const shown = useRef<Step | null>(null); // the hint on screen in the previous render
+  const shown = useRef<Hint | null>(null); // the hint on screen in the previous render
   const egg = useMemo(() => GARDEN.places.find((x) => x.kind === "egg")!, []);
+  const well = useMemo(() => GARDEN.places.find((x) => x.id === "inkwell"), []);
   const nest = useMemo(() => GARDEN.places.find((x) => x.kind === "nest")!, []);
 
   const finish = (steps: Step[]) => setDone((d) => { const n = steps.reduce(markDone, d); if (n.length !== d.length) writeDone(store.current, n); return n; });
@@ -81,7 +83,7 @@ export default function FirstRunGuide(raw: GuideProps) {
     else if (hasMoved(start.current, p.pose)) finish(["move"]);
   }, [ready, p.pose]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ctx = { ready, inGarden: !!p.pose, nearEgg: p.nearEgg, eggPending: !p.eggClaimed, printNear: p.printNear, hasSnack: p.hasSnack, hasCreature: p.hasCreature, hasWaiting: p.hasWaiting, nearNest: p.nearNest, hatchWait: p.hatchWait, fedThisSession: fedNow, day: guideDay(hourOverride(typeof window === "undefined" ? "" : window.location.search) ?? hourOfDay(new Date())), dismissed };
+  const ctx = { ready, inGarden: !!p.pose, nearEgg: p.nearEgg, eggPending: !p.eggClaimed, printNear: p.printNear, hasSnack: p.hasSnack, hasCreature: p.hasCreature, hasWaiting: p.hasWaiting, nearNest: p.nearNest, hatchWait: p.hatchWait, snackHint: !!well && snackHintOn(typeof window === "undefined" ? "" : window.location.search, process.env.NODE_ENV === "production"), fedThisSession: fedNow, day: guideDay(hourOverride(typeof window === "undefined" ? "" : window.location.search) ?? hourOfDay(new Date())), dismissed };
   const hint = currentHint(done, ctx);
   useEffect(() => { shown.current = hint; }); // after the feed effect, so that one sees the hint from before the feed
   const pointer = pointerOn(done, ctx), nestPointer = nestPointerOn(done, ctx);
@@ -92,18 +94,19 @@ export default function FirstRunGuide(raw: GuideProps) {
 
   useEffect(() => { // Escape hides the hint on show and keeps it hidden
     if (!hint) return;
-    const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setDismissed((d) => markDone(d, hint)); finish([hint]); } };
+    const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setDismissed((d) => [...d, hint]); if (hint !== "snack") finish([hint]); } };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [hint]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const b = p.pose ? (pointer ? eggBearing(p.pose, egg) : nestPointer ? eggBearing(p.pose, nest) : null) : null;
+  const snackArrow = !!well && snackPointerOn(hint, p.pose, well);
+  const b = p.pose ? (snackArrow ? eggBearing(p.pose, well!) : pointer ? eggBearing(p.pose, egg) : nestPointer ? eggBearing(p.pose, nest) : null) : null;
   return (
     <>
       {b && !b.inView && (
         <div className="guide-arrow" aria-hidden="true" style={{ left: `${50 + Math.sin(b.angle) * 42}%`, top: `${50 - Math.cos(b.angle) * 36}%` }}>
           <svg width="34" height="34" viewBox="0 0 34 34" style={{ transform: `rotate(${b.angle}rad)` }}><path d="M17 4 L27 26 L17 20 L7 26 Z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /></svg>
-          <span className="sr-only">{pointer ? GUIDE_TEXT.arrow : GUIDE_TEXT.nestArrow}</span>
+          <span className="sr-only">{snackArrow ? GUIDE_TEXT.snackArrow : pointer ? GUIDE_TEXT.arrow : GUIDE_TEXT.nestArrow}</span>
         </div>
       )}
       {hint && <p className="guide-hint" role="status" style={p.raise ? { bottom: 168 + p.raise } : undefined}>{hintText(hint, !!p.nearNest, p.hatchWait ?? 0, !!p.touch)}</p>}
