@@ -22,6 +22,7 @@ export type GuideProps = {
   fedTick: number;
   mapOpen?: boolean; // the map panel is open
   strokeTick?: number; // goes up each time a stroke starts
+  touch?: boolean; // S38a: touch words instead of key words (already includes the wording switch)
   raise?: number; // px to lift the hint when another prompt sits under it
   pose: { x: number; z: number; yaw: number } | null; // null away from the garden
   onGlow: (on: boolean) => void;
@@ -105,7 +106,7 @@ export default function FirstRunGuide(raw: GuideProps) {
           <span className="sr-only">{pointer ? GUIDE_TEXT.arrow : GUIDE_TEXT.nestArrow}</span>
         </div>
       )}
-      {hint && <p className="guide-hint" role="status" style={p.raise ? { bottom: 168 + p.raise } : undefined}>{hintText(hint, !!p.nearNest, p.hatchWait ?? 0)}</p>}
+      {hint && <p className="guide-hint" role="status" style={p.raise ? { bottom: 168 + p.raise } : undefined}>{hintText(hint, !!p.nearNest, p.hatchWait ?? 0, !!p.touch)}</p>}
     </>
   );
 }

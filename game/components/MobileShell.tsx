@@ -3,6 +3,7 @@
 // Mounted only when data/mobile.json says enabled (see MobileShell), so with the flag off nothing here runs: no listeners, no class, no markup.
 import { useEffect, useRef, useState } from "react";
 import TouchControls from "@/components/TouchControls";
+import { useTouchWording } from "@/components/useTouchWording";
 import type { Prompts } from "@/lib/touchControls";
 import { MOBILE, MOBILE_ENABLED, canFullscreen, goFullscreen, isFullscreen, isPortrait, leaveFullscreen, showPortraitCover, touchMode, touchOverride, type LastInput } from "@/lib/touchInput";
 
@@ -14,6 +15,7 @@ function Inner({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; p
   const [full, setFull] = useState(false);
   const [canFs, setCanFs] = useState(false);
   const [forcedPortrait, setForcedPortrait] = useState(false);
+  const words = useTouchWording(); // S38a
   const last = useRef<LastInput>(null);
   const root = useRef<HTMLDivElement>(null);
   const over = useRef(touchOverride("", true));
@@ -71,7 +73,7 @@ function Inner({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; p
           </svg>
         </button>
       )}
-      {touch && signedIn && !cover && <TouchControls prompts={prompts} hidden={panelOpen} onClose={onClose} />}
+      {touch && signedIn && !cover && <TouchControls prompts={prompts} hidden={panelOpen} onClose={onClose} labels={words} />}
       {cover && (
         <div className="turn-cover" role="status" aria-live="polite">
           <svg width="160" height="120" viewBox="0 0 160 120" aria-hidden="true" fill="none" stroke="#2b2a33" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

@@ -272,6 +272,8 @@ body.touch .fs-btn { right: calc(max(16px, env(safe-area-inset-right)) + 60px); 
 .tc-top > * { pointer-events: auto; }
 .tc-btn { display: grid; place-items: center; padding: 0; color: var(--ink); background: var(--paper); border: var(--border); border-radius: 50%; box-shadow: 0 4px 0 rgba(43, 42, 51, 0.2); cursor: pointer; }
 .tc-small { width: calc(var(--tc-min) + 8px); height: calc(var(--tc-min) + 8px); }
+.tc-top-btn.has-label { height: auto; min-height: var(--tc-min); padding: 4px 6px; grid-auto-flow: row; gap: 0; align-content: center; width: auto; min-width: var(--tc-min); }
+.tc-label { font: 700 11px/1 var(--font-ui); letter-spacing: 0.02em; }
 .tc-top-btn { width: var(--tc-min); height: var(--tc-min); border-radius: 16px 14px 18px 14px / 14px 18px 14px 16px; }
 .tc-do { width: var(--tc-do); height: var(--tc-do); background: var(--gold); }
 .tc-btn.held { transform: translateY(3px); box-shadow: 0 1px 0 rgba(43, 42, 51, 0.2); background: var(--paper-shade); }
