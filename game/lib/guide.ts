@@ -102,6 +102,7 @@ export type Ctx = {
   hatchWait?: number; // seconds until it can hatch (0 = ready)
   snackHint?: boolean; // S38b: switch on (data/firstTen.json); undefined counts as off
   fedThisSession?: boolean; // the feed step finished in this visit (never true from saved data alone)
+  unstick?: boolean; // S38c: switch on (data/firstTen.json); undefined counts as off
   day?: boolean; // the stroke hint is a daytime line; undefined counts as day
   dismissed: readonly Hint[]; // skipped with Escape this session (also saved as done)
 };
@@ -116,6 +117,14 @@ export function currentHint(done: readonly Step[], c: Ctx): Hint | null {
   if (c.hasWaiting && !c.hasCreature && !c.eggPending && open("hatch")) return "hatch";
   if (c.hasCreature && c.printNear && c.hasSnack && open("feed")) return "feed";
   if (c.snackHint === true && c.hasCreature && !c.hasSnack && !c.fedThisSession && open("feed") && !c.dismissed.includes("snack")) return "snack";
+  if (c.unstick === true) {
+    // S38c: stroke is optional. By day it is offered after a feed (this visit or an earlier one); at night the map follows the feed.
+    const fed = c.fedThisSession === true || done.includes("feed");
+    const strokeNext = fed && c.day !== false && open("stroke");
+    if (fed && open("map") && (done.includes("stroke") || c.day === false || c.dismissed.includes("stroke"))) return "map";
+    if (strokeNext && c.hasCreature && c.printNear) return "stroke";
+    return null;
+  }
   if (done.includes("stroke") && open("map")) return "map";
   if (c.fedThisSession && c.hasCreature && c.printNear && c.day !== false && open("stroke")) return "stroke";
   return null;
@@ -140,6 +149,9 @@ export const feedFinishes = (shown: Hint | null, prevTick: number, tick: number)
 
 // A stroke that starts while the stroke hint is the one on show finishes it. One before it appeared, or after Escape, does not.
 export const strokeFinishes = (shown: Hint | null, prevStrokes: number, strokes: number): boolean => shown === "stroke" && strokes > prevStrokes;
+
+// Is the guide finished? Every step done; with S38c on, stroke counts as skipped once the map step is done.
+export const guideFinished = (done: readonly Step[], unstick = false): boolean => STEPS.every((x) => done.includes(x) || (unstick && x === "stroke" && done.includes("map")));
 
 // Opening the map finishes the map step at any time, even before its hint shows.
 export const mapFinishes = (wasOpen: boolean, isOpen: boolean): boolean => !wasOpen && isOpen;
