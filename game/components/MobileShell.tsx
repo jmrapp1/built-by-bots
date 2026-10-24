@@ -8,7 +8,7 @@ import { MOBILE, MOBILE_ENABLED, canFullscreen, goFullscreen, isFullscreen, isPo
 
 const prod = process.env.NODE_ENV === "production";
 
-function Inner({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean }) {
+function Inner({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean; onClose: () => void }) {
   const [touch, setTouch] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [full, setFull] = useState(false);
@@ -71,7 +71,7 @@ function Inner({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: P
           </svg>
         </button>
       )}
-      {touch && signedIn && !cover && <TouchControls prompts={prompts} hidden={panelOpen} />}
+      {touch && signedIn && !cover && <TouchControls prompts={prompts} hidden={panelOpen} onClose={onClose} />}
       {cover && (
         <div className="turn-cover" role="status" aria-live="polite">
           <svg width="160" height="120" viewBox="0 0 160 120" aria-hidden="true" fill="none" stroke="#2b2a33" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -86,7 +86,7 @@ function Inner({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: P
   );
 }
 
-export default function MobileShell({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean }) {
+export default function MobileShell({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean; onClose: () => void }) {
   if (!MOBILE_ENABLED) return null;
-  return <Inner signedIn={signedIn} prompts={prompts} panelOpen={panelOpen} />;
+  return <Inner signedIn={signedIn} prompts={prompts} panelOpen={panelOpen} onClose={onClose} />;
 }
