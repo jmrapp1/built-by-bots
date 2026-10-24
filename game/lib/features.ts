@@ -1,7 +1,7 @@
 // E2: the authored feature list and its pure builder. Seeded only; no three.js, clock or storage, and nothing is drawn or saved.
 // A feature builds its whole item list from its own seed, independent of chunk edges; a chunk takes the items that fall inside it, so a long
 // belt has no seam and building a chunk twice gives the same result. Nothing here is read by chunkContents or the renderer in E2, so the World
-// is exactly as before. A later slice (E3) draws these items.
+// is exactly as before. E3 draws these items (worldShell.ts), only when the switch is on.
 import raw from "@/data/features.json";
 import map from "@/data/map.json";
 import { GARDEN, HOME, type Circle } from "./world";
@@ -22,6 +22,18 @@ export type Limits = { minGap: number; gapWidth: number; perChunk: number };
 
 /** Anything but a plain true is off; never throws. */
 export const featuresFlag = (d: unknown): boolean => { try { return (d as { features?: { enabled?: unknown } })?.features?.enabled === true; } catch { return false; } };
+
+/** Is the feature drawing on? The data file decides; in dev builds ?features=1 or ?features=0 overrides it (inert in production). */
+export function featuresOn(search: string, production: boolean, data: unknown = raw): boolean {
+  if (!production) {
+    try {
+      const v = new URLSearchParams(search).get("features");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch { /* fall through to the file */ }
+  }
+  return featuresFlag(data);
+}
 
 const RADIUS = { tree: TREE_R, rock: ROCK_R, bush: BUSH_R } as const;
 export const itemRadius = (i: { k: "tree" | "rock" | "bush"; s: number }) => RADIUS[i.k] * i.s;

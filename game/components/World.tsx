@@ -62,6 +62,7 @@ import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
 import { groundLift, groundOn, groundY } from "@/lib/ground";
 import { fogAt, regionFogOn } from "@/lib/regionFog";
+import { featuresOn } from "@/lib/features";
 import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
@@ -491,6 +492,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
     const groundHeight = groundOn(window.location.search, process.env.NODE_ENV === "production"); // H1: ground height in the World; off = flat as before
     const regionFog = regionFogOn(window.location.search, process.env.NODE_ENV === "production"); // E1: fog by region in the World; off = the one global fog as before
+    const featuresDrawn = featuresOn(window.location.search, process.env.NODE_ENV === "production"); // E3: authored groves, belts and rows; off = the scatter alone, as before
     const lift = (x: number, z: number): number => groundLift(groundHeight && zones.is("garden"), x, z); // H4: Prints stand on the World's ground; 0 with the switch off or outside the garden
     const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
@@ -575,7 +577,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene, { hills: hillsOn, ground: groundHeight }); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
+    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene, { hills: hillsOn, ground: groundHeight, features: featuresDrawn }); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
