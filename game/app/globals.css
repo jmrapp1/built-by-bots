@@ -300,3 +300,15 @@ body.touch .signin { max-height: calc(100dvh - 24px); overflow-y: auto; touch-ac
 .legend-list li { display: flex; align-items: center; gap: 8px; }
 .legend-ico { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--paper); border: var(--border); border-radius: 50%; color: var(--ink); }
 .legend-stick { background: radial-gradient(circle, var(--ink) 0 22%, var(--paper) 24%); }
+
+/* S38d: phone HUD fit. Only with body.touch.hud-fit (touch mode AND firstTen.hudFit on), so desktop and flag-off are untouched.
+   The Print card moves to the top-left and shrinks so it ends above the stick; the pouch moves to sit just above the action buttons. */
+body.touch.hud-fit .mood { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: max(16px, env(safe-area-inset-left)); width: 196px; gap: 6px; padding: 10px 12px; max-height: calc(100dvh - max(24px, env(safe-area-inset-bottom)) - var(--tc-stick, 132px) - 8px - max(12px, env(safe-area-inset-top))); overflow-y: auto; overscroll-behavior: contain; }
+body.touch.hud-fit .mood .card-note { display: none; }
+body.touch.hud-fit .mood-head h3 { font-size: 15px; }
+body.touch.hud-fit .mood .growth { gap: 4px; }
+body.touch.hud-fit .mood .growth-name { font-size: 13px; }
+body.touch.hud-fit .mood .drops { gap: 14px; }
+body.touch.hud-fit .mood .btn { min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+body.touch.hud-fit .hand { bottom: calc(max(24px, env(safe-area-inset-bottom)) + var(--tc-do, 84px) + 10px); right: max(24px, env(safe-area-inset-right)); padding: 6px 10px; gap: 8px; max-width: 220px; }
+body.touch.hud-fit .hand .slot { width: 28px; height: 28px; }
