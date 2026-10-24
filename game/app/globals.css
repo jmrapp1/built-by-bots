@@ -228,3 +228,22 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .try-closing { margin: 0; text-align: center; }
 .try-actions { display: flex; gap: 8px; justify-content: flex-end; }
 @media (prefers-reduced-motion: reduce) { .try-tab { animation: none !important; } }
+
+/* S35: the Print book. A two-page paper spread, desktop only. Reduced motion: it fades in, no rise. */
+.printbook { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(760px, 94vw); max-height: 86vh; display: grid; grid-template-columns: 1.4fr 1fr; background: var(--paper); border: var(--border); border-radius: var(--radius-card); box-shadow: var(--shadow-card); overflow: hidden; animation: fade 200ms var(--ease) both; z-index: 20; }
+.printbook h3 { font-size: 22px; margin-bottom: 12px; }
+.pb-left, .pb-right { padding: 20px 22px; display: grid; align-content: start; gap: 12px; overflow-y: auto; }
+.pb-right { background: var(--paper-shade); border-left: 2px solid rgba(43, 42, 51, 0.25); }
+.pb-spine { display: none; }
+.pb-grid { display: grid; gap: 10px; }
+.pb-cell { display: grid; justify-items: center; gap: 2px; padding: 10px 6px; font: 700 14px var(--font-ui); color: var(--ink); background: var(--paper); border: var(--border); border-radius: var(--radius-control); cursor: pointer; transition: transform 120ms var(--ease), background 120ms var(--ease); }
+.pb-cell.on { background: var(--paper-shade); transform: translateY(-2px); }
+.pb-cell.cur { box-shadow: inset 0 0 0 2px var(--ink); }
+.pb-cell:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pb-name { font: 700 14px var(--font-display); }
+.pb-sub { font: 500 13px var(--font-ui); color: var(--ink-soft); display: block; }
+.pb-top { display: flex; align-items: center; gap: 12px; }
+.pb-big { font: 600 20px var(--font-display); display: block; }
+.pb-pick { margin: 0; font: 700 13px var(--font-ui); color: var(--ink-soft); }
+.book-hint { position: absolute; right: 16px; bottom: 16px; font: 600 13px var(--font-ui); color: var(--ink-soft); display: flex; gap: 6px; align-items: center; }
+@media (prefers-reduced-motion: reduce) { .printbook { animation: fade 150ms linear both; } .pb-cell, .pb-cell.on { transition: none; transform: none; } }

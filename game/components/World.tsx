@@ -104,6 +104,7 @@ type Props = {
   onHome?: () => void; // the player entered the Home room
   onZoneDone?: (zone: "garden" | "margins" | "home") => void; // (the Reading Room reports nothing: it has no chapter card) // S21: a door or gate crossing finished
   onMapKey?: () => void; // M was pressed
+  onTravel?: (travelling: boolean) => void; // S35: a door or gate crossing is under way (the Print book stays shut)
   onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
   guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
   onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
@@ -286,10 +287,10 @@ function buildPlayer() {
 
 export type PrintInfo = { id: string; genes: Genes; species: string; stage: string; worn: string | null };
 
-export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose });
-  cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onMapPose, onHome, onZoneDone, onGuidePose };
+  const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose });
+  cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose };
   // Latest props for the render loop, which is created once.
   const live = useRef({ prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
   live.current = { prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
@@ -621,6 +622,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       const walk = (fromZone === "reading" ? readingDoorPath(local, "room") : into === "reading" ? readingDoorPath(local, "margins") : fromZone === "home" ? doorPath(local, "room") : into === "home" ? doorPath(local, "garden") : gatePath(local, into === "margins" ? "garden" : "home")).map((q) => ({ x: q.x + fo, z: q.z }));
       const arrive = (into === "reading" ? readingArrival("reading") : fromZone === "reading" ? readingArrival("margins") : into === "home" ? doorArrival("home") : fromZone === "home" ? doorArrival("garden") : arrivalPath(into)).map((q) => ({ x: q.x + io, z: q.z }));
       travel = { into, from: fromZone, start: performance.now(), walk, arrive, swapped: false };
+      cb.current.onTravel?.(true);
       sit = STANDING;
       holdStart = -1; uHold = 0;
     };
@@ -1189,7 +1191,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         wipe.style.display = f.wipe > 0 || tt < 0.05 ? "block" : "none";
         if (reducedMotion) { wipe.style.transform = "none"; wipe.style.opacity = String(f.wipe); } // a fade, not a sweep
         else { wipe.style.transform = `translateX(${wipeOffset(tt, false)}%)`; wipe.style.opacity = "1"; }
-        if (f.done) { travel = null; wipe.style.display = "none"; const zc = zones.current; if (zc !== "reading") cb.current.onZoneDone?.(zc); }
+        if (f.done) { travel = null; cb.current.onTravel?.(false); wipe.style.display = "none"; const zc = zones.current; if (zc !== "reading") cb.current.onZoneDone?.(zc); }
       }
       const res = tRes ? tRes : zones.is("reading") && canWalk(sit) ? (() => {
         const l = { x: pos.x - READING_OFF, z: pos.z };

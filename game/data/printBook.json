@@ -1,0 +1,10 @@
+{
+  "note": "S35: the Print book. A page you open with a key to see every Print you own and pick the one the card and care follow. Display and choice only; nothing is saved or sent.",
+  "key": "KeyB",
+  "columns": 3,
+  "title": "Your Prints",
+  "hint": "Your Prints",
+  "pickLabel": "Enter to choose",
+  "pickedLabel": "With you now",
+  "empty": "No Prints yet"
+}
