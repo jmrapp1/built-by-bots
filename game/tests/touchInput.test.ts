@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 import { MOBILE, MOBILE_ENABLED, canFullscreen, goFullscreen, isEnabled, isFullscreen, isPortrait, leaveFullscreen, showPortraitCover, touchMode, touchOverride } from "@/lib/touchInput";
 
 describe("kill switch", () => {
-  it("is on in the shipped data, and only a plain true counts", () => {
-    expect(MOBILE_ENABLED).toBe(true);
+  it("ships off (a later PR turns it on after a phone check), and only a plain true counts", () => {
+    expect(MOBILE_ENABLED).toBe(false);
+    expect(isEnabled({ mobile: { enabled: false } })).toBe(false);
     expect(isEnabled({ mobile: { enabled: true } })).toBe(true);
     for (const v of [false, "true", 1, null, undefined, {}]) expect(isEnabled({ mobile: { enabled: v } })).toBe(false);
     for (const d of [null, undefined, 5, "x", {}, { mobile: null }]) expect(isEnabled(d)).toBe(false);
