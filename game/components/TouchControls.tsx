@@ -20,7 +20,10 @@ export const GLYPH: Record<ButtonId | "map" | "book", React.ReactNode> = {
 };
 export const LABEL: Record<ButtonId | "map" | "book", string> = { do: "Do", stroke: "Stroke", snack: "Change snack", follow: "Come along", skip: "Skip a stone", map: "Map", book: "Prints book" };
 
-export default function TouchControls({ prompts, hidden, onClose }: { prompts: Prompts; hidden: boolean; onClose: () => void }) {
+// S38a: short words under the Map and Book icons (text only).
+export const SHORT = { map: "Map", book: "Book" } as const;
+
+export default function TouchControls({ prompts, hidden, onClose, labels = false }: { prompts: Prompts; hidden: boolean; onClose: () => void; labels?: boolean }) {
   const held = useRef<Set<string>>(new Set());
   const set = (next: Set<string>) => { const d = keyDiff(held.current, next); for (const k of d.up) send("keyup", k); for (const k of d.down) send("keydown", k); held.current = new Set(next); };
   const releaseAll = () => { set(new Set()); };
@@ -65,9 +68,10 @@ export default function TouchControls({ prompts, hidden, onClose }: { prompts: P
     btnId.current.delete(e.pointerId); setHeldBtn(null); send("keyup", BUTTON_KEY[id].key);
   };
   const btn = (id: ButtonId | "map" | "book", cls: string) => (
-    <button key={id} type="button" className={`tc-btn ${cls}${heldBtn === id ? " held" : ""}`} aria-label={LABEL[id]}
+    <button key={id} type="button" className={`tc-btn ${cls}${labels && (id === "map" || id === "book") ? " has-label" : ""}${heldBtn === id ? " held" : ""}`} aria-label={LABEL[id]}
       onPointerDown={(e) => press(id, e)} onPointerUp={lift} onPointerCancel={lift} onLostPointerCapture={lift} onContextMenu={(e) => e.preventDefault()}>
       {GLYPH[id]}
+      {labels && (id === "map" || id === "book") && <span className="tc-label" aria-hidden="true">{SHORT[id]}</span>}
     </button>
   );
 

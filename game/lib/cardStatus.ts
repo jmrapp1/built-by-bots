@@ -15,15 +15,21 @@ export const CARD_TEXT = {
   wellGrown: "Doing well. Nothing here ever hurries you.",
 };
 
+// S38a: the same two lines for a thumb (no key names).
+export const CARD_TEXT_TOUCH = {
+  hungry: "Hungry for a snack. Gather one and hold the big button beside it.",
+  lonely: "Could use a stroke. Hold the stroke button beside it.",
+};
+
 export type CardCreature = { fullness: number; mood: number; stage?: string | null };
 
 // One caption under the bar, one status line (first match wins). An unknown stage reads as the first stage.
-export function cardStatus(c: CardCreature): { caption: string; line: string } {
+export function cardStatus(c: CardCreature, touch = false): { caption: string; line: string } {
   const stage = stageById(c.stage ?? STAGES[0].id);
   const next = STAGES[STAGES.findIndex((s) => s.id === stage.id) + 1];
   const caption = next ? CARD_TEXT.growing(next.name) : CARD_TEXT.grown;
-  if (c.fullness < LOW) return { caption, line: CARD_TEXT.hungry };
-  if (c.mood < LOW) return { caption, line: CARD_TEXT.lonely };
+  if (c.fullness < LOW) return { caption, line: touch ? CARD_TEXT_TOUCH.hungry : CARD_TEXT.hungry };
+  if (c.mood < LOW) return { caption, line: touch ? CARD_TEXT_TOUCH.lonely : CARD_TEXT.lonely };
   return { caption, line: next ? CARD_TEXT.well : CARD_TEXT.wellGrown };
 }
 

@@ -63,7 +63,7 @@ describe("wiring and safety", () => {
   it("World.tsx is untouched by S14", () => expect(readFileSync("components/World.tsx", "utf8")).not.toMatch(/cardStatus/));
   it("page uses the card status and keeps the progressbar", () => {
     const p = readFileSync("app/page.tsx", "utf8");
-    expect(p).toMatch(/cardStatus\(shown\)/);
+    expect(p).toMatch(/cardStatus\(shown(, tw)?\)/);
     expect(p).toMatch(/role="progressbar"/);
     expect(p).toMatch(/\{status\.caption\}/);
     expect(p).toMatch(/\{status\.line\}/);

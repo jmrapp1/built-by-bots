@@ -1,0 +1,6 @@
+{
+  "note": "S38: first ten minutes. One switch per slice. Anything but a plain true is off, and off means today's behaviour exactly. 'wording' (S38a) = touch words instead of key words when the page is in touch mode. Kill switch: set it to false.",
+  "firstTen": {
+    "wording": false
+  }
+}

@@ -1,14 +1,16 @@
 // Notice board text lookup. Content is fixed data (data/board.json): nothing here is player-written.
 import board from "@/data/board.json";
 
-export type BoardPage = { id: string; title: string; lines: string[] };
+export type BoardPage = { id: string; title: string; lines: string[]; touchLines?: string[] };
 export const BOARD_TITLE: string = board.title;
 export const BOARD_PAGES = board.pages as BoardPage[];
 
 // Clamp any index to a real page, so next/previous never run off the ends.
-export function pageAt(i: number): BoardPage {
+// S38a: with touch true, a page that has touchLines shows those instead of its lines. Otherwise the page is returned as is.
+export function pageAt(i: number, touch = false): BoardPage {
   const n = BOARD_PAGES.length;
-  return BOARD_PAGES[Math.min(n - 1, Math.max(0, Math.floor(Number.isFinite(i) ? i : 0)))];
+  const p = BOARD_PAGES[Math.min(n - 1, Math.max(0, Math.floor(Number.isFinite(i) ? i : 0)))];
+  return touch && p.touchLines ? { ...p, lines: p.touchLines } : p;
 }
 export function nextPage(i: number): number { return Math.min(BOARD_PAGES.length - 1, Math.max(0, i) + 1); }
 export function prevPage(i: number): number { return Math.max(0, Math.min(BOARD_PAGES.length - 1, i) - 1); }

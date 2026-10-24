@@ -28,6 +28,16 @@ export const GUIDE_TEXT = {
   nestArrow: "Your nest is this way",
 } as const;
 
+// S38a: the same lines for a thumb. No key names; the stick, the big button, the stroke button and the map button instead.
+export const GUIDE_TEXT_TOUCH = {
+  move: "Use the stick to walk. Tap the big button to do things.",
+  egg: "Tap the big button to collect your egg.",
+  hatch: "Tap the big button to hatch your egg.",
+  feed: "Hold the big button beside your Print to share a snack.",
+  stroke: "Hold the stroke button beside your Print to stroke it.",
+  map: "Tap the map button to open your map and see where else you can go.",
+} as const;
+
 export const guideKeys = () => ({
   walk: WALK_CODES.map(keyLabel).join(" "),
   act: keyLabel(PLAY.keys.hold),
@@ -125,9 +135,10 @@ export const strokeFinishes = (shown: Step | null, prevStrokes: number, strokes:
 export const mapFinishes = (wasOpen: boolean, isOpen: boolean): boolean => !wasOpen && isOpen;
 
 // The hatch line depends on where the player stands and whether the egg is ready.
-export const hatchText = (nearNest: boolean, wait: number): string => (!nearNest ? GUIDE_TEXT.hatchAway : wait > 0 ? GUIDE_TEXT.hatchWait : GUIDE_TEXT.hatch(guideKeys().act));
+export const hatchText = (nearNest: boolean, wait: number, touch = false): string => (!nearNest ? GUIDE_TEXT.hatchAway : wait > 0 ? GUIDE_TEXT.hatchWait : touch ? GUIDE_TEXT_TOUCH.hatch : GUIDE_TEXT.hatch(guideKeys().act));
 
-export const hintText = (s: Step, nearNest = true, wait = 0): string => {
+export const hintText = (s: Step, nearNest = true, wait = 0, touch = false): string => {
+  if (touch) return s === "hatch" ? hatchText(nearNest, wait, true) : GUIDE_TEXT_TOUCH[s];
   const k = guideKeys();
   if (s === "hatch") return hatchText(nearNest, wait);
   return s === "move" ? GUIDE_TEXT.move(k.walk, k.act) : s === "egg" ? GUIDE_TEXT.egg(k.act) : s === "feed" ? GUIDE_TEXT.feed(k.act) : s === "stroke" ? GUIDE_TEXT.stroke(k.stroke) : GUIDE_TEXT.map(k.map);

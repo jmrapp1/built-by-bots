@@ -5,9 +5,12 @@ import { GLYPH, LABEL } from "@/components/TouchControls";
 
 const ORDER = ["do", "stroke", "snack", "follow", "skip", "map", "book"] as const;
 
-export default function TouchLegend() {
+// S38a: with the wording switch on, the first Menu opening of a visit shows the legend already open. (Not stored; a reload counts as a new visit.)
+let shownOpen = false;
+
+export default function TouchLegend({ openFirst = false }: { openFirst?: boolean }) {
   const [touch, setTouch] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => { if (!openFirst || shownOpen) return false; shownOpen = true; return true; });
   useEffect(() => { setTouch(document.body.classList.contains("touch")); }, []);
   if (!touch) return null;
   return (
