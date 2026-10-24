@@ -51,6 +51,9 @@ export function groundY(x: number, z: number, o: GroundOpts = {}): number {
   return h * scale * m;
 }
 
+/** H4: how far a Print stands above y 0 at x, z. Exactly 0 with the switch off. Reach checks never use it (x/z only). */
+export const groundLift = (on: boolean, x: number, z: number, g: (x: number, z: number) => number = groundY): number => (on ? g(x, z) : 0);
+
 /** A text height map for checking by eye: one character per `step` metres, blank = flat, digits = 0.1 m of height at that scale. */
 export function asciiMap(step = 8, o: GroundOpts = {}, x0 = -HALF, x1 = HALF, z0 = -HALF, z1 = HALF): string {
   const rows: string[] = [];

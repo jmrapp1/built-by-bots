@@ -60,7 +60,7 @@ import { PS_ENABLED, restoreFrom, restorePlayer, restorePrints, toLocal, type La
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
-import { groundOn, groundY } from "@/lib/ground";
+import { groundLift, groundOn, groundY } from "@/lib/ground";
 import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
@@ -489,6 +489,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
     const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
     const groundHeight = groundOn(window.location.search, process.env.NODE_ENV === "production"); // H1: ground height in the World; off = flat as before
+    const lift = (x: number, z: number): number => groundLift(groundHeight && zones.is("garden"), x, z); // H4: Prints stand on the World's ground; 0 with the switch off or outside the garden
     const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
     const cloudsOn = cloudsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31d: none in the Margins or Home
@@ -887,7 +888,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           dynamic.add(mesh);
           const side = n % 2 ? 1 : -1;
           const w = wanderBy.get(q.id) ?? newWander({ x: nest.x + side * (1.8 + 0.9 * Math.floor(n / 2)), z: nest.z + 2 + (n % 3) });
-          mesh.position.set(w.x, 0, w.z);
+          mesh.position.set(w.x, lift(w.x, w.z), w.z);
           others.push({ id: q.id, idx: n, mesh, w, base, joined: false, slot: 0, walk: { route: [], leg: 0, at: -1 } });
           n++;
         }
@@ -1159,7 +1160,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         o.mesh.rotation.order = "YXZ";
         o.mesh.rotation.y += dy * Math.min(1, dt * 8);
         o.mesh.rotation.x = moving ? 0.07 : 0;
-        o.mesh.position.set(o.w.x, moving || sleeping ? 0 : Math.abs(Math.sin(t / 300 + o.idx)) * 0.03, o.w.z);
+        o.mesh.position.set(o.w.x, (moving || sleeping ? 0 : Math.abs(Math.sin(t / 300 + o.idx)) * 0.03) + lift(o.w.x, o.w.z), o.w.z);
         const sq = sleeping ? 0.88 : 1, wide = 1 + (1 - sq) * 0.5;
         o.mesh.scale.set(o.base * wide, o.base * sq, o.base * wide);
       }
@@ -1575,6 +1576,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         printMesh.rotation.z = (!engaged ? (pondPoseV?.shake ?? hidePoseV?.shake ?? 0) : 0) + fo.roll;
         if (fo.blink > 0 || fidgetBlinked) { for (const e of fidgetEyes) e.scale.y = 1 - fo.blink; fidgetBlinked = fo.blink > 0; }
         printMesh.position.set(wander.x + hideDir.x * HIDE.peekOut * hideSide, (owned || holdStill || pondOwned || hideOwned ? 0 : Math.abs(Math.sin(t / 300)) * 0.03 * (engaged ? 0.3 : 1)) + pose.hop + watchHop + yBase, wander.z + hideDir.z * HIDE.peekOut * hideSide);
+        printMesh.position.y += lift(printMesh.position.x, printMesh.position.z); // H4: the focused Print, including while it walks along, stands on the ground
         const prog = pulseStart < 0 ? 0 : (performance.now() - pulseStart) / 1200;
         if (prog >= 1) pulseStart = -1;
         const sc = baseScale * growthPulse(prog, reduced);
@@ -1628,7 +1630,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           const pf = hp[i];
           m.visible = !!pf;
           if (!pf) return;
-          m.position.set(printMesh!.position.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase, printMesh!.position.z + Math.sin(pf.angle) * pf.dx);
+          m.position.set(printMesh!.position.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase + lift(printMesh!.position.x, printMesh!.position.z), printMesh!.position.z + Math.sin(pf.angle) * pf.dx);
           m.scale.setScalar(pf.scale);
           const mt = m.material as THREE.MeshBasicMaterial;
           mt.opacity = pf.opacity;
@@ -1638,7 +1640,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           const pf = puffs[i];
           m.visible = !!pf;
           if (!pf) return;
-          m.position.set(wander!.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase, wander!.z + Math.sin(pf.angle) * pf.dx);
+          m.position.set(wander!.x + Math.cos(pf.angle) * pf.dx, baseScale * 0.65 + pf.dy + yBase + lift(wander!.x, wander!.z), wander!.z + Math.sin(pf.angle) * pf.dx);
           m.scale.setScalar(pf.scale);
           (m.material as THREE.MeshToonMaterial).opacity = pf.opacity;
         });
