@@ -4,9 +4,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
 import { PLAY } from "@/lib/play";
-import { snackHintOn, unstickOn } from "@/lib/firstTen";
+import { pointersOn, snackHintOn, unstickOn } from "@/lib/firstTen";
+import { doorFrame } from "@/lib/home";
 import { hourOfDay, hourOverride } from "@/lib/daynight";
-import { GUIDE_TEXT, STEPS, guideFinished, snackPointerOn, type Hint, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
+import { POINT_TEXT, duePointer, pointTargetFar, pointsAfterCrossing, type Point, GUIDE_TEXT, STEPS, guideFinished, snackPointerOn, type Hint, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -24,6 +25,7 @@ export type GuideProps = {
   mapOpen?: boolean; // the map panel is open
   strokeTick?: number; // goes up each time a stroke starts
   touch?: boolean; // S38a: touch words instead of key words (already includes the wording switch)
+  crossed?: { place: string; n: number } | null; // S42: the last door or gate crossing that finished (only read with the pointers switch on)
   raise?: number; // px to lift the hint when another prompt sits under it
   pose: { x: number; z: number; yaw: number } | null; // null away from the garden
   onGlow: (on: boolean) => void;
@@ -49,6 +51,8 @@ export default function FirstRunGuide(raw: GuideProps) {
   const shown = useRef<Hint | null>(null); // the hint on screen in the previous render
   const egg = useMemo(() => GARDEN.places.find((x) => x.kind === "egg")!, []);
   const well = useMemo(() => GARDEN.places.find((x) => x.id === "inkwell"), []);
+  const homeDoor = useMemo(() => doorFrame("garden").g, []);
+  const gateAt = useMemo(() => GARDEN.places.find((x) => x.kind === "gate"), []);
   const nest = useMemo(() => GARDEN.places.find((x) => x.kind === "nest")!, []);
 
   const finish = (steps: Step[]) => setDone((d) => { const n = steps.reduce(markDone, d); if (n.length !== d.length) writeDone(store.current, n); return n; });
@@ -99,16 +103,42 @@ export default function FirstRunGuide(raw: GuideProps) {
     return () => window.removeEventListener("keydown", k);
   }, [hint]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // S42: gate then Home door pointers, after the guide. Off unless the switch is plain true; off changes nothing above or below.
+  const pOn = typeof window !== "undefined" && pointersOn(window.location.search, process.env.NODE_ENV === "production");
+  const [pSkipped, setPSkipped] = useState<Point[]>([]), [lineUp, setLineUp] = useState(false);
+  const crossN = useRef(raw.crossed?.n ?? 0);
+  useEffect(() => { // a finished crossing marks its pointer done (saved in the same guide list)
+    const c = raw.crossed;
+    if (!c || c.n === crossN.current) return;
+    crossN.current = c.n;
+    if (pOn && read) finish(pointsAfterCrossing(c.place) as unknown as Step[]);
+  }, [raw.crossed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const due: Point | null = pOn && !pv ? duePointer(done, { guideDone: finished, hint: !!hint, ready: read && p.loaded && p.clear && !!p.pose, inGarden: !!p.pose, dismissed: pSkipped }) : null;
+  useEffect(() => { // the line shows for a while; the arrow stays
+    if (!due) { setLineUp(false); return; }
+    setLineUp(true);
+    const t = setTimeout(() => setLineUp(false), 12000);
+    return () => clearTimeout(t);
+  }, [due]);
+  useEffect(() => { // Escape skips the pointer on show (and keeps it skipped)
+    if (!due) return;
+    const k = (e: KeyboardEvent) => { if (e.code === "Escape") { setPSkipped((s) => [...s, due]); finish([due] as unknown as Step[]); } };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [due]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pTarget = due === "gate" ? gateAt : due === "home" ? homeDoor : undefined;
+  const pArrow = !!due && !!pTarget && pointTargetFar(p.pose, pTarget);
   const snackArrow = !!well && snackPointerOn(hint, p.pose, well);
-  const b = p.pose ? (snackArrow ? eggBearing(p.pose, well!) : pointer ? eggBearing(p.pose, egg) : nestPointer ? eggBearing(p.pose, nest) : null) : null;
+  const b = p.pose ? (snackArrow ? eggBearing(p.pose, well!) : pointer ? eggBearing(p.pose, egg) : nestPointer ? eggBearing(p.pose, nest) : pArrow ? eggBearing(p.pose, pTarget!) : null) : null;
   return (
     <>
       {b && !b.inView && (
         <div className="guide-arrow" aria-hidden="true" style={{ left: `${50 + Math.sin(b.angle) * 42}%`, top: `${50 - Math.cos(b.angle) * 36}%` }}>
           <svg width="34" height="34" viewBox="0 0 34 34" style={{ transform: `rotate(${b.angle}rad)` }}><path d="M17 4 L27 26 L17 20 L7 26 Z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" /></svg>
-          <span className="sr-only">{snackArrow ? GUIDE_TEXT.snackArrow : pointer ? GUIDE_TEXT.arrow : GUIDE_TEXT.nestArrow}</span>
+          <span className="sr-only">{snackArrow ? GUIDE_TEXT.snackArrow : due === "gate" && pArrow ? POINT_TEXT.gateArrow : due === "home" && pArrow ? POINT_TEXT.homeArrow : pointer ? GUIDE_TEXT.arrow : GUIDE_TEXT.nestArrow}</span>
         </div>
       )}
+      {due && lineUp && !hint && <p className="guide-hint" role="status" style={p.raise ? { bottom: 168 + p.raise } : undefined}>{due === "gate" ? POINT_TEXT.gate : POINT_TEXT.home}</p>}
       {hint && <p className="guide-hint" role="status" style={p.raise ? { bottom: 168 + p.raise } : undefined}>{hintText(hint, !!p.nearNest, p.hatchWait ?? 0, !!p.touch)}</p>}
     </>
   );

@@ -11,6 +11,10 @@ export type Step = (typeof STEPS)[number];
 export const GUIDE_KEY = "blotty.guide";
 export const GUIDE_VERSION = 1;
 
+// S42: after the guide, two one-time pointers. They live in the same saved list (no new key). Only written when the pointers switch is on.
+export const POINTS = ["gate", "home"] as const;
+export type Point = (typeof POINTS)[number];
+
 // The walking keys the world listens to (WASD; the arrow keys do the same).
 export const WALK_CODES = ["KeyW", "KeyA", "KeyS", "KeyD"] as const;
 
@@ -65,7 +69,7 @@ export function readDone(store: Store | null): Step[] {
     if (!raw) return [];
     const v = JSON.parse(raw) as { v?: unknown; done?: unknown };
     if (!v || v.v !== GUIDE_VERSION || !Array.isArray(v.done)) return [];
-    return STEPS.filter((s) => (v.done as unknown[]).includes(s));
+    return [...STEPS, ...POINTS].filter((s) => (v.done as unknown[]).includes(s)) as Step[]; // (a saved gate/home mark rides along; it only matters with the pointers switch on)
   } catch {
     return [];
   }
@@ -75,7 +79,7 @@ export function readDone(store: Store | null): Step[] {
 export function writeDone(store: Store | null, done: readonly Step[]): boolean {
   try {
     if (!store) return false;
-    store.setItem(GUIDE_KEY, JSON.stringify({ v: GUIDE_VERSION, done: STEPS.filter((s) => done.includes(s)) }));
+    store.setItem(GUIDE_KEY, JSON.stringify({ v: GUIDE_VERSION, done: [...STEPS, ...POINTS].filter((s) => (done as readonly string[]).includes(s)) }));
     return true;
   } catch {
     return false;
@@ -196,3 +200,26 @@ export const guideOverride = (search: string, isProduction: boolean): GuidePrevi
 };
 // Daytime for the stroke hint.
 export const guideDay = (hour: number): boolean => isDay(hour);
+
+// ---- S42: gate and Home door pointers (after the guide) ----
+export const POINT_TEXT = {
+  gate: "There is more beyond the garden gate.",
+  home: "Your Home is through the door.",
+  gateArrow: "The garden gate is this way",
+  homeArrow: "The Home door is this way",
+} as const;
+export const POINT_REACH = 4;
+
+/** Which pointer is due: the gate first, then (once the gate was used or skipped) the Home door. Null before the guide ends, with a guide hint on show, or when both are done. */
+export function duePointer(done: readonly string[], c: { guideDone: boolean; hint: boolean; ready: boolean; inGarden: boolean; dismissed?: readonly string[] }): Point | null {
+  if (!c.guideDone || c.hint || !c.ready || !c.inGarden) return null;
+  const skipped = c.dismissed ?? [];
+  if (!done.includes("gate") && !skipped.includes("gate")) return "gate";
+  if (!done.includes("home") && !skipped.includes("home")) return "home";
+  return null;
+}
+/** A crossing finishes its own pointer: the gate (to the margins) the gate; the Home door the door. */
+export const pointsAfterCrossing = (place: string): Point[] => (place === "margins" ? ["gate"] : place === "home" ? ["home"] : []);
+/** The arrow shows while the player is away from the target. */
+export const pointTargetFar = (pose: { x: number; z: number } | null, t: { x: number; z: number }): boolean => !!pose && Math.hypot(t.x - pose.x, t.z - pose.z) > POINT_REACH;
+export const signinNoteText = "Turn your phone sideways for an easier sign-in.";
