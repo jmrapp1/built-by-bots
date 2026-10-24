@@ -4,9 +4,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GARDEN } from "@/lib/world";
 import { PLAY } from "@/lib/play";
-import { snackHintOn } from "@/lib/firstTen";
+import { snackHintOn, unstickOn } from "@/lib/firstTen";
 import { hourOfDay, hourOverride } from "@/lib/daynight";
-import { GUIDE_TEXT, STEPS, snackPointerOn, type Hint, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
+import { GUIDE_TEXT, STEPS, guideFinished, snackPointerOn, type Hint, PREVIEW_DONE, PREVIEW_DONE_HATCH, PREVIEW_DONE_MAP, PREVIEW_DONE_STROKE, afterEggClaimed, browserStore, currentHint, eggBearing, feedFinishes, guideDay, hasMoved, hintText, mapFinishes, markDone, nestPointerOn, pointerOn, readDone, strokeFinishes, writeDone, type GuidePreview, type Step } from "@/lib/guide";
 
 export type GuideProps = {
   loaded: boolean; // the player's eggs and Prints have been read
@@ -83,12 +83,12 @@ export default function FirstRunGuide(raw: GuideProps) {
     else if (hasMoved(start.current, p.pose)) finish(["move"]);
   }, [ready, p.pose]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ctx = { ready, inGarden: !!p.pose, nearEgg: p.nearEgg, eggPending: !p.eggClaimed, printNear: p.printNear, hasSnack: p.hasSnack, hasCreature: p.hasCreature, hasWaiting: p.hasWaiting, nearNest: p.nearNest, hatchWait: p.hatchWait, snackHint: !!well && snackHintOn(typeof window === "undefined" ? "" : window.location.search, process.env.NODE_ENV === "production"), fedThisSession: fedNow, day: guideDay(hourOverride(typeof window === "undefined" ? "" : window.location.search) ?? hourOfDay(new Date())), dismissed };
+  const ctx = { ready, inGarden: !!p.pose, nearEgg: p.nearEgg, eggPending: !p.eggClaimed, printNear: p.printNear, hasSnack: p.hasSnack, hasCreature: p.hasCreature, hasWaiting: p.hasWaiting, nearNest: p.nearNest, hatchWait: p.hatchWait, snackHint: !!well && snackHintOn(typeof window === "undefined" ? "" : window.location.search, process.env.NODE_ENV === "production"), unstick: unstickOn(typeof window === "undefined" ? "" : window.location.search, process.env.NODE_ENV === "production"), fedThisSession: fedNow, day: guideDay(hourOverride(typeof window === "undefined" ? "" : window.location.search) ?? hourOfDay(new Date())), dismissed };
   const hint = currentHint(done, ctx);
   useEffect(() => { shown.current = hint; }); // after the feed effect, so that one sees the hint from before the feed
   const pointer = pointerOn(done, ctx), nestPointer = nestPointerOn(done, ctx);
   const glow = read && p.loaded && !p.existing && !p.eggClaimed && !done.includes("egg");
-  const finished = read && p.loaded && (p.existing || STEPS.every((x) => done.includes(x)));
+  const finished = read && p.loaded && (p.existing || guideFinished(done, ctx.unstick));
   useEffect(() => { p.onStatus?.({ finished, hint: !!hint }); }, [finished, hint]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { p.onGlow(glow); }, [glow]); // eslint-disable-line react-hooks/exhaustive-deps
 
