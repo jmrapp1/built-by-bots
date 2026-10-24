@@ -66,6 +66,12 @@ function Inner({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; p
     return () => { document.body.classList.remove("touch"); document.body.classList.remove("hud-fit"); };
   }, [touch]);
 
+  // S39: while a panel is open the HUD cards step aside (CSS under body.touch.panel-open); only in touch mode.
+  useEffect(() => {
+    document.body.classList.toggle("panel-open", touch && panelOpen);
+    return () => { document.body.classList.remove("panel-open"); };
+  }, [touch, panelOpen]);
+
   const cover = showPortraitCover(touch, portrait, signedIn, forcedPortrait);
   const showFs = touch && signedIn && !cover && canFs;
   return (

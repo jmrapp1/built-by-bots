@@ -43,9 +43,9 @@ import PrintBook from "@/components/PrintBook";
 import { BOOK, bookEntries, bookKeyAction, chooseIndex } from "@/lib/printBook";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
-import TouchLegend from "@/components/TouchLegend";
 import MobileShell from "@/components/MobileShell";
 import { useTouchWording } from "@/components/useTouchWording";
+import { anyPanelOpen, canActNow } from "@/lib/touchControls";
 import { usePlayerState } from "@/lib/usePlayerState";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
@@ -510,7 +510,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || BAD_MESSAGE_WORDS.test(msg);
   return (
     <main className="hud-root">
-      <MobileShell onClose={() => { setMenu(null); setMenuOpen(false); mp.setOpen(false); setBookOpen(false); setNpcLine(null); setNpcClose((n) => n + 1); }} signedIn prompts={{ snack: carried(pouch, foodIds).length > 1, follow: followMode !== "off" && !menu && !npcLine && !findable, skip: nearby?.kind === "pond" && canSplash && !menu && !npcLine && !feedTag && !findable, stroke: printNear && !!creature }} panelOpen={!!menu || menuOpen || mp.open || bookOpen || !!npcLine} />
+      <MobileShell onClose={() => { setMenu(null); setMenuOpen(false); mp.setOpen(false); setBookOpen(false); setNpcLine(null); setNpcClose((n) => n + 1); }} signedIn prompts={{ act: canActNow({ tag: findable ? FOUND_PROMPT : feedPrompt(!!creature, printNear, !!food) ?? (nearby ? promptFor(nearby, { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined, canSplash }) : null), findable, feedTag: feedPrompt(!!creature, printNear, !!food), nearKind: nearby?.kind ?? null, hatchWait: wait, menu: !!menu, npc: !!npcLine }), snack: carried(pouch, foodIds).length > 1, follow: followMode !== "off" && !menu && !npcLine && !findable, skip: nearby?.kind === "pond" && canSplash && !menu && !npcLine && !feedTag && !findable, stroke: printNear && !!creature }} panelOpen={anyPanelOpen({ menu: !!menu, menuOpen, mapOpen: mp.open, bookOpen, npc: !!npcLine })} />
       <World initialState={start?.s?.state ?? null} reportState={saveOn ? reportState : undefined} prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open || bookOpen} onTravel={setTravelling} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen && !bookOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <FirstRunGuide touch={tw} loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
@@ -536,7 +536,7 @@ export default function Page() {
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
-          <TouchLegend openFirst={tw} />
+          {/* S39: the button legend is not shown on touch devices (the keys list above is hidden there too); TouchLegend is no longer mounted. */}
           <button className="btn quiet" style={{ marginBottom: 8 }} onClick={() => { resetBrowserHints(); setMenuOpen(false); setMsg(HINTS_BACK); menuBtn.current?.focus(); }}>{HINTS_AGAIN}</button>
           <button className="btn quiet" onClick={signOut}>Sign out</button>
         </div>

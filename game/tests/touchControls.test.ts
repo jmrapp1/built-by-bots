@@ -58,14 +58,16 @@ describe("look", () => {
 });
 
 describe("buttons follow the prompts", () => {
-  const none = { snack: false, follow: false, skip: false, stroke: false };
-  it("Do is always there; the others only with their prompt", () => {
+  const none = { act: true, snack: false, follow: false, skip: false, stroke: false };
+  it("Do shows only when there is something to do (S39); the others only with their prompt", () => {
     expect(touchButtons(none)).toEqual(["do"]);
+    expect(touchButtons({ ...none, act: false })).toEqual([]);
+    expect(touchButtons({ ...none, act: false, stroke: true })).toEqual(["stroke"]);
     expect(touchButtons({ ...none, snack: true })).toEqual(["do", "snack"]);
     expect(touchButtons({ ...none, follow: true })).toEqual(["do", "follow"]);
     expect(touchButtons({ ...none, skip: true })).toEqual(["do", "skip"]);
     expect(touchButtons({ ...none, stroke: true })).toEqual(["do", "stroke"]);
-    expect(touchButtons({ snack: true, follow: true, skip: true, stroke: true })).toHaveLength(5);
+    expect(touchButtons({ act: true, snack: true, follow: true, skip: true, stroke: true })).toHaveLength(5);
   });
   it("sends the game's own key codes; feed/unfold and stroke are holds", () => {
     expect(BUTTON_KEY.do).toEqual({ key: "KeyE", hold: true });

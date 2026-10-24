@@ -301,6 +301,13 @@ body.touch .signin { max-height: calc(100dvh - 24px); overflow-y: auto; touch-ac
 .legend-ico { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--paper); border: var(--border); border-radius: 50%; color: var(--ink); }
 .legend-stick { background: radial-gradient(circle, var(--ink) 0 22%, var(--paper) 24%); }
 
+/* S39: touch fixes. Everything is under body.touch, so desktop is untouched. */
+/* No accidental text selection, long-press callout or grey tap flash on the game; text fields stay selectable and editable. */
+body.touch *, body.touch { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.touch input, body.touch textarea, body.touch [contenteditable="true"] { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; }
+/* While a menu, panel or full view is open (body.panel-open, set by MobileShell) the HUD cards step aside so nothing overlaps it. */
+body.touch.panel-open .mood, body.touch.panel-open .hand, body.touch.panel-open .tag, body.touch.panel-open .finds, body.touch.panel-open .toast { display: none; }
+
 /* S38d: phone HUD fit. Only with body.touch.hud-fit (touch mode AND firstTen.hudFit on), so desktop and flag-off are untouched.
    The Print card moves to the top-left and shrinks so it ends above the stick; the pouch moves to sit just above the action buttons. */
 body.touch.hud-fit .mood { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: max(16px, env(safe-area-inset-left)); width: 196px; gap: 6px; padding: 10px 12px; max-height: calc(100dvh - max(24px, env(safe-area-inset-bottom)) - var(--tc-stick, 132px) - 8px - max(12px, env(safe-area-inset-top))); overflow-y: auto; overscroll-behavior: contain; }
