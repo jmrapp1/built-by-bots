@@ -24,6 +24,8 @@ export const GUIDE_TEXT = {
   feed: (act: string) => `Hold ${act} beside your Print to share a snack.`,
   stroke: (key: string) => `Hold ${key} beside your Print to stroke it.`,
   map: (key: string) => `Press ${key} to open your map and see where else you can go.`,
+  snack: "Find a snack for your Print. Ink puddles gather by the inkwell.",
+  snackArrow: "The inkwell is this way",
   arrow: "Your egg is this way",
   nestArrow: "Your nest is this way",
 } as const;
@@ -98,19 +100,22 @@ export type Ctx = {
   hasWaiting?: boolean; // an egg is in the nest waiting to hatch
   nearNest?: boolean; // within reach of the nest
   hatchWait?: number; // seconds until it can hatch (0 = ready)
+  snackHint?: boolean; // S38b: switch on (data/firstTen.json); undefined counts as off
   fedThisSession?: boolean; // the feed step finished in this visit (never true from saved data alone)
   day?: boolean; // the stroke hint is a daytime line; undefined counts as day
-  dismissed: readonly Step[]; // skipped with Escape this session (also saved as done)
+  dismissed: readonly Hint[]; // skipped with Escape this session (also saved as done)
 };
 
 // The one hint to show now, or null. Never more than one.
-export function currentHint(done: readonly Step[], c: Ctx): Step | null {
+export type Hint = Step | "snack";
+export function currentHint(done: readonly Step[], c: Ctx): Hint | null {
   if (!c.ready || !c.inGarden) return null;
   const open = (s: Step) => !done.includes(s) && !c.dismissed.includes(s);
   if (c.eggPending && c.nearEgg && open("egg")) return "egg";
   if (open("move")) return "move";
   if (c.hasWaiting && !c.hasCreature && !c.eggPending && open("hatch")) return "hatch";
   if (c.hasCreature && c.printNear && c.hasSnack && open("feed")) return "feed";
+  if (c.snackHint === true && c.hasCreature && !c.hasSnack && !c.fedThisSession && open("feed") && !c.dismissed.includes("snack")) return "snack";
   if (done.includes("stroke") && open("map")) return "map";
   if (c.fedThisSession && c.hasCreature && c.printNear && c.day !== false && open("stroke")) return "stroke";
   return null;
@@ -124,12 +129,17 @@ export const pointerOn = (done: readonly Step[], c: Pick<Ctx, "ready" | "inGarde
 export const nestPointerOn = (done: readonly Step[], c: Pick<Ctx, "ready" | "inGarden" | "nearNest" | "hasWaiting" | "hasCreature" | "eggPending" | "dismissed">): boolean =>
   c.ready && c.inGarden && !c.nearNest && !!c.hasWaiting && !c.hasCreature && !c.eggPending && !done.includes("hatch") && !c.dismissed.includes("hatch");
 
+// S38b: should the inkwell arrow show? While the snack hint is the one due and the player is not already at the inkwell.
+export const SNACK_REACH = 4;
+export const snackPointerOn = (hint: Hint | null, pose: { x: number; z: number } | null, well: { x: number; z: number }): boolean =>
+  hint === "snack" && !!pose && Math.hypot(well.x - pose.x, well.z - pose.z) > SNACK_REACH;
+
 // A successful feed finishes the feed step only if the feed hint was the one on show when it landed.
 // A feed done before the hint ever appeared, or after it was skipped, leaves the step alone.
-export const feedFinishes = (shown: Step | null, prevTick: number, tick: number): boolean => shown === "feed" && tick > prevTick;
+export const feedFinishes = (shown: Hint | null, prevTick: number, tick: number): boolean => shown === "feed" && tick > prevTick;
 
 // A stroke that starts while the stroke hint is the one on show finishes it. One before it appeared, or after Escape, does not.
-export const strokeFinishes = (shown: Step | null, prevStrokes: number, strokes: number): boolean => shown === "stroke" && strokes > prevStrokes;
+export const strokeFinishes = (shown: Hint | null, prevStrokes: number, strokes: number): boolean => shown === "stroke" && strokes > prevStrokes;
 
 // Opening the map finishes the map step at any time, even before its hint shows.
 export const mapFinishes = (wasOpen: boolean, isOpen: boolean): boolean => !wasOpen && isOpen;
@@ -137,7 +147,8 @@ export const mapFinishes = (wasOpen: boolean, isOpen: boolean): boolean => !wasO
 // The hatch line depends on where the player stands and whether the egg is ready.
 export const hatchText = (nearNest: boolean, wait: number, touch = false): string => (!nearNest ? GUIDE_TEXT.hatchAway : wait > 0 ? GUIDE_TEXT.hatchWait : touch ? GUIDE_TEXT_TOUCH.hatch : GUIDE_TEXT.hatch(guideKeys().act));
 
-export const hintText = (s: Step, nearNest = true, wait = 0, touch = false): string => {
+export const hintText = (s: Hint, nearNest = true, wait = 0, touch = false): string => {
+  if (s === "snack") return GUIDE_TEXT.snack;
   if (touch) return s === "hatch" ? hatchText(nearNest, wait, true) : GUIDE_TEXT_TOUCH[s];
   const k = guideKeys();
   if (s === "hatch") return hatchText(nearNest, wait);
