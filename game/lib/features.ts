@@ -4,7 +4,7 @@
 // is exactly as before. E3 draws these items (worldShell.ts), only when the switch is on.
 import raw from "@/data/features.json";
 import map from "@/data/map.json";
-import { GARDEN, HOME, type Circle } from "./world";
+import { GARDEN, HOME, type Box, type Circle } from "./world";
 import { mulberry32 } from "./margins";
 import { CHUNKS, HALF, WORLD, TREE_R, ROCK_R, BUSH_R, chunkBounds, distToPath } from "./worldMap";
 import type { Item, RegionId } from "./worldMap";
@@ -134,3 +134,46 @@ export function featureItemsInChunk(ix: number, iz: number, items: FeatureItem[]
 export const featureCircles = (items: FeatureItem[]): Circle[] => items.map((i) => ({ x: i.x, z: i.z, r: itemRadius(i) }));
 /** Same cost measure as worldMap.instanceCount: a tree is three draws. */
 export const featureInstanceCount = (items: FeatureItem[]) => items.reduce((n, i) => n + (i.k === "tree" ? 3 : 1), 0);
+
+// ---- E4: hedgerows. Straight, axis-aligned runs drawn as boxes with box colliders. Pure, seedless (no randomness needed). ----
+export type Hedge = { id: string; region: RegionId; a: Pt; b: Pt; thick: number; h: number; gaps: [number, number][] };
+export type HedgePiece = Box & { h: number; f: string };
+export const HEDGES = ((raw.features as unknown as { hedges?: Hedge[] }).hedges ?? []);
+const PIECE = 4, MIN_RUN = 1.5; // long runs are cut into 4 m pieces so each sits on the ground and belongs to one chunk
+
+/** The pieces of one hedge: open stretches along a to b, minus the gaps and anything the keep-clear check rejects, cut into short boxes. */
+export function buildHedge(hd: Hedge): HedgePiece[] {
+  const alongX = hd.a[1] === hd.b[1], L = alongX ? Math.abs(hd.b[0] - hd.a[0]) : Math.abs(hd.b[1] - hd.a[1]);
+  const dir = alongX ? Math.sign(hd.b[0] - hd.a[0]) || 1 : Math.sign(hd.b[1] - hd.a[1]) || 1, at = (d: number): Pt => (alongX ? [hd.a[0] + dir * d, hd.a[1]] : [hd.a[0], hd.a[1] + dir * d]);
+  const open = (d: number) => {
+    const t = d / L; if (hd.gaps.some(([g0, g1]) => t > g0 && t < g1)) return false;
+    const [x, z] = at(d); return Math.abs(x) <= HALF - hd.thick && Math.abs(z) <= HALF - hd.thick && !keepClear(x, z, hd.thick / 2 + 0.5);
+  };
+  const runs: [number, number][] = []; let start: number | null = null;
+  for (let d = 0; d <= L + 1e-9; d += 0.25) { if (open(d)) { if (start === null) start = d; } else if (start !== null) { runs.push([start, d - 0.25]); start = null; } }
+  if (start !== null) runs.push([start, L]);
+  const out: HedgePiece[] = [];
+  for (const [r0, r1] of runs) {
+    if (r1 - r0 < MIN_RUN) continue;
+    const n = Math.max(1, Math.ceil((r1 - r0) / PIECE)), len = (r1 - r0) / n;
+    for (let i = 0; i < n; i++) {
+      const [cx, cz] = at(r0 + len * (i + 0.5)), w = len + 0.04;
+      out.push({ x: round(cx), z: round(cz), w: round(alongX ? w : hd.thick), d: round(alongX ? hd.thick : w), h: hd.h, f: hd.id });
+    }
+  }
+  return out;
+}
+let hedgeCache: HedgePiece[] | null = null;
+export function buildHedges(list: Hedge[] = HEDGES): HedgePiece[] {
+  if (list === HEDGES) return (hedgeCache ??= list.flatMap(buildHedge));
+  return list.flatMap(buildHedge);
+}
+export function hedgePiecesInChunk(ix: number, iz: number, pieces: HedgePiece[] = buildHedges()): HedgePiece[] {
+  if (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS) return [];
+  const { x0, z0, x1, z1 } = chunkBounds(ix, iz);
+  return pieces.filter((p) => p.x >= x0 && p.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && p.z >= z0 && p.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
+}
+export const hedgeBoxes = (pieces: HedgePiece[]): Box[] => pieces.map(({ x, z, w, d }) => ({ x, z, w, d }));
+/** Does a round thing of radius r at (x, z) touch a hedge (with `pad` to spare)? Used to clear the scatter from under hedges. */
+export const hedgeTouches = (x: number, z: number, r: number, pieces: HedgePiece[] = buildHedges(), pad = 0.4): boolean =>
+  pieces.some((p) => Math.abs(x - p.x) < p.w / 2 + r + pad && Math.abs(z - p.z) < p.d / 2 + r + pad);
