@@ -39,6 +39,8 @@ import Gentle from "@/components/Gentle";
 import { gentleOverride } from "@/lib/gentle";
 import { LOW } from "@/lib/cardStatus";
 import { FED_MESSAGE, HATCHED_MESSAGE, BAD_MESSAGE_WORDS, POUCH_FULL, feedPrompt, isFeedMessage, fadesAway, friendlyAuthError, friendlyFeedError, passwordNote, CONFIRM_SPAM_LINE, moodFace, promptFor, FOUND_PROMPT, SKIP_PROMPT, keyLabel } from "@/lib/ui";
+import PrintBook from "@/components/PrintBook";
+import { BOOK, bookEntries, bookKeyAction, chooseIndex } from "@/lib/printBook";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
 
@@ -78,6 +80,7 @@ export default function Page() {
   const [authError, setAuthError] = useState("");
   const [confirmSent, setConfirmSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [bookOpen, setBookOpen] = useState(false), [travelling, setTravelling] = useState(false); // S35: the Print book
   const [feeding, setFeeding] = useState(false);
   const [fedTick, setFedTick] = useState(0); // each success starts the Print's reaction
   const [reacting, setReacting] = useState(false);
@@ -338,6 +341,20 @@ export default function Page() {
     return () => window.removeEventListener("keydown", k);
   }, []);
 
+  // S35: the book key opens and closes the Print book. Ignored while typing, travelling, or when the map, menu or another panel is up.
+  const bookGate = useRef({ open: false, gate: { typing: false, travelling: false, mapOpen: false, menuOpen: false, panelOpen: false, signedIn: false } });
+  bookGate.current = { open: bookOpen, gate: { typing: false, travelling, mapOpen: mp.open, menuOpen, panelOpen: !!menu || !!npcLine, signedIn: session === true && creatures.length > 0 } };
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      const a = bookKeyAction({ code: e.code, repeat: e.repeat, target: e.target as HTMLElement | null }, bookGate.current.open, bookGate.current.gate);
+      if (a === "toggle") { e.preventDefault(); setBookOpen((v) => !v); }
+      else if (a === "close") setBookOpen(false);
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
+  useEffect(() => { if (!creatures.length || menuOpen || mp.open || menu) setBookOpen(false); }, [creatures.length, menuOpen, mp.open, menu]);
+
   const claim = async () => {
     const { data, error } = await supabase().rpc("claim_starter_egg");
     if (error) return setMsg(error.message);
@@ -486,7 +503,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || BAD_MESSAGE_WORDS.test(msg);
   return (
     <main className="hud-root">
-      <World prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open || bookOpen} onTravel={setTravelling} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen && !bookOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} onOpen={setTryOpen} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
@@ -507,6 +524,7 @@ export default function Page() {
             <dt><KeyCap>Q</KeyCap></dt><dd style={{ margin: 0 }}>Change the snack in hand</dd>
             <dt><KeyCap>R</KeyCap></dt><dd style={{ margin: 0 }}>Hold to stroke your Print</dd>
             <dt><KeyCap>C</KeyCap></dt><dd style={{ margin: 0 }}>By day, near your Print: walk together (press again to stop)</dd>
+            <dt><KeyCap>{keyLabel(BOOK.key)}</KeyCap></dt><dd style={{ margin: 0 }}>Open your Prints book and choose a Print</dd>
             <dt><KeyCap>M</KeyCap></dt><dd style={{ margin: 0 }}>Open the map</dd>
             <dt><KeyCap>Esc</KeyCap></dt><dd style={{ margin: 0 }}>Close panels</dd>
           </dl>
@@ -567,13 +585,6 @@ export default function Page() {
         return (
         <div className="card mood" aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(shown.mood)} /></div>
-          {creatures.length > 1 && (
-            <div className="board-nav">
-              <button className="btn quiet" aria-label="Previous Print" onClick={() => setPicked(Math.max(0, activeIndex(creatures.length, picked) - 1))} disabled={activeIndex(creatures.length, picked) <= 0}>Back</button>
-              <span className="note">Print {activeIndex(creatures.length, picked) + 1} of {creatures.length}</span>
-              <button className="btn quiet" aria-label="Next Print" onClick={() => setPicked(Math.min(creatures.length - 1, activeIndex(creatures.length, picked) + 1))} disabled={activeIndex(creatures.length, picked) >= creatures.length - 1}>Next</button>
-            </div>
-          )}
           <div className="growth" aria-label={`Stage: ${stageById(shown.stage ?? "blot").name}`}>
             <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(shown.stage ?? "blot").name}</span>
             <span className="growth-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext(shown.stage ?? "blot", shown.care ?? 0, shown.age_seconds ?? 0) * 100)}>
@@ -591,6 +602,8 @@ export default function Page() {
         );
       })()}
 
+      {creatures.length > 0 && !bookOpen && !menu && !menuOpen && !mp.open && !npcLine && <div className="book-hint" aria-hidden="true"><KeyCap>{keyLabel(BOOK.key)}</KeyCap>{BOOK.hint}</div>}
+      {bookOpen && <PrintBook entries={bookEntries(creatures)} picked={picked === null ? null : activeIndex(creatures.length, picked)} onChoose={(i) => setPicked(chooseIndex(creatures.length, i))} onClose={() => setBookOpen(false)} />}
       {mp.open && <MapPage walked={mp.walked} pose={mp.pose} opened={mp.spotPts} onClose={() => mp.setOpen(false)} />}
       {menu === "keepsakes" && <KeepsakePicker owned={owned} worn={stubPicker ? stubWorn : creature?.worn_cosmetic} busy={picking} note={pickNote} onPick={pick} onClose={() => setMenu(null)} />}
       {menu === "decor" && (stubDecor || homeDecor) && decorPlot && (
