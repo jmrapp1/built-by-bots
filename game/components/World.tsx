@@ -455,7 +455,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       try {
         if (shoreSights || !SHORE_SIGHTS) return;
         shoreLvl = sightLevel(hourNow, SHORE_SIGHTS.window); // already the right level on arrival; only a moving clock fades
-        shoreSights = buildSights(shoreSightsForDay(utcDay(new Date()), SHORE_SIGHTS), () => 0, SHORE_SIGHTS);
+        shoreSights = buildSights(shoreSightsForDay(utcDay(new Date()), SHORE_SIGHTS), groundHeight ? groundY : () => 0, SHORE_SIGHTS);
         scene.add(shoreSights.group);
       } catch { shoreSights = null; }
     };
@@ -553,7 +553,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       if (spotsOff || sc) return;
       wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
       wSpots = allSpotsForDay(wDay);
-      sc = buildSpotsScene(wSpots); scene.add(sc.group);
+      sc = buildSpotsScene(wSpots, groundHeight ? groundY : undefined); scene.add(sc.group);
       wOpened = wOpenedByDay.get(wDay) ?? new Set<string>(); wOpenedByDay.set(wDay, wOpened);
       sc.setOpened(wOpened);
       wHold = 0; wCand = null; wPending = false; wBlocked = false; wQuiet = false; wReady = false; wFailed = false; wNoted = false;

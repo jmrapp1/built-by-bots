@@ -32,6 +32,8 @@ const mats = (look: { crown: string; trunk: string; rock: string; bush: string }
 
 export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
+  const gy = (x: number, z: number): number => (opts.ground ? groundY(x, z) : 0); // H2: props sit on the ground height; with the switch off this is 0, exactly as before
+  const SINK = 0.08; // rocks sit a little sunk so no gap shows on a slope
   const own: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T): T => { own.push(x); return x; };
 
@@ -111,7 +113,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     const leaf = keep(wobbleSphere(0.26, 0.04, seedOf("shell:leaf"), 8).scale(0.55, 1, 0.25)), page = keep(plateGeo(0.26, 0.36, 0.03));
     const stem = keep(plateGeo(0.03, 0.3, 0.02)), kiteG = keep(plateGeo(0.3, 0.3, 0.03)), kiteTail = keep(plateGeo(0.07, 0.05, 0.03)), moon = keep(new THREE.TorusGeometry(0.22, 0.06, 6, 14, Math.PI * 1.45));
     const sign = (sp: Signpost) => {
-      const g = new THREE.Group(); g.position.set(sp.x, 0, sp.z); g.rotation.y = sp.yaw; // the board faces along +z of the group
+      const g = new THREE.Group(); g.position.set(sp.x, gy(sp.x, sp.z), sp.z); g.rotation.y = sp.yaw; // the board faces along +z of the group
       g.add(new THREE.Mesh(pole, wood));
       const b = new THREE.Mesh(plate, board); b.position.y = 1.6; g.add(b);
       const put = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, 1.6 + y, 0.06); o.rotation.z = rz; g.add(o); return o; };
@@ -150,7 +152,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   const circlesOf = (a: number, b: number): Circle[] => { const k = chunkKey(a, b); let v = cache.get(k); if (!v) { v = chunkCircles(chunkContents(a, b)); cache.set(k, v); } return v; };
 
   const landmark = (l: Contents["landmarks"][number]): THREE.Object3D => {
-    const g = new THREE.Group(); g.position.set(l.x, 0, l.z);
+    const g = new THREE.Group(); g.position.set(l.x, gy(l.x, l.z), l.z);
     const add = (geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy: number, sz: number, y = 0, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.y = y; m.rotation.y = rotY; g.add(m); return m; };
     if (l.kind === "tower") { // the Page Tower: a stack of pages with an ink band and a red cap
       add(G.box, L.paper, l.r * 2, l.h * 0.3, l.r * 2); add(G.box, L.paper, l.r * 1.94, l.h * 0.26, l.r * 2.04, l.h * 0.3, 0.05); add(G.box, L.paper, l.r * 2.03, l.h * 0.22, l.r * 1.96, l.h * 0.56, -0.04); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.5); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.22);
@@ -191,15 +193,15 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
 
   const build = (ix: number, iz: number) => {
     const c = chunkContents(ix, iz), g = new THREE.Group(), ims: THREE.InstancedMesh[] = [], extra: THREE.Object3D[] = [], m = M[c.region];
-    const make = (geo: THREE.BufferGeometry, mat: THREE.Material, items: { x: number; z: number; s: number; r: number }[], sy = 1) => {
+    const make = (geo: THREE.BufferGeometry, mat: THREE.Material, items: { x: number; z: number; s: number; r: number }[], sy = 1, sink = 0) => {
       if (!items.length) return;
       const im = new THREE.InstancedMesh(geo, mat, items.length);
-      items.forEach((it, i) => { tmp.position.set(it.x, 0, it.z); tmp.rotation.set(0, it.r, 0); tmp.scale.set(it.s, it.s * sy, it.s); tmp.updateMatrix(); im.setMatrixAt(i, tmp.matrix); });
+      items.forEach((it, i) => { tmp.position.set(it.x, gy(it.x, it.z) - sink, it.z); tmp.rotation.set(0, it.r, 0); tmp.scale.set(it.s, it.s * sy, it.s); tmp.updateMatrix(); im.setMatrixAt(i, tmp.matrix); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); // so each chunk is culled on its own
       g.add(im); ims.push(im);
     };
     make(G.trunk, m.trunk, c.trees); make(G.crownLow, m.crown, c.trees); make(G.crownHigh, m.crown, c.trees);
-    make(G.rock, m.rock, c.rocks); make(G.bush, m.bush, c.bushes);
+    make(G.rock, m.rock, c.rocks, 1, opts.ground ? SINK : 0); make(G.bush, m.bush, c.bushes);
     for (const l of c.landmarks) { const o = landmark(l); g.add(o); extra.push(o); }
     group.add(g);
     const inst = c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length;
