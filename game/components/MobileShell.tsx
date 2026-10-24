@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import TouchControls from "@/components/TouchControls";
 import { useTouchWording } from "@/components/useTouchWording";
+import { hudFitOn } from "@/lib/firstTen";
 import type { Prompts } from "@/lib/touchControls";
 import { MOBILE, MOBILE_ENABLED, canFullscreen, goFullscreen, isFullscreen, isPortrait, leaveFullscreen, showPortraitCover, touchMode, touchOverride, type LastInput } from "@/lib/touchInput";
 
@@ -58,7 +59,11 @@ function Inner({ signedIn, prompts, panelOpen, onClose }: { signedIn: boolean; p
 
   useEffect(() => {
     document.body.classList.toggle("touch", touch);
-    return () => document.body.classList.remove("touch");
+    // S38d: the phone HUD fit class, only with the firstTen.hudFit switch on AND touch mode; flag off adds nothing.
+    let fit = false;
+    try { fit = touch && hudFitOn(window.location.search, process.env.NODE_ENV === "production"); } catch { fit = false; }
+    document.body.classList.toggle("hud-fit", fit);
+    return () => { document.body.classList.remove("touch"); document.body.classList.remove("hud-fit"); };
   }, [touch]);
 
   const cover = showPortraitCover(touch, portrait, signedIn, forcedPortrait);

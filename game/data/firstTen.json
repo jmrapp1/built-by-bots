@@ -1,8 +1,9 @@
 {
-  "note": "S38: first ten minutes. One switch per slice. Anything but a plain true is off, and off means today's behaviour exactly. 'wording' (S38a) = touch words instead of key words when the page is in touch mode. 'snackHint' (S38b) = after the Print hatches and no snack is in hand, a hint and an arrow point to the inkwell. 'unstick' (S38c) = the guide cannot stall: map follows feed at night or when stroke is skipped, and stroke is offered after a feed in an earlier visit. Kill switch: set it to false.",
+  "note": "S38: first ten minutes. One switch per slice. Anything but a plain true is off, and off means today's behaviour exactly. 'wording' (S38a) = touch words instead of key words when the page is in touch mode. 'snackHint' (S38b) = after the Print hatches and no snack is in hand, a hint and an arrow point to the inkwell. 'unstick' (S38c) = the guide cannot stall: map follows feed at night or when stroke is skipped, and stroke is offered after a feed in an earlier visit. 'hudFit' (S38d) = on a phone in touch mode, the Print card sits top-left and shrinks, and the pouch sits above the action buttons, so neither covers the stick or buttons. Kill switch: set it to false.",
   "firstTen": {
     "wording": false,
     "snackHint": false,
-    "unstick": false
+    "unstick": false,
+    "hudFit": false
   }
 }
