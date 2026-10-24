@@ -7,6 +7,7 @@ import type { Haze } from "@/lib/sky";
 import { buildHills } from "@/components/hillsScene";
 import type { Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
+import { groundY } from "@/lib/ground";
 import {
   CHUNKS, HALF, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
   type Contents, type RegionId,
@@ -29,7 +30,7 @@ const mats = (look: { crown: string; trunk: string; rock: string; bush: string }
   rock: new THREE.MeshToonMaterial({ color: look.rock }), bush: new THREE.MeshToonMaterial({ color: look.bush }),
 });
 
-export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean } = {}): WorldShell {
+export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
   const own: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T): T => { own.push(x); return x; };
@@ -78,6 +79,11 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean } = 
       c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, south).lerp(sh, shore); col.push(c.r, c.g, c.b);
     }
     gg.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  }
+  if (opts.ground) { // H1: lift the ground mesh by groundY (local z becomes height after the -90 degree turn); only with the switch on
+    const pos = gg.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setZ(i, groundY(pos.getX(i), -pos.getY(i)));
+    pos.needsUpdate = true; gg.computeVertexNormals();
   }
   const ground = new THREE.Mesh(gg, keep(new THREE.MeshToonMaterial({ vertexColors: true })));
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.03; group.add(ground);

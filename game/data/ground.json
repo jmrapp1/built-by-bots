@@ -1,0 +1,25 @@
+{
+  "note": "H1: ground height in the larger World. 'enabled' ships false; anything but a plain true is off, and off means the World is flat exactly as before. 'scale' multiplies every rise (H1 keeps them very low because props still sit at y 0 until H2). Rises are cosine bumps: x, z, radius r and height h in metres. 'feather' is how far the land takes to ease up from a flat zone. Flat zones themselves are in lib/ground.ts.",
+  "ground": {
+    "enabled": false,
+    "scale": 0.15,
+    "maxSlope": 0.2,
+    "feather": 24,
+    "edgeFeather": 30,
+    "rises": [
+      { "x": -75, "z": 10,   "r": 28, "h": 2.4 },
+      { "x": 50,  "z": 35,   "r": 22, "h": 1.8 },
+      { "x": -40, "z": 40,   "r": 22, "h": 2.0 },
+      { "x": 40,  "z": -45,  "r": 18, "h": 1.6 },
+      { "x": -20, "z": -20,  "r": 90, "h": 0.8 },
+      { "x": 30,  "z": -100, "r": 36, "h": 3.4 },
+      { "x": 80,  "z": -80,  "r": 26, "h": 2.4 },
+      { "x": 60,  "z": -115, "r": 20, "h": 1.8 },
+      { "x": 100, "z": -100, "r": 30, "h": 2.8 },
+      { "x": -80, "z": -90,  "r": 22, "h": 1.6 },
+      { "x": -60, "z": -110, "r": 16, "h": 1.2 },
+      { "x": -100, "z": -70, "r": 26, "h": 1.8 },
+      { "x": 100, "z": 20,   "r": 24, "h": 1.4 }
+    ]
+  }
+}
