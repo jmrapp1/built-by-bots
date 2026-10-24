@@ -325,3 +325,9 @@ body.touch.hud-fit .hand .slot { width: 28px; height: 28px; }
    With hud-fit the pouch sits in the bottom-right corner and the stick and action buttons rise above it, so nothing overlaps. */
 body.touch .mood.away { display: none; }
 body.touch.hud-fit .tc-actions { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px); }
+
+/* S41: no page scroll or pull-to-refresh from the camera swipe. Touch mode only.
+   The look swipe uses pointer events on the canvas. Without touch-action: none the browser claims the drag as a page pan, cancels the pointer and can start pull-to-refresh.
+   Panels that scroll keep their own touch-action: pan-y and overscroll-behavior: contain (set above), so they still scroll and do not pass the swipe on. */
+html:has(body.touch) { overscroll-behavior: none; }
+body.touch .hud-root canvas { touch-action: none; }

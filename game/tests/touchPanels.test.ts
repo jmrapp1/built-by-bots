@@ -62,7 +62,7 @@ describe("S37 step 3: wiring read from source", () => {
   it("all new touch CSS is gated by body.touch or touch-only classes", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const step3 = css.slice(css.indexOf("S37 step 3"));
-    for (const line of step3.split("\n").filter((l) => l.includes("{") && !l.startsWith("/*"))) expect(line).toMatch(/^(body\.touch[ .]|\.tc-close|\.legend)/);
+    for (const line of step3.split("\n").filter((l) => l.includes("{") && !l.startsWith("/*"))) expect(line).toMatch(/^(body\.touch[ .]|html:has\(body\.touch\) |\.tc-close|\.legend)/);
   });
   it("the Close button only renders in touch mode (the button legend is gone on touch, S39)", () => {
     expect(readFileSync("components/TouchControls.tsx", "utf8")).toMatch(/\{hidden && <button[^>]*tc-close/);
