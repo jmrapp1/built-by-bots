@@ -1,0 +1,24 @@
+{
+  "note": "E2: the authored feature list for the World: groves, belts, rows and rings, each a shape plus a recipe and a seed. Nothing here is drawn yet; the builder (lib/features.ts) turns it into items and a later slice (E3) draws them. 'enabled' ships false and nothing reads it for drawing in E2; anything but a plain true is off. Metres. Shapes: 'belt' = a curve through 'points' (x,z) with 'width' across; 'row' = a straight line a to b with 'gaps' [t0,t1] fractions left open; 'ring' = a circle at 'at' with radius 'r', 'width' deep, 'opening' = [from,to] degrees left open. Recipe: k = tree|rock|bush, s = [min,max] scale, spacing = metres between items along the shape. Every item keeps clear of Home, the path, the gate, signposts and landmark feet (one check, lib/features.ts keepClear). Values are first guesses to tune by eye.",
+  "features": {
+    "enabled": false,
+    "limits": { "minGap": 1.6, "gapWidth": 4, "perChunk": 200 },
+    "list": [
+      { "id": "meadow-west-copse", "region": "meadow", "shape": "belt", "points": [[-60, -20], [-52, 0], [-58, 22]], "width": 8, "recipe": { "k": "tree", "s": [0.8, 1.1], "spacing": 3.4 }, "seed": 101 },
+      { "id": "meadow-copse-ring", "region": "meadow", "shape": "ring", "at": [-45, -45], "r": 8, "width": 4, "opening": [60, 120], "recipe": { "k": "tree", "s": [0.8, 1.0], "spacing": 3.2 }, "seed": 102 },
+      { "id": "meadow-orchard-a", "region": "meadow", "shape": "row", "a": [32, 30], "b": [56, 30], "gaps": [[0.4, 0.6]], "recipe": { "k": "tree", "s": [0.8, 0.9], "spacing": 5 }, "seed": 103 },
+      { "id": "meadow-orchard-b", "region": "meadow", "shape": "row", "a": [32, 38], "b": [56, 38], "gaps": [[0.4, 0.6]], "recipe": { "k": "tree", "s": [0.8, 0.9], "spacing": 5 }, "seed": 104 },
+      { "id": "inkwood-west-belt", "region": "inkwood", "shape": "belt", "points": [[-100, -75], [-70, -82], [-50, -72]], "width": 14, "recipe": { "k": "tree", "s": [1.0, 1.2], "spacing": 3.4 }, "seed": 111 },
+      { "id": "inkwood-south-belt", "region": "inkwood", "shape": "belt", "points": [[-20, -110], [-40, -122], [-70, -114]], "width": 12, "recipe": { "k": "tree", "s": [1.0, 1.2], "spacing": 3.4 }, "seed": 112 },
+      { "id": "inkwood-lantern-ring", "region": "inkwood", "shape": "ring", "at": [-72, -100], "r": 9, "width": 4, "opening": [80, 140], "recipe": { "k": "tree", "s": [1.0, 1.2], "spacing": 3.4 }, "seed": 113 },
+      { "id": "downs-fold-belt", "region": "paper_downs", "shape": "belt", "points": [[26, -70], [31, -90], [27, -112]], "width": 12, "recipe": { "k": "tree", "s": [0.8, 1.0], "spacing": 3.4 }, "seed": 121 },
+      { "id": "downs-stone-ring", "region": "paper_downs", "shape": "ring", "at": [92, -100], "r": 7, "width": 3, "opening": [170, 230], "recipe": { "k": "rock", "s": [1.0, 1.4], "spacing": 3.4 }, "seed": 122 },
+      { "id": "downs-pinwheel-row", "region": "paper_downs", "shape": "row", "a": [76, -75], "b": [112, -75], "gaps": [[0.45, 0.6]], "recipe": { "k": "bush", "s": [0.8, 1.1], "spacing": 4 }, "seed": 123 },
+      { "id": "glyph-street-row", "region": "glyph_quarter", "shape": "row", "a": [-100, 92], "b": [-40, 92], "gaps": [[0.3, 0.4], [0.7, 0.8]], "recipe": { "k": "rock", "s": [1.0, 1.4], "spacing": 4 }, "seed": 131 },
+      { "id": "glyph-east-belt", "region": "glyph_quarter", "shape": "belt", "points": [[40, 80], [70, 90], [100, 85]], "width": 8, "recipe": { "k": "tree", "s": [0.8, 1.0], "spacing": 3.4 }, "seed": 132 },
+      { "id": "shore-reed-belt", "region": "pressmark_shore", "shape": "belt", "points": [[84, -50], [90, -30], [84, -20]], "width": 8, "recipe": { "k": "bush", "s": [0.9, 1.2], "spacing": 3 }, "seed": 141 },
+      { "id": "shore-stamp-ring", "region": "pressmark_shore", "shape": "ring", "at": [96, 44], "r": 7, "width": 3, "opening": [200, 260], "recipe": { "k": "rock", "s": [0.9, 1.3], "spacing": 3.2 }, "seed": 142 },
+      { "id": "shore-driftwood-row", "region": "pressmark_shore", "shape": "row", "a": [82, 52], "b": [122, 52], "gaps": [[0.5, 0.62]], "recipe": { "k": "bush", "s": [0.8, 1.1], "spacing": 4 }, "seed": 143 }
+    ]
+  }
+}
