@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { MOBILE, MOBILE_ENABLED, perfStart, perfStep, renderSettings } from "@/lib/touchInput";
 
 describe("S37 step 3: render settings", () => {
-  it("the flag still ships off", () => {
-    expect(MOBILE_ENABLED).toBe(false);
-    expect(JSON.parse(readFileSync("data/mobile.json", "utf8")).mobile.enabled).toBe(false);
+  it("the flag is on (S37 step 3b)", () => {
+    expect(MOBILE_ENABLED).toBe(true);
+    expect(JSON.parse(readFileSync("data/mobile.json", "utf8")).mobile.enabled).toBe(true);
   });
   it("not touch: exactly today's renderer (ratio capped at 2, soft shadows, 1024 map)", () => {
     expect(renderSettings(false, 3)).toEqual({ pixelRatio: 2, shadowType: "soft", shadowMap: 1024 });

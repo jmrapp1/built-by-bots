@@ -83,7 +83,7 @@ describe("buttons follow the prompts", () => {
 
 describe("wiring", () => {
   const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
-  it("the flag stays off in this PR", () => { expect(MOBILE_ENABLED).toBe(false); });
+  it("the flag is on (S37 step 3b)", () => { expect(MOBILE_ENABLED).toBe(true); });
   it("controls make no network call and touch no storage; only key events go out", () => {
     for (const f of ["lib/touchControls.ts", "components/TouchControls.tsx"]) expect(read(f)).not.toMatch(/\bfetch\s*\(|localStorage|sessionStorage|XMLHttpRequest|sendBeacon/);
     expect(read("components/TouchControls.tsx")).toMatch(/new KeyboardEvent\(type, \{ code, bubbles: true \}\)/);
