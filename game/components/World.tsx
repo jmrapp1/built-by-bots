@@ -60,6 +60,7 @@ import { PS_ENABLED, restoreFrom, restorePlayer, restorePrints, toLocal, type La
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
+import { groundOn, groundY } from "@/lib/ground";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
@@ -485,6 +486,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const skyPhase = moonPhase(localDay(new Date())); // the moon's phase for the local calendar day
     const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
     const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
+    const groundHeight = groundOn(window.location.search, process.env.NODE_ENV === "production"); // H1: ground height in the World; off = flat as before
     const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
     const cloudsOn = cloudsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31d: none in the Margins or Home
@@ -568,7 +570,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
-    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene, { hills: hillsOn }); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
+    const showShell = () => { showSky(false); if (!gdoor) { gdoor = buildGardenDoor(); scene.add(gdoor.group); } if (!shell) { shell = buildWorldShell(scene, { hills: hillsOn, ground: groundHeight }); shell.update(pos.x, pos.z, true); shell.setSky((scene.background as THREE.Color)); } showDream(); showDrizzle(); showScraps(); startSpots(); };
     const enterGardenZone = () => { showShell(); (scene.fog as THREE.Fog).near = WORLD.fog[0]; (scene.fog as THREE.Fog).far = WORLD.fog[1]; lightClock = 0; report(); };
     const leaveGardenZone = () => { stopSpots(); shell?.dispose(); shell = null; gdoor?.dispose(); gdoor = null; };
     // H2: the Home room. Built on entering, freed on leaving; fixed soft daylight inside (no day and night clock in the room).
@@ -1230,6 +1232,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       }
       let ground = 0;
       if (zones.is("margins") && mLayout) ground = heightAt(pos.x - OFF, pos.z, mLayout.hills);
+      else if (groundHeight && zones.is("garden")) ground = groundY(pos.x, pos.z); // H1: the player rides the World's rises (x/z reach and saves are unchanged)
       let tRes: { pos: { x: number; z: number }; heading: number | null } | null = null;
       if (cover) { // S36: lift the boot cover on its normal fade once the zone has been drawn twice; a walk through a gate or door takes over the wipe at once
         if (travel) { wipe.style.transition = ""; cover = null; }
