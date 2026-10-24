@@ -48,16 +48,29 @@ export function lookDelta(prev: { x: number; y: number }, now: { x: number; y: n
 }
 
 /** Which prompt-driven buttons show. Each shows exactly when the matching on-screen prompt does (the booleans page.tsx already uses). */
-export type Prompts = { snack: boolean; follow: boolean; skip: boolean; stroke: boolean };
+export type Prompts = { act: boolean; snack: boolean; follow: boolean; skip: boolean; stroke: boolean };
 export type ButtonId = "do" | "stroke" | "snack" | "follow" | "skip";
 export function touchButtons(p: Prompts): ButtonId[] {
-  const out: ButtonId[] = ["do"];
+  const out: ButtonId[] = [];
+  if (p.act) out.push("do"); // S39: the big button shows only when there is something to do right now
   if (p.stroke) out.push("stroke");
   if (p.snack) out.push("snack");
   if (p.follow) out.push("follow");
   if (p.skip) out.push("skip");
   return out;
 }
+/** S39: can E do something right now? The same test the desktop prompt uses: the tag line is showing, and for the nest the E key cap is
+ *  (a waiting egg's countdown has no key cap, so no button either). No panel or neighbour strip may be up. */
+export function canActNow(s: { tag: string | null; findable: boolean; feedTag: string | null; nearKind: string | null; hatchWait: number; menu: boolean; npc: boolean }): boolean {
+  if (!s.tag || s.menu || s.npc) return false;
+  return s.findable || !!s.feedTag || s.nearKind !== "nest" || s.hatchWait === 0;
+}
+
+/** S39: is a menu, panel or other full view open? The stick and action buttons go away, and the HUD cards step aside, while it is. */
+export function anyPanelOpen(s: { menu: boolean; menuOpen: boolean; mapOpen: boolean; bookOpen: boolean; npc: boolean }): boolean {
+  return s.menu || s.menuOpen || s.mapOpen || s.bookOpen || s.npc;
+}
+
 /** Key each button sends; holds are the ones the game reads each frame. */
 export const BUTTON_KEY: Record<ButtonId | "map" | "book", { key: string; hold: boolean }> = {
   do: { key: KEYS.hold, hold: true }, stroke: { key: KEYS.stroke, hold: true },

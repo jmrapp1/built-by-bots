@@ -54,7 +54,7 @@ describe("S37 step 3: wiring read from source", () => {
     }
   });
   it("the touch code never calls fetch or touches storage", () => {
-    for (const f of ["components/TouchLegend.tsx", "components/TouchControls.tsx", "components/MobileShell.tsx", "lib/touchInput.ts", "lib/touchControls.ts"]) {
+    for (const f of ["components/TouchControls.tsx", "components/MobileShell.tsx", "lib/touchInput.ts", "lib/touchControls.ts"]) {
       const src = readFileSync(f, "utf8");
       expect(src).not.toMatch(/\bfetch\(|localStorage|sessionStorage|indexedDB/);
     }
@@ -64,8 +64,7 @@ describe("S37 step 3: wiring read from source", () => {
     const step3 = css.slice(css.indexOf("S37 step 3"));
     for (const line of step3.split("\n").filter((l) => l.includes("{") && !l.startsWith("/*"))) expect(line).toMatch(/^(body\.touch[ .]|\.tc-close|\.legend)/);
   });
-  it("the Close button and legend only render in touch mode", () => {
-    expect(readFileSync("components/TouchLegend.tsx", "utf8")).toMatch(/if \(!touch\) return null/);
+  it("the Close button only renders in touch mode (the button legend is gone on touch, S39)", () => {
     expect(readFileSync("components/TouchControls.tsx", "utf8")).toMatch(/\{hidden && <button[^>]*tc-close/);
   });
 });

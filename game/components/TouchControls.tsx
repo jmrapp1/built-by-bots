@@ -75,8 +75,12 @@ export default function TouchControls({ prompts, hidden, onClose, labels = false
     </button>
   );
 
-  // While a panel is open the stick and action buttons go away; Map and Book stay, since they open and close those panels (Close buttons come in step 3).
+  // S39: if the big button goes away while a finger holds it, let go of E (a removed button may never send its own pointer-up).
   const ids = touchButtons(prompts);
+  const showDo = ids.includes("do");
+  useEffect(() => { if (!showDo && btnId.current.size) { for (const [, id] of btnId.current) send("keyup", BUTTON_KEY[id as ButtonId].key); btnId.current.clear(); setHeldBtn(null); } }, [showDo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // While a panel is open the stick and action buttons go away; Map and Book stay, since they open and close those panels (Close buttons come in step 3).
   return (
     <div className="tc-root" style={{ ["--tc-min" as string]: `${MOBILE.minTarget}px`, ["--tc-do" as string]: `${MOBILE.doTarget}px`, ["--tc-stick" as string]: `${MOBILE.stickSize}px` }}>
       {!hidden && <div ref={base} className="tc-stick" aria-label="Move" role="group"
@@ -87,7 +91,7 @@ export default function TouchControls({ prompts, hidden, onClose, labels = false
       </div>}
       {!hidden && <div className="tc-actions">
         {ids.filter((i) => i !== "do").map((i) => btn(i, "tc-small"))}
-        {btn("do", "tc-do")}
+        {showDo && btn("do", "tc-do")}
       </div>}
       {hidden && <button type="button" className="tc-btn tc-top-btn tc-close" aria-label="Close" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); try { onClose(); } catch { /* never throw into the game */ } }} onContextMenu={(e) => e.preventDefault()}>
         <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M6 6l12 12M18 6L6 18" /></svg>
