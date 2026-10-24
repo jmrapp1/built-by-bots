@@ -45,7 +45,7 @@ describe("H1 groundY", () => {
       const y = groundY(x, z);
       worst = Math.max(worst, Math.abs(groundY(x + step, z) - y) / step, Math.abs(groundY(x, z + step) - y) / step);
     }
-    expect(worst).toBeLessThan(0.25); // scale 1 measures about 0.229 (13 degrees); data maxSlope 0.2 is a design target, not a clamp
+    expect(worst).toBeLessThan(GROUND.maxSlope); // the land (scale 1, feather 32) measures about 0.186 against maxSlope 0.2
   });
   it("the cap also holds at full strength (scale 1), so H5 can raise the rises safely or must retune", () => {
     let worst = 0; const step = 0.5;

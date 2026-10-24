@@ -4,7 +4,7 @@
     "enabled": false,
     "scale": 1.0,
     "maxSlope": 0.2,
-    "feather": 24,
+    "feather": 32,
     "edgeFeather": 30,
     "rises": [
       { "x": -75, "z": 10,   "r": 28, "h": 2.4 },
