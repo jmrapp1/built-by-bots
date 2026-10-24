@@ -1,0 +1,16 @@
+{
+  "note": "S36: saving where the player and their Prints stand. 'enabled' is the kill switch: false means no reads, no writes, no browser copy and no listeners. Numbers live here, never in public text. 'bound' and 'maxPrints' must match the player_state migration (20261023000001); serverMinGapS must not be below the server's own gap.",
+  "playerState": {
+    "enabled": true,
+    "saveEveryS": 12,
+    "minMoveM": 0.6,
+    "serverMinGapS": 5,
+    "fetchGiveUpMs": 1500,
+    "signOutCapMs": 1200,
+    "staleDays": 30,
+    "bound": 140,
+    "maxPrints": 24,
+    "storageKey": "blotty.state.v1",
+    "zones": ["garden", "margins", "home", "reading"]
+  }
+}
