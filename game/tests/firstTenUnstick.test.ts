@@ -8,8 +8,8 @@ const upToHatch: Step[] = ["move", "egg", "hatch"];
 const fed: Step[] = [...upToHatch, "feed"];
 
 describe("S38c switch", () => {
-  it("ships off; anything but a plain true is off", () => {
-    expect((firstTen as { firstTen: { unstick: unknown } }).firstTen.unstick).toBe(false);
+  it("ships on; anything but a plain true is off", () => {
+    expect((firstTen as { firstTen: { unstick: unknown } }).firstTen.unstick).toBe(true);
     for (const v of ["true", 1, null, undefined, {}]) expect(flagOn({ firstTen: { unstick: v } }, "unstick")).toBe(false);
     expect(flagOn({ firstTen: { unstick: true } }, "unstick")).toBe(true);
     expect(flagOn(null, "unstick")).toBe(false);

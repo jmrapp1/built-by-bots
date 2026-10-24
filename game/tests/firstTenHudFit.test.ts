@@ -4,8 +4,8 @@ import { flagOn, hudFitOn } from "@/lib/firstTen";
 import firstTen from "@/data/firstTen.json";
 
 describe("S38d switch", () => {
-  it("ships off; anything but a plain true is off", () => {
-    expect((firstTen as { firstTen: { hudFit: unknown } }).firstTen.hudFit).toBe(false);
+  it("ships on; anything but a plain true is off", () => {
+    expect((firstTen as { firstTen: { hudFit: unknown } }).firstTen.hudFit).toBe(true);
     for (const v of ["true", 1, null, undefined, {}]) expect(flagOn({ firstTen: { hudFit: v } }, "hudFit")).toBe(false);
     expect(flagOn({ firstTen: { hudFit: true } }, "hudFit")).toBe(true);
   });
