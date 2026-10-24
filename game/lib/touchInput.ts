@@ -66,3 +66,25 @@ export async function goFullscreen(el: FsEl | null | undefined, scr: Lockable | 
 export async function leaveFullscreen(doc: FsDoc | null | undefined): Promise<void> {
   try { if (isFullscreen(doc)) await doc!.exitFullscreen?.(); } catch { /* silent */ }
 }
+
+// ---- S37 step 3: performance on phones (pure; World.tsx applies the numbers) ----
+export type RenderSettings = { pixelRatio: number; shadowType: "soft" | "basic"; shadowMap: number };
+/** Renderer settings. Not touch mode: exactly today's (ratio capped at 2, soft shadows, 1024 map). Touch mode: the lower cap and the basic shadow filter. */
+export function renderSettings(touch: boolean, devicePixelRatio: number, m = MOBILE): RenderSettings {
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  if (!touch) return { pixelRatio: Math.min(dpr, 2), shadowType: "soft", shadowMap: 1024 };
+  return { pixelRatio: Math.max(m.pixelRatioMin, Math.min(dpr, m.pixelRatioTouch)), shadowType: m.shadowsTouch === "basic" ? "basic" : "soft", shadowMap: m.shadowMapTouch };
+}
+
+/** The slow-frame step: over each perfWindowS, if the average frame is slower than slowMs, drop the ratio by `step`, never below pixelRatioMin, never back up. */
+export type Perf = { ratio: number; sum: number; n: number; since: number };
+export const perfStart = (ratio: number, now: number): Perf => ({ ratio, sum: 0, n: 0, since: now });
+export function perfStep(p: Perf, frameMs: number, now: number, m = MOBILE, step = 0.25): { perf: Perf; dropped: boolean } {
+  if (p.since <= 0) return { perf: { ...p, since: now }, dropped: false }; // the first frame starts the first window
+  if (!Number.isFinite(frameMs) || frameMs <= 0 || frameMs > 1000) return { perf: p, dropped: false }; // a tab switch or a hiccup is not slowness
+  const sum = p.sum + frameMs, n = p.n + 1;
+  if (now - p.since < m.perfWindowS * 1000) return { perf: { ...p, sum, n }, dropped: false };
+  const slow = sum / n > m.slowMs && p.ratio - step >= m.pixelRatioMin - 1e-9;
+  const ratio = slow ? Math.max(m.pixelRatioMin, p.ratio - step) : p.ratio;
+  return { perf: { ratio, sum: 0, n: 0, since: now }, dropped: slow };
+}

@@ -28,6 +28,7 @@ import {
   ringAt, ringCount, ringDelay, shorePoint, splashLife, splashSpot, tapsBetween, towardPond, type PondState, type Splash,
 } from "@/lib/pond";
 import { lookDelta } from "@/lib/touchControls";
+import { MOBILE_ENABLED, perfStart, perfStep, renderSettings, touchMode, touchOverride } from "@/lib/touchInput";
 import { SKIP, canSkip, handPoint, printWatches, skipFrame, skipLandings, skipPlan, skipWorld, watcherHop, type SkipPlan } from "@/lib/skip";
 import {
   HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
@@ -327,11 +328,16 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     scene.fog = new THREE.Fog(L0.fog, WORLD.fog[0], WORLD.fog[1]);
     const camera = new THREE.PerspectiveCamera(55, el.clientWidth / el.clientHeight, 0.1, WORLD.cameraFar);
     const renderer = new THREE.WebGLRenderer({ antialias: true, stencil: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // S37: with the flag off or on a desktop these are exactly today's numbers; a phone gets the lower ratio and the basic shadow filter.
+    const touchOv = touchOverride(window.location.search, process.env.NODE_ENV === "production").touch;
+    let touchRender = false;
+    try { touchRender = touchOv ?? touchMode(window.matchMedia("(pointer: coarse)").matches, navigator.maxTouchPoints ?? 0, MOBILE_ENABLED); } catch { touchRender = false; }
+    const RS = renderSettings(touchRender, window.devicePixelRatio);
+    renderer.setPixelRatio(RS.pixelRatio);
     renderer.setSize(el.clientWidth, el.clientHeight);
     // S26: one soft shadow pass. The sun casts; the ground and the Print receive. No new objects.
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = RS.shadowType === "basic" ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap;
     el.appendChild(renderer.domElement);
 
     const hemi = new THREE.HemisphereLight(L0.hemisphereSky, L0.hemisphereGround, L0.hemisphereIntensity);
@@ -339,7 +345,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const sun = new THREE.DirectionalLight(L0.sun, L0.sunIntensity);
     sun.position.set(...L0.sunPosition);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(RS.shadowMap, RS.shadowMap);
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 40;
     sun.shadow.camera.left = -18;
@@ -980,10 +986,11 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let dragging = false;
     const dom = renderer.domElement;
     let lookId = -1, lastLook = { x: 0, y: 0 }; // S37: one finger turns the camera; touch has no movementX, so use client deltas
-    const pd = (e: PointerEvent) => { if (dragging && e.pointerType !== "mouse") return; dragging = true; lookId = e.pointerId; lastLook = { x: e.clientX, y: e.clientY }; downAt = { x: e.clientX, y: e.clientY }; dom.setPointerCapture(e.pointerId); };
+    const lookOn = MOBILE_ENABLED; // S37: touch look is part of the phone feature; with the flag off a finger on the canvas turns nothing
+    const pd = (e: PointerEvent) => { if (lookOn && dragging && e.pointerType !== "mouse") return; dragging = true; lookId = e.pointerId; lastLook = { x: e.clientX, y: e.clientY }; downAt = { x: e.clientX, y: e.clientY }; dom.setPointerCapture(e.pointerId); };
     let downAt: { x: number; y: number } | null = null;
     const pu = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse" && e.pointerId !== lookId) return;
+      if (lookOn && e.pointerType !== "mouse" && e.pointerId !== lookId) return;
       dragging = false;
       const d = downAt; downAt = null;
       if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !live_npcs.length || !zones.is("margins") || travel) return;
@@ -998,7 +1005,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const pm = (e: PointerEvent) => {
       if (!dragging) return;
       if (e.pointerType !== "mouse") {
-        if (e.pointerId !== lookId) return;
+        if (!lookOn || e.pointerId !== lookId) return;
         const d = lookDelta(lastLook, { x: e.clientX, y: e.clientY }, GARDEN.camera.turnSpeed); lastLook = { x: e.clientX, y: e.clientY };
         yaw += d.yaw; pitch = clampPitch(pitch + d.pitch);
         return;
@@ -1006,7 +1013,8 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       yaw -= e.movementX * GARDEN.camera.turnSpeed;
       pitch = clampPitch(pitch + e.movementY * GARDEN.camera.turnSpeed);
     };
-    dom.addEventListener("pointercancel", (e) => { if (e.pointerId === lookId || e.pointerType === "mouse") { dragging = false; downAt = null; } });
+    const pc = (e: PointerEvent) => { if (e.pointerId === lookId || e.pointerType === "mouse") { dragging = false; downAt = null; } };
+    dom.addEventListener("pointercancel", pc);
     dom.addEventListener("pointerdown", pd);
     dom.addEventListener("pointerup", pu);
     dom.addEventListener("pointermove", pm);
@@ -1152,6 +1160,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         o.mesh.scale.set(o.base * wide, o.base * sq, o.base * wide);
       }
     };
+    let perf = perfStart(RS.pixelRatio, 0);
     const tick = (t: number) => {
       for (const rp of ripples) {
         const r = ripple((t / 6000) % 1, rp.offset, reducedMotion);
@@ -1160,6 +1169,11 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       }
       const dt = Math.min(0.05, (t - last) / 1000);
       if (t - lightClock > 1000) { lightClock = t; applyLight(); }
+      if (touchRender) { // S37: on a phone only, if frames stay slow for a window, take the pixel ratio down one step; never back up, never touches game state
+        const st = perfStep(perf, t - last, t);
+        perf = st.perf;
+        if (st.dropped) { renderer.setPixelRatio(perf.ratio); renderer.setSize(el.clientWidth, el.clientHeight); }
+      }
       last = t;
       const k = (a: string, b: string) => (keys.has(a) || keys.has(b) ? 1 : 0);
       if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some((c) => keys.has(c))) sit = sitWalkKey(sit, reducedMotion);
@@ -2010,6 +2024,10 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("resize", onResize);
+      dom.removeEventListener("pointercancel", pc);
+      dom.removeEventListener("pointerdown", pd);
+      dom.removeEventListener("pointerup", pu);
+      dom.removeEventListener("pointermove", pm);
       ring.remove();
       wipe.remove();
       for (const c of [...dynamic.children]) disposeTree(c);

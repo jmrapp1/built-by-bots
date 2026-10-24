@@ -9,7 +9,7 @@ import { Blot, PageIcon } from "@/components/ui";
 const S = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 const send = (type: "keydown" | "keyup", code: string) => { try { window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true })); } catch { /* never throw into the game */ } };
 
-const GLYPH: Record<ButtonId | "map" | "book", React.ReactNode> = {
+export const GLYPH: Record<ButtonId | "map" | "book", React.ReactNode> = {
   do: <svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M8 11V5a2 2 0 0 1 4 0v5M12 9a2 2 0 0 1 4 0v3M16 11a2 2 0 0 1 4 0v4a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-3-5a2 2 0 0 1 3-2l1 1" /></svg>,
   stroke: <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M3 15q4-8 9-3t9-5M3 20q4-6 9-2t9-4" /></svg>,
   snack: <Blot size={28} />,
@@ -18,9 +18,9 @@ const GLYPH: Record<ButtonId | "map" | "book", React.ReactNode> = {
   map: <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14" /></svg>,
   book: <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M9 7h6" /></svg>,
 };
-const LABEL: Record<ButtonId | "map" | "book", string> = { do: "Do", stroke: "Stroke", snack: "Change snack", follow: "Come along", skip: "Skip a stone", map: "Map", book: "Prints book" };
+export const LABEL: Record<ButtonId | "map" | "book", string> = { do: "Do", stroke: "Stroke", snack: "Change snack", follow: "Come along", skip: "Skip a stone", map: "Map", book: "Prints book" };
 
-export default function TouchControls({ prompts, hidden }: { prompts: Prompts; hidden: boolean }) {
+export default function TouchControls({ prompts, hidden, onClose }: { prompts: Prompts; hidden: boolean; onClose: () => void }) {
   const held = useRef<Set<string>>(new Set());
   const set = (next: Set<string>) => { const d = keyDiff(held.current, next); for (const k of d.up) send("keyup", k); for (const k of d.down) send("keydown", k); held.current = new Set(next); };
   const releaseAll = () => { set(new Set()); };
@@ -85,6 +85,9 @@ export default function TouchControls({ prompts, hidden }: { prompts: Prompts; h
         {ids.filter((i) => i !== "do").map((i) => btn(i, "tc-small"))}
         {btn("do", "tc-do")}
       </div>}
+      {hidden && <button type="button" className="tc-btn tc-top-btn tc-close" aria-label="Close" onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); try { onClose(); } catch { /* never throw into the game */ } }} onContextMenu={(e) => e.preventDefault()}>
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" {...S}><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>}
       <div className="tc-top">{btn("map", "tc-top-btn")}{btn("book", "tc-top-btn")}</div>
     </div>
   );

@@ -276,3 +276,25 @@ body.touch .fs-btn { right: calc(max(16px, env(safe-area-inset-right)) + 60px); 
 .tc-do { width: var(--tc-do); height: var(--tc-do); background: var(--gold); }
 .tc-btn.held { transform: translateY(3px); box-shadow: 0 1px 0 rgba(43, 42, 51, 0.2); background: var(--paper-shade); }
 .tc-do.held { background: #d49a2f; }
+
+/* S37 step 3: panels by touch. All gated by body.touch, so a desktop is untouched. Short landscape screens: panels scroll inside, never run off. */
+body.touch .menu { top: calc(max(16px, env(safe-area-inset-top)) + 64px); right: max(16px, env(safe-area-inset-right)); max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - 80px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+body.touch .menu .keys { display: none; }
+body.touch .tray, body.touch .printbook { top: calc(50% + 32px); max-height: calc(100dvh - 76px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+body.touch .printbook { width: min(760px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 24px)); }
+body.touch .pb-left, body.touch .pb-right { overflow-y: visible; }
+body.touch .mappage canvas { width: min(100%, calc(100dvh - 190px)); max-height: calc(100dvh - 190px); }
+body.touch .btn, body.touch .btn.quiet { min-height: 48px; }
+body.touch .pb-cell { min-height: 56px; padding: 12px 8px; }
+body.touch .tab, body.touch .eye { min-height: 48px; }
+body.touch .eye { width: 48px; }
+body.touch .npc-strip { bottom: max(16px, env(safe-area-inset-bottom)); max-height: calc(100dvh - 100px); overflow-y: auto; touch-action: pan-y; }
+body.touch .picker, body.touch .strip { max-height: calc(100dvh - 100px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+body.touch .book-hint { display: none; }
+body.touch .signin { max-height: calc(100dvh - 24px); overflow-y: auto; touch-action: pan-y; }
+.tc-close { background: var(--gold); z-index: 2; position: absolute; top: max(16px, env(safe-area-inset-top)); right: calc(max(16px, env(safe-area-inset-right)) + 240px); }
+.legend { display: grid; gap: 8px; }
+.legend-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font: 600 14px var(--font-ui); }
+.legend-list li { display: flex; align-items: center; gap: 8px; }
+.legend-ico { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--paper); border: var(--border); border-radius: 50%; color: var(--ink); }
+.legend-stick { background: radial-gradient(circle, var(--ink) 0 22%, var(--paper) 24%); }
