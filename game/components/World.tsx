@@ -50,11 +50,11 @@ import { PALETTE } from "@/lib/palette";
 import { dayNumber } from "@/lib/npcs";
 import { buildGlyphScraps, type GlyphScraps } from "@/components/glyphScraps";
 import { buildCosmetic, disposeCosmetic, poseCosmetic } from "@/lib/cosmeticsBuild";
-import { WORLD, atOverride } from "@/lib/worldMap";
+import { WORLD, atOverride, chunkOf, nearbyCircles, withWorldColliders } from "@/lib/worldMap";
 import { NOTICEIDLE, bugConfig, bugPreview, createBugSim, noticeTick, type NoticeState } from "@/lib/bugs";
 import { buildBugScene } from "@/components/bugScene";
 import { seeded as bugSeeded } from "@/lib/fidget";
-import { toLocal, type Offsets, type Saved, type Snap } from "@/lib/playerState";
+import { PS_ENABLED, restoreFrom, restorePlayer, restorePrints, toLocal, type Ladder, type Offsets, type Saved, type Snap } from "@/lib/playerState";
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
@@ -109,7 +109,7 @@ type Props = {
   onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
   guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
   onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
-  initialState?: Saved | null; // S36: where the player was last (restored by the next step; nothing reads it yet)
+  initialState?: Saved | null; // S36: where the player was last. Read once, when the world is made; a later change is ignored
   reportState?: (s: Snap, travelling: boolean) => void; // S36: where the player and the Prints stand, a few times a second, each zone in its own frame
   decorPlaced?: Placed | null; // the decorations by plot: from the server, or the ?decor=stub test ones (null = not shown)
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
@@ -290,7 +290,7 @@ function buildPlayer() {
 
 export type PrintInfo = { id: string; genes: Genes; species: string; stage: string; worn: string | null };
 
-export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0, reportState }: Props) {
+export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0, initialState, reportState }: Props) {
   const mount = useRef<HTMLDivElement>(null);
   const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, reportState });
   cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, reportState };
@@ -485,14 +485,15 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const showSky = (margins: boolean) => { if (!skyOn || skyScene) return; try { skyScene = buildSkyScene(scene, { bodies: !margins, margins, stars: !margins && starsOn, clouds: !margins && cloudsOn }); lightClock = 0; } catch { skyScene = null; } };
     const dropSky = () => { try { skyScene?.dispose(); } catch { /* nothing */ } skyScene = null; };
     let rdoor: { group: THREE.Group; dispose(): void } | null = null;
+    const ensureMarginsLayout = (): { layout: Layout; field: Field } => { if (!mLayout || !mField) { mLayout = generateLayout(); if (READING_ENABLED) mLayout.cols.circles.push(...marginsDoorCircles()); mField = buildField(mLayout.cols); mCols = mLayout.cols; } return { layout: mLayout, field: mField }; }; // the Reading Room door posts are solid (only when the room is on)
     const enterMarginsZone = () => {
       dropSky(); showSky(true); // the garden dome (with sun and moon) is swapped for the Margins one
-      if (!mLayout || !mField) { mLayout = generateLayout(); if (READING_ENABLED) mLayout.cols.circles.push(...marginsDoorCircles()); mField = buildField(mLayout.cols); mCols = mLayout.cols; } // the Reading Room door posts are solid (only when the room is on)
-      mg = buildMarginsScene(mLayout);
+      const { layout: mLay, field: mFld } = ensureMarginsLayout();
+      mg = buildMarginsScene(mLay);
       scene.add(mg.group);
       if (READING_ENABLED) { try { rdoor = buildReadingDoor(); mg.group.add(rdoor.group); } catch { rdoor = null; } } // the door is a look; trouble building it skips only the door
       mDay = mo.day ?? utcDay(new Date()); // the day is fixed for the whole visit
-      mSpots = spotsForDay(mDay, mLayout, mField);
+      mSpots = spotsForDay(mDay, mLay, mFld);
       opened = openedByDay.get(mDay) ?? new Set<number>();
       openedByDay.set(mDay, opened);
       mg.setSpots(mSpots, opened);
@@ -819,6 +820,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const eggSpot = GARDEN.places.find((p) => p.kind === "egg")!;
     const nest = GARDEN.places.find((p) => p.kind === "nest")!;
+    // S36: where to start from, if anything. A dev preview start (?area= ?unfold= ?gate= ?reading= ?at=) always wins; the kill switch and ?nosave=1 arrive here as no record.
+    const devStart = !!(rPreview && READING_ENABLED) || homeOverride(window.location.search, process.env.NODE_ENV === "production") || !!mo.area || !!mo.unfold || !!mo.gate || !!atOverride(window.location.search, process.env.NODE_ENV === "production");
+    const restore = restoreFrom(PS_ENABLED, initialState, devStart);
+    if (restore) { // the Prints start where they stood (garden frame), wandering: never seated, hiding, at the pond or walking along. Bedtime, if it is night, takes them as it does on any reload.
+      try { for (const [id, w] of restorePrints(restore.prints, (q) => withWorldColliders(cols, nearbyCircles(chunkOf(q.x), chunkOf(q.z))), GARDEN.print.radius)) wanderBy.set(id, w); } catch { /* start as today */ }
+    }
     rebuild.current = () => {
       for (const c of [...dynamic.children]) disposeTree(c); // frees the old Print/egg and their ink outlines
       dynamic.clear();
@@ -1058,6 +1065,25 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       pos = { x: g.x - d.x * 1.8, z: g.z - d.z * 1.8 };
       yaw = arrivalYaw("margins");
     }
+    let cover: { frames: number; fadeAt: number } | null = null; // S36: the paper stays over the canvas until the saved zone is built and drawn twice
+    if (restore) {
+      try {
+        const sx = restore.x, sz = restore.z;
+        const L: Ladder = {
+          reading: READING_ENABLED, radius: GARDEN.player.radius,
+          zones: {
+            garden: { halfW: WORLD.size / 2, halfD: WORLD.size / 2, cols: () => withWorldColliders(cols, nearbyCircles(chunkOf(sx), chunkOf(sz))), spawn: { x: GARDEN.player.start[0], z: GARDEN.player.start[1] }, spawnYaw: 0 },
+            margins: { halfW: MARGINS.size / 2, halfD: MARGINS.size / 2, cols: () => ensureMarginsLayout().layout.cols, spawn: arrivalPath("margins")[1], spawnYaw: arrivalYaw("margins") },
+            home: { halfW: HOME_ROOM.room.width / 2, halfD: HOME_ROOM.room.depth / 2 + 0.6, cols: () => roomCols, spawn: doorArrival("home")[1], spawnYaw: doorYaw("home") },
+            reading: { halfW: READING.room.width / 2, halfD: roomWalkEnd(), cols: () => rCols, spawn: readingArrival("reading")[1], spawnYaw: readingYaw("reading") },
+          },
+        };
+        const r = restorePlayer(restore, L, { garden: 0, margins: OFF, home: ROOM_OFF, reading: READING_OFF });
+        zones.enterZone(r.zone); // the one enter path, no door or gate walk (does nothing for the garden, which starts entered)
+        pos = { x: r.x, z: r.z }; yaw = r.yaw; player.rotation.y = r.heading;
+        wipe.style.transform = "none"; wipe.style.opacity = "1"; wipe.style.display = "block"; cover = { frames: 0, fadeAt: 0 };
+      } catch { /* trouble placing: start where the game starts today */ }
+    }
     const atWorld = atOverride(window.location.search, process.env.NODE_ENV === "production"); // dev-only: ?at=x,z looks at the far parts of the World
     if (atWorld && zones.is("garden")) { pos = atWorld; }
     if (zones.is("garden")) showShell(); // the garden zone starts entered, so its World is built here (and again on every return)
@@ -1181,6 +1207,11 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       let ground = 0;
       if (zones.is("margins") && mLayout) ground = heightAt(pos.x - OFF, pos.z, mLayout.hills);
       let tRes: { pos: { x: number; z: number }; heading: number | null } | null = null;
+      if (cover) { // S36: lift the boot cover on its normal fade once the zone has been drawn twice; a walk through a gate or door takes over the wipe at once
+        if (travel) { wipe.style.transition = ""; cover = null; }
+        else if (cover.fadeAt === 0 && ++cover.frames >= 3) { wipe.style.transition = reducedMotion ? "opacity 150ms linear" : "opacity 450ms ease"; wipe.style.opacity = "0"; cover.fadeAt = t; }
+        else if (cover.fadeAt > 0 && t - cover.fadeAt > (reducedMotion ? 200 : 500)) { wipe.style.display = "none"; wipe.style.transition = ""; wipe.style.opacity = "1"; cover = null; }
+      }
       if (travel) {
         const tt = (t - travel.start) / 1000, f = travelFrame(tt, reducedMotion);
         if (f.swapped && !travel.swapped) {

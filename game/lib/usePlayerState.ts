@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { PS, PS_ENABLED, nosaveOverride, type Snap } from "@/lib/playerState";
-import { createSaver, loadStart, type Saver, type Start } from "@/lib/playerStateClient";
+import { createSaver, keepaliveRequest, loadStart, type Saver, type Start } from "@/lib/playerStateClient";
 
 const store = { get: (k: string) => window.localStorage.getItem(k), set: (k: string, v: string) => window.localStorage.setItem(k, v) };
 
@@ -39,9 +39,9 @@ export function usePlayerState(session: boolean | null, userId: string | null, o
       ownIds: () => ids.current,
       send: async (a) => { const { data, error } = await sb.rpc("save_state", a); return error ? "failed" : data === "skipped" ? "skipped" : "saved"; },
       sendKeepalive: (a) => { // the same function on the same host, with the user's own token; skipped if there is none
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        if (!url || !key || !token.current) return false;
-        try { void fetch(`${url}/rest/v1/rpc/save_state`, { method: "POST", keepalive: true, headers: { "content-type": "application/json", apikey: key, authorization: `Bearer ${token.current}` }, body: JSON.stringify(a) }).catch(() => undefined); return true; } catch { return false; }
+        const r = keepaliveRequest(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, token.current, a);
+        if (!r) return false;
+        try { void fetch(r.url, r.init).catch(() => undefined); return true; } catch { return false; }
       },
     });
     saver.current = sv;

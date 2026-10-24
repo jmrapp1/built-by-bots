@@ -2,7 +2,7 @@
 // pick the source (browser copy first), walk the safety ladder, decide when to save. No three.js, clock, storage or network here.
 // Numbers live in data/playerState.json. The server (save_state) checks only finite / in bounds / known zone; the real "is this spot ok" check is here, on load.
 import raw from "@/data/playerState.json";
-import { clampToBounds, insideAny, pushOut, HOME, type Colliders, type Vec } from "@/lib/world";
+import { clampToBounds, insideAny, pushOut, HOME, type Colliders, type Vec, type Wander } from "@/lib/world";
 import type { ZoneId } from "@/lib/zones";
 
 export const PS = raw.playerState;
@@ -99,6 +99,28 @@ export function printSpot(p: Vec, cols: Colliders, radius: number): Vec | null {
   const c = clampToBounds(p, radius, HOME.size);
   const q = clampToBounds(pushOut(c, radius, cols), radius, HOME.size);
   return insideAny(q, radius * 0.9, cols) ? null : q;
+}
+
+// --- Restore at boot (spec sections 3, 5, 6) ---------------------------------------------------
+/** The record the world may start from: none when the kill switch is off, there is no record, or a dev preview start was asked for. */
+export const restoreFrom = (enabled: boolean, saved: Saved | null | undefined, devStart: boolean): Saved | null => (enabled && saved && !devStart ? saved : null);
+/** The zone to enter at boot. A closed Reading Room is the Margins (ladder step 2). */
+export const restoreZone = (zone: ZoneId, readingOn: boolean): ZoneId => (zone === "reading" && !readingOn ? "margins" : zone);
+/** Where the player starts, in the scene: the ladder, then the zone's offset. Always a valid point in a zone that exists. */
+export function restorePlayer(s: Pick<Snap, "zone" | "x" | "z" | "heading" | "yaw">, L: Ladder, offs: Offsets): { zone: ZoneId; x: number; z: number; heading: number; yaw: number } {
+  const r = fallbackSpot(s, L), p = toScene(r.zone, r, offs);
+  return { zone: r.zone, x: p.x, z: p.z, heading: r.heading, yaw: r.yaw };
+}
+/** A saved Print as it starts: standing at its spot (inside Home, out of colliders) and wandering on after a short wait. Resting and wandering both resume as this:
+ *  never seated, hiding, at the pond or walking along. Null means the usual start for that Print. */
+export function restoreWander(p: PrintSnap, cols: Colliders, radius: number): Wander | null {
+  const q = printSpot({ x: p.x, z: p.z }, cols, radius);
+  return q ? { x: q.x, z: q.z, tx: q.x, tz: q.z, wait: 1.5, heading: normAngle(p.h) } : null;
+}
+export function restorePrints(prints: PrintSnap[], colsAt: (p: Vec) => Colliders, radius: number): Map<string, Wander> {
+  const out = new Map<string, Wander>();
+  for (const p of prints.slice(0, PS.maxPrints)) { const w = restoreWander(p, colsAt(p), radius); if (w && !out.has(p.id)) out.set(p.id, w); }
+  return out;
 }
 
 // --- When to save (spec section 5) -------------------------------------------------------------

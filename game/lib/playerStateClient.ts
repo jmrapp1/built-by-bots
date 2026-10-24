@@ -21,6 +21,13 @@ export async function loadStart(d: { enabled: boolean; userId: string | null; st
   return pickSource(null, server, d.now);
 }
 
+/** The closing-page request: the same save_state function on the same host. `apikey` is the public anon key; `authorization` is Bearer plus the user's own access token
+ *  (never an admin key). Null when the URL, the key or the token is missing (then only the browser copy is written). */
+export function keepaliveRequest(url: string | undefined, anonKey: string | undefined, token: string | null | undefined, args: unknown): { url: string; init: { method: "POST"; keepalive: true; headers: Record<string, string>; body: string } } | null {
+  if (!url || !anonKey || !token) return null;
+  return { url: `${url}/rest/v1/rpc/save_state`, init: { method: "POST", keepalive: true, headers: { "content-type": "application/json", apikey: anonKey, authorization: `Bearer ${token}` }, body: JSON.stringify(args) } };
+}
+
 export type SaveResult = "saved" | "skipped" | "failed";
 export type SaverDeps = {
   enabled: boolean;
