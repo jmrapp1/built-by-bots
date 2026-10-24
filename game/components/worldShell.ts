@@ -5,12 +5,12 @@ import { wobbleSphere } from "@/lib/shapes";
 import * as THREE from "three";
 import type { Haze } from "@/lib/sky";
 import { buildHills } from "@/components/hillsScene";
-import type { Circle } from "@/lib/world";
+import type { Box, Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import { groundY } from "@/lib/ground";
-import { FEATURES, featureCircles, featureInstanceCount, featureItemsInChunk } from "@/lib/features";
+import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches } from "@/lib/features";
 import {
-  CHUNKS, HALF, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
+  BUSH_R, CHUNKS, HALF, ROCK_R, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
   type Contents, type RegionId,
 } from "@/lib/worldMap";
 
@@ -21,11 +21,14 @@ export type WorldShell = {
   update(x: number, z: number, all?: boolean): void;
   /** Collision circles close to a point (pure data, so correct even for chunks not drawn yet). */
   circlesNear(x: number, z: number, reach: number): Circle[];
+  /** E4: hedgerow boxes close to a point (empty with the features off). */
+  boxesNear(x: number, z: number, reach: number): Box[];
   setSky(c: THREE.ColorRepresentation, haze?: Haze | null): void;
   stats(): ShellStats;
   dispose(): void;
 };
 
+const HEDGE_REGION = new Map<string, RegionId>(HEDGES.map((h) => [h.id, h.region]));
 const FEATURE_REGION = new Map<string, RegionId>((FEATURES.list as { id: string; region: RegionId }[]).map((f) => [f.id, f.region]));
 const mats = (look: { crown: string; trunk: string; rock: string; bush: string }) => ({
   trunk: new THREE.MeshToonMaterial({ color: look.trunk }), crown: new THREE.MeshToonMaterial({ color: look.crown }),
@@ -151,7 +154,13 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   const cache = new Map<string, Circle[]>(); // collision circles per chunk (pure data; bounded to the chunks near the player)
   const st: ShellStats = { chunks: 0, instances: 0, builds: 0, drops: 0 };
   const tmp = new THREE.Object3D();
-  const circlesOf = (a: number, b: number): Circle[] => { const k = chunkKey(a, b); let v = cache.get(k); if (!v) { v = chunkCircles(chunkContents(a, b)); if (opts.features) v = [...v, ...featureCircles(featureItemsInChunk(a, b))]; cache.set(k, v); } return v; };
+  // E4: with the features on, the scatter is cleared from under the hedgerows (same filter for drawing and for collision); off, contents are untouched
+  const scatterOf = (a: number, b: number): Contents => {
+    const c = chunkContents(a, b); if (!opts.features || !HEDGES.length) return c;
+    const hp = buildHedges(), keepIt = (r: number) => (i: { x: number; z: number; s: number }) => !hedgeTouches(i.x, i.z, r * i.s, hp);
+    return { ...c, trees: c.trees.filter(keepIt(TREE_R)), rocks: c.rocks.filter(keepIt(ROCK_R)), bushes: c.bushes.filter(keepIt(BUSH_R)) };
+  };
+  const circlesOf = (a: number, b: number): Circle[] => { const k = chunkKey(a, b); let v = cache.get(k); if (!v) { v = chunkCircles(scatterOf(a, b)); if (opts.features) v = [...v, ...featureCircles(featureItemsInChunk(a, b))]; cache.set(k, v); } return v; };
 
   const landmark = (l: Contents["landmarks"][number]): THREE.Object3D => {
     const g = new THREE.Group(); g.position.set(l.x, gy(l.x, l.z), l.z);
@@ -194,7 +203,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   };
 
   const build = (ix: number, iz: number) => {
-    const c = chunkContents(ix, iz), g = new THREE.Group(), ims: THREE.InstancedMesh[] = [], extra: THREE.Object3D[] = [], m = M[c.region];
+    const c = scatterOf(ix, iz), g = new THREE.Group(), ims: THREE.InstancedMesh[] = [], extra: THREE.Object3D[] = [], m = M[c.region];
     const make = (geo: THREE.BufferGeometry, mat: THREE.Material, items: { x: number; z: number; s: number; r: number }[], sy = 1, sink = 0) => {
       if (!items.length) return;
       const im = new THREE.InstancedMesh(geo, mat, items.length);
@@ -215,6 +224,9 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
         make(G.rock, fm.rock, mine.filter((i) => i.k === "rock"), 1, opts.ground ? SINK : 0); make(G.bush, fm.bush, mine.filter((i) => i.k === "bush"));
       }
       fInst = featureInstanceCount(fs);
+      for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
+        const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
+      }
     }
     group.add(g);
     const inst = c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length + fInst;
@@ -243,6 +255,12 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     circlesNear(x, z, reach) {
       const ix = chunkOf(x), iz = chunkOf(z), out: Circle[] = [];
       for (const c of nearbyCircles(ix, iz, circlesOf)) if (Math.abs(c.x - x) < reach + c.r && Math.abs(c.z - z) < reach + c.r) out.push(c);
+      return out;
+    },
+    boxesNear(x, z, reach) {
+      if (!opts.features) return [];
+      const out: Box[] = [], ix = chunkOf(x), iz = chunkOf(z);
+      for (let a = ix - 1; a <= ix + 1; a++) for (let b = iz - 1; b <= iz + 1; b++) for (const q of hedgeBoxes(hedgePiecesInChunk(a, b))) if (Math.abs(q.x - x) < reach + q.w / 2 && Math.abs(q.z - z) < reach + q.d / 2) out.push(q);
       return out;
     },
     setSky,

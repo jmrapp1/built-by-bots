@@ -1,5 +1,5 @@
 {
-  "note": "E2: the authored feature list for the World: groves, belts, rows and rings, each a shape plus a recipe and a seed. Nothing here is drawn yet; the builder (lib/features.ts) turns it into items and a later slice (E3) draws them. 'enabled' ships false and nothing reads it for drawing in E2; anything but a plain true is off. Metres. Shapes: 'belt' = a curve through 'points' (x,z) with 'width' across; 'row' = a straight line a to b with 'gaps' [t0,t1] fractions left open; 'ring' = a circle at 'at' with radius 'r', 'width' deep, 'opening' = [from,to] degrees left open. Recipe: k = tree|rock|bush, s = [min,max] scale, spacing = metres between items along the shape. Every item keeps clear of Home, the path, the gate, signposts and landmark feet (one check, lib/features.ts keepClear). Values are first guesses to tune by eye.",
+  "note": "E2: the authored feature list for the World: groves, belts, rows and rings, each a shape plus a recipe and a seed. Nothing here is drawn yet; the builder (lib/features.ts) turns it into items and a later slice (E3) draws them. 'enabled' ships false and nothing reads it for drawing in E2; anything but a plain true is off. Metres. Shapes: 'belt' = a curve through 'points' (x,z) with 'width' across; 'row' = a straight line a to b with 'gaps' [t0,t1] fractions left open; 'ring' = a circle at 'at' with radius 'r', 'width' deep, 'opening' = [from,to] degrees left open. Recipe: k = tree|rock|bush, s = [min,max] scale, spacing = metres between items along the shape. Every item keeps clear of Home, the path, the gate, signposts and landmark feet (one check, lib/features.ts keepClear). E4: 'hedges' are straight, axis-aligned hedgerows (a to b along x or z, 'thick' and 'h' in metres, 'gaps' [t0,t1] fractions left open, at least gapWidth across); drawn as boxes with box colliders; the scatter is cleared from under them. Values are first guesses to tune by eye.",
   "features": {
     "enabled": false,
     "limits": { "minGap": 1.6, "gapWidth": 4, "perChunk": 200 },
@@ -19,6 +19,15 @@
       { "id": "shore-reed-belt", "region": "pressmark_shore", "shape": "belt", "points": [[84, -50], [90, -30], [84, -20]], "width": 8, "recipe": { "k": "bush", "s": [0.9, 1.2], "spacing": 3 }, "seed": 141 },
       { "id": "shore-stamp-ring", "region": "pressmark_shore", "shape": "ring", "at": [96, 44], "r": 7, "width": 3, "opening": [200, 260], "recipe": { "k": "rock", "s": [0.9, 1.3], "spacing": 3.2 }, "seed": 142 },
       { "id": "shore-driftwood-row", "region": "pressmark_shore", "shape": "row", "a": [82, 52], "b": [122, 52], "gaps": [[0.5, 0.62]], "recipe": { "k": "bush", "s": [0.8, 1.1], "spacing": 4 }, "seed": 143 }
+    ],
+    "hedges": [
+      { "id": "meadow-west-north", "region": "meadow", "a": [-44, -30], "b": [-24, -30], "thick": 1.6, "h": 3.6, "gaps": [[0.45, 0.65]] },
+      { "id": "meadow-west-south", "region": "meadow", "a": [-44, 30], "b": [-24, 30], "thick": 1.6, "h": 3.6, "gaps": [[0.45, 0.65]] },
+      { "id": "meadow-west-wall", "region": "meadow", "a": [-44, -30], "b": [-44, 30], "thick": 1.6, "h": 3.6, "gaps": [[0.42, 0.56]] },
+      { "id": "meadow-south-wall", "region": "meadow", "a": [-22, 42], "b": [22, 42], "thick": 1.6, "h": 3.6, "gaps": [[0.4, 0.6]] },
+      { "id": "meadow-south-west", "region": "meadow", "a": [-22, 42], "b": [-22, 60], "thick": 1.6, "h": 3.6, "gaps": [[0.4, 0.7]] },
+      { "id": "meadow-south-east", "region": "meadow", "a": [22, 42], "b": [22, 60], "thick": 1.6, "h": 3.6, "gaps": [[0.4, 0.7]] },
+      { "id": "meadow-east-wall", "region": "meadow", "a": [58, -6], "b": [58, 22], "thick": 1.6, "h": 3.6, "gaps": [[0.4, 0.62]] }
     ]
   }
 }

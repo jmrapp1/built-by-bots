@@ -1123,8 +1123,8 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let raf = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !!rPreview?.reduced; // ?reading=reduced (dev only) also forces it
     // The player walks the whole World; collision data for the streamed chunks comes from the pure map, never from what is drawn.
-    const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: cols.boxes } : cols);
-    const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8)], boxes: cols.boxes } : cols);
+    const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: [...cols.boxes, ...shell.boxesNear(pos.x, pos.z, 8)] } : cols);
+    const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8)], boxes: [...cols.boxes, ...shell.boxesNear(x, z, 8)] } : cols);
     const FAR: Vec = { x: 1e6, z: 1e6 };
     // One frame of walking to a goal anywhere in the World, along a route that is re-planned every routeEvery seconds.
     const walkTo = (w: Wander, st: Walk, goal: Vec, speed: number, dt: number, ts: number, gc: Colliders, player: Vec): { w: Wander; moving: boolean } => {
