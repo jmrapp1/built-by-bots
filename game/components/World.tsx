@@ -61,6 +61,7 @@ import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
 import { groundLift, groundOn, groundY } from "@/lib/ground";
+import { fogAt, regionFogOn } from "@/lib/regionFog";
 import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
@@ -489,6 +490,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const skyOn = skyEnabled(window.location.search, process.env.NODE_ENV === "production");
     const starsOn = starsEnabled(window.location.search, process.env.NODE_ENV === "production"); // none in the Margins (a page) or Home (a room)
     const groundHeight = groundOn(window.location.search, process.env.NODE_ENV === "production"); // H1: ground height in the World; off = flat as before
+    const regionFog = regionFogOn(window.location.search, process.env.NODE_ENV === "production"); // E1: fog by region in the World; off = the one global fog as before
     const lift = (x: number, z: number): number => groundLift(groundHeight && zones.is("garden"), x, z); // H4: Prints stand on the World's ground; 0 with the switch off or outside the garden
     const hillsOn = hillsEnabled(window.location.search, process.env.NODE_ENV === "production"); // S31c: layered hills; off = the old ridges
     let skyScene: SkyScene | null = null;
@@ -1298,6 +1300,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         guideSent = !!gp;
       }
       if (live.current.mapOpen && t - poseAt > 200) { poseAt = t; cb.current.onMapPose?.(walked, zones.is("garden") ? { x: pos.x, z: pos.z, yaw } : null); }
+      if (regionFog && zones.is("garden")) { const fg = fogAt(pos.x, pos.z, true); (scene.fog as THREE.Fog).near = fg[0]; (scene.fog as THREE.Fog).far = fg[1]; } // E1: this region's fog, eased across the seams
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;
