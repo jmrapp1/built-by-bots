@@ -1,9 +1,9 @@
 {
-  "note": "H1: ground height in the larger World. 'enabled' ships false; anything but a plain true is off, and off means the World is flat exactly as before. 'scale' multiplies every rise (H1 keeps them very low because props still sit at y 0 until H2). Rises are cosine bumps: x, z, radius r and height h in metres. 'feather' is how far the land takes to ease up from a flat zone. Flat zones themselves are in lib/ground.ts.",
+  "note": "H1: ground height in the larger World. 'enabled' ships false; anything but a plain true is off, and off means the World is flat exactly as before. 'scale' multiplies every rise (H1 keeps them very low because props still sit at y 0 until H2). Rises are cosine bumps: x, z, radius r and height h in metres. 'feather' is how far the land takes to ease up from a flat zone. 'maxSlope' is the steepest rise over run allowed anywhere at scale 1 (measured 0.229, about 13 degrees; 0.25 is about 14); tests/groundHeight.test.ts fails if the rises ever exceed it. Flat zones themselves are in lib/ground.ts.",
   "ground": {
     "enabled": false,
     "scale": 1.0,
-    "maxSlope": 0.2,
+    "maxSlope": 0.25,
     "feather": 24,
     "edgeFeather": 30,
     "rises": [
