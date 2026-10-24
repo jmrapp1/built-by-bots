@@ -247,3 +247,15 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
 .pb-pick { margin: 0; font: 700 13px var(--font-ui); color: var(--ink-soft); }
 .book-hint { position: absolute; right: 16px; bottom: 16px; font: 600 13px var(--font-ui); color: var(--ink-soft); display: flex; gap: 6px; align-items: center; }
 @media (prefers-reduced-motion: reduce) { .printbook { animation: fade 150ms linear both; } .pb-cell, .pb-cell.on { transition: none; transform: none; } }
+
+/* S37: phone support. Everything here is gated by body.touch (set only in touch mode with the flag on), so desktop is untouched. */
+body.touch { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+body.touch .stage { min-height: 100dvh; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+body.touch .iconbtn { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+body.touch .fs-btn { right: calc(max(16px, env(safe-area-inset-right)) + 60px); width: 48px; height: 48px; z-index: 30; }
+.turn-cover { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center;
+  background: repeating-linear-gradient(0deg, transparent 0 39px, rgba(94, 91, 107, 0.12) 39px 40px), radial-gradient(ellipse at 50% 30%, #f3ead2, var(--backdrop)); touch-action: none; animation: fade 200ms var(--ease) both; }
+.turn-cover p { margin: 0; font: 600 20px var(--font-display); }
+.turn-phone { transform-origin: 80px 46px; animation: turn-tilt 2400ms var(--ease) infinite alternate; }
+@keyframes turn-tilt { from { transform: rotate(0deg); } to { transform: rotate(-70deg); } }
+@media (prefers-reduced-motion: reduce) { .turn-phone { animation: none; transform: rotate(-70deg); } .turn-cover { animation-duration: 150ms; } }
