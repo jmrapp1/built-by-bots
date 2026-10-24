@@ -59,13 +59,14 @@ export function worldOccluders(): Occluder[] {
 
 // ---- the field: occluders in a coarse hash so a ray only meets what is near it ----
 const CELL = 16, STEP = 8; // STEP * 0.5 + biggest reach (7, the hill) is well under CELL, so sampling every STEP and taking the 3x3 cells round each sample finds everything a ray can touch
-export type SightField = { occ: Occluder[]; cells: Map<number, number[]>; far: number; clip: boolean };
+export type SightField = { occ: Occluder[]; cells: Map<number, number[]>; far: number; clip: boolean; /** E1: how far the fog lets you see from a point; default is `far` everywhere */ farAt?: (x: number, z: number) => number };
+export const farOf = (f: SightField, x: number, z: number): number => (f.farAt ? Math.min(f.far, f.farAt(x, z)) : f.far);
 const ck = (cx: number, cz: number) => (cx + 512) * 1024 + (cz + 512);
 
-export function createSightField(occ: Occluder[] = worldOccluders(), opts: { far?: number; clip?: boolean } = {}): SightField {
+export function createSightField(occ: Occluder[] = worldOccluders(), opts: { far?: number; clip?: boolean; farAt?: (x: number, z: number) => number } = {}): SightField {
   const cells = new Map<number, number[]>();
   occ.forEach((o, i) => { const k = ck(Math.floor(o.x / CELL), Math.floor(o.z / CELL)); const l = cells.get(k); if (l) l.push(i); else cells.set(k, [i]); });
-  return { occ, cells, far: opts.far ?? WORLD.fog[1], clip: opts.clip ?? true };
+  return { occ, cells, far: opts.far ?? WORLD.fog[1], clip: opts.clip ?? true, farAt: opts.farAt };
 }
 
 /** Distance from (x,z) along a unit direction to the edge of the World square (Infinity if the start is outside and heading away is not modelled). */
@@ -124,7 +125,7 @@ function hitDistance(o: Occluder, x: number, z: number, y: number, dx: number, d
 /** Level view distances in `rays` evenly spaced directions from (x, z) at eye height `eye`. */
 export function rayDistances(f: SightField, x: number, z: number, eye: number, rays = 24): number[] {
   const out: number[] = [];
-  for (let i = 0; i < rays; i++) { const a = (i / rays) * Math.PI * 2; out.push(castRay(f, x, z, eye, Math.sin(a), Math.cos(a))); }
+  for (let i = 0; i < rays; i++) { const a = (i / rays) * Math.PI * 2; out.push(castRay(f, x, z, eye, Math.sin(a), Math.cos(a), 0, farOf(f, x, z))); }
   return out;
 }
 export type Openness = { mean: number; max: number; longShare: number };
@@ -138,6 +139,7 @@ export function openness(f: SightField, x: number, z: number, eye: number, rays 
 export function lineClear(f: SightField, a: { x: number; z: number; y: number }, b: { x: number; z: number; y: number }, ignore?: string): boolean {
   const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz);
   if (L < 1e-6) return true;
+  if (L > farOf(f, a.x, a.z)) return false; // beyond the fog from the viewer
   return castRay({ ...f, clip: false }, a.x, a.z, a.y, dx / L, dz / L, (b.y - a.y) / L, L, ignore) >= L - 1e-6;
 }
 
@@ -283,7 +285,7 @@ export function sightReport(f: SightField, eye: number, step = 8, cols = worldCo
   // landmarks: seen when the line from the eye to 90 percent of the landmark's height is clear and it is inside the fog
   const lm = WORLD.landmarks, vis = lm.map(() => 0); let seenTotal = 0;
   for (const p of coarse) lm.forEach((l, k) => {
-    if (Math.hypot(l.x - p.x, l.z - p.z) > f.far) return;
+    if (Math.hypot(l.x - p.x, l.z - p.z) > farOf(f, p.x, p.z)) return;
     if (lineClear(f, { ...p, y: eye }, { x: l.x, z: l.z, y: l.h * 0.9 }, l.id)) { vis[k]++; seenTotal++; }
   });
   // trail: a scripted walk along the inked path, every fourth point of the curve

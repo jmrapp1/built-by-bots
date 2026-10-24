@@ -1,0 +1,13 @@
+{
+  "note": "E1: fog distances per region of the World, in metres [near, far]. 'enabled' ships false; anything but a plain true is off, and off means the one global fog in world.json exactly as before. The values are first guesses, to tune by eye. Between regions the pair eases across the same bands the ground colours use, so there is no step. Only the garden World uses it; the Margins and rooms keep their own fog.",
+  "regionFog": {
+    "enabled": false,
+    "regions": {
+      "meadow": [40, 130],
+      "inkwood": [16, 70],
+      "paper_downs": [55, 170],
+      "glyph_quarter": [24, 90],
+      "pressmark_shore": [45, 150]
+    }
+  }
+}
