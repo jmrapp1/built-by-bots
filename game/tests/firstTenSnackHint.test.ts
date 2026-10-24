@@ -8,8 +8,8 @@ const base: Ctx = { ready: true, inGarden: true, nearEgg: false, eggPending: fal
 const done = ["move", "egg", "hatch"] as const;
 
 describe("S38b switch", () => {
-  it("ships off; anything but a plain true is off", () => {
-    expect((firstTen as { firstTen: { snackHint: unknown } }).firstTen.snackHint).toBe(false);
+  it("ships on; anything but a plain true is off", () => {
+    expect((firstTen as { firstTen: { snackHint: unknown } }).firstTen.snackHint).toBe(true);
     for (const v of ["true", 1, null, undefined, {}]) expect(flagOn({ firstTen: { snackHint: v } }, "snackHint")).toBe(false);
     expect(flagOn({ firstTen: { snackHint: true } }, "snackHint")).toBe(true);
   });
