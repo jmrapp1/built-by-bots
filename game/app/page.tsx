@@ -43,6 +43,7 @@ import PrintBook from "@/components/PrintBook";
 import { BOOK, bookEntries, bookKeyAction, chooseIndex } from "@/lib/printBook";
 import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIcon, MenuIcon, MoodFace, PageIcon } from "@/components/ui";
 import type { Genes } from "@/lib/creature";
+import { usePlayerState } from "@/lib/usePlayerState";
 
 const World = dynamic(() => import("@/components/World"), { ssr: false });
 
@@ -291,7 +292,9 @@ export default function Page() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [npcLine]);
-  const signOut = () => supabase().auth.signOut();
+  // S36: where the player and the Prints stand (lib/usePlayerState.ts). Off with the kill switch (data/playerState.json) or ?nosave=1 (dev only).
+  const { saveOn, start, reportState, flush } = usePlayerState(session, userId, creatures.map((c) => c.id));
+  const signOut = async () => { await flush(); await supabase().auth.signOut(); }; // one save first (waits at most a short cap), then the sign-out itself
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -447,7 +450,7 @@ export default function Page() {
   };
 
   const hud: React.CSSProperties = { position: "absolute", left: 12, right: 12, padding: 8, background: "rgba(251,248,239,0.9)", borderRadius: 8 };
-  const screen = screenFor(session);
+  const screen = session && userId && start?.who !== userId ? "loading" : screenFor(session); // S36: hold the loading screen until the starting record has settled
   if (screen === "loading") {
     return (
       <main className="stage">
@@ -503,7 +506,7 @@ export default function Page() {
   const bad = (isFeedMessage(msg) && msg !== FED_MESSAGE) || BAD_MESSAGE_WORDS.test(msg);
   return (
     <main className="hud-root">
-      <World prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open || bookOpen} onTravel={setTravelling} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen && !bookOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
+      <World initialState={start?.s?.state ?? null} reportState={saveOn ? reportState : undefined} prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open || bookOpen} onTravel={setTravelling} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen && !bookOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
       <FirstRunGuide loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} onOpen={setTryOpen} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />

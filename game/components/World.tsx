@@ -54,6 +54,7 @@ import { WORLD, atOverride } from "@/lib/worldMap";
 import { NOTICEIDLE, bugConfig, bugPreview, createBugSim, noticeTick, type NoticeState } from "@/lib/bugs";
 import { buildBugScene } from "@/components/bugScene";
 import { seeded as bugSeeded } from "@/lib/fidget";
+import { toLocal, type Offsets, type Saved, type Snap } from "@/lib/playerState";
 import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib/map";
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
@@ -108,6 +109,8 @@ type Props = {
   onGuidePose?: (pose: { x: number; z: number; yaw: number } | null) => void; // first-run guide: where the player is in the garden (null elsewhere)
   guideGlow?: boolean; // first-run guide: a faint glow on the egg spot
   onMapPose?: (walked: Walked, pose: { x: number; z: number; yaw: number } | null) => void;
+  initialState?: Saved | null; // S36: where the player was last (restored by the next step; nothing reads it yet)
+  reportState?: (s: Snap, travelling: boolean) => void; // S36: where the player and the Prints stand, a few times a second, each zone in its own frame
   decorPlaced?: Placed | null; // the decorations by plot: from the server, or the ?decor=stub test ones (null = not shown)
   locked?: boolean; // a feed is in flight, or a panel is open: no new hold or stroke
 };
@@ -287,10 +290,10 @@ function buildPlayer() {
 
 export type PrintInfo = { id: string; genes: Genes; species: string; stage: string; worn: string | null };
 
-export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0 }: Props) {
+export default function World({ genes, prints, focusId = null, onFocus, species = "blotling", stage = "blot", eggPhase, onNearby, onInteract, onPrintNear, onFeedPrint, onStroke, onFindable, onFollow, onCanSplash, fedTick = 0, locked = false, onGather, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, worn = null, canOffer = true, walkKey = null, mapOpen = false, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, guideGlow = false, decorPlaced = null, onNpcTalk, npcClose = 0, reportState }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose });
-  cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose };
+  const cb = useRef({ onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, reportState });
+  cb.current = { onFocus, onStroke, onNpcTalk, onNearby, onInteract, onPrintNear, onFeedPrint, onGather, onFindable, onFollow, onCanSplash, onMargins, canGather, onUnfold, onLoadOpened, onMarginsNote, onWorldUnfold, onLoadWorldOpened, onSpotsOpened, onKeepsake, onMapKey, onTravel, onMapPose, onHome, onZoneDone, onGuidePose, reportState };
   // Latest props for the render loop, which is created once.
   const live = useRef({ prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow });
   live.current = { prints, focusId, npcClose, genes, eggPhase, stage, species, locked, canOffer, worn, mapOpen, walkKey, decorPlaced, guideGlow };
@@ -902,7 +905,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     rebuild.current();
 
     const keys = new Set<string>();
-    let guideAt = 0, guideSent = false;
+    let guideAt = 0, guideSent = false, stateAt = 0;
     const talkTo = (n: Live) => {
       if (live.current.locked || travel) return;
       for (const o of live_npcs) if (o !== n) closeNpcTalk(o, false); // never two strips at once
@@ -1219,6 +1222,14 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       if (live.current.walkKey !== null && storageKey(live.current.walkKey) !== walkedKey) { saveWalked(); walkedKey = storageKey(live.current.walkKey); readWalked(); } // signed in as someone else
       if (zones.is("garden") && !travel && reveal(walked, pos.x, pos.z)) walkDirty = true;
       if (walkDirty && t / 1000 - walkSaved > MAP.saveEvery) { walkSaved = t / 1000; saveWalked(); }
+      if (cb.current.reportState && t - stateAt > 250) { // S36: report where everything stands (the page decides what is worth saving)
+        stateAt = t;
+        const offs: Offsets = { garden: 0, margins: OFF, home: ROOM_OFF, reading: READING_OFF }, zn = zones.current, lp = toLocal(zn, pos, offs);
+        const night = sleepPhase(hourNow) !== "awake", list: Snap["prints"] = [];
+        if (primaryId && primaryId !== "_" && wander) list.push({ id: primaryId, x: wander.x, z: wander.z, h: wander.heading, m: night ? "rest" : "wander" });
+        for (const o of others) list.push({ id: o.id, x: o.w.x, z: o.w.z, h: o.w.heading, m: night ? "rest" : "wander" });
+        cb.current.reportState({ zone: zn, x: lp.x, z: lp.z, heading: player.rotation.y, yaw, prints: list }, !!travel);
+      }
       if (t - guideAt > 120) { // first-run guide: the garden pose, a few times a second (null away from the garden)
         guideAt = t;
         const gp = zones.is("garden") && !travel ? { x: pos.x, z: pos.z, yaw } : null;
