@@ -317,5 +317,11 @@ body.touch.hud-fit .mood .growth { gap: 4px; }
 body.touch.hud-fit .mood .growth-name { font-size: 13px; }
 body.touch.hud-fit .mood .drops { gap: 14px; }
 body.touch.hud-fit .mood .btn { min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
-body.touch.hud-fit .hand { bottom: calc(max(24px, env(safe-area-inset-bottom)) + var(--tc-do, 84px) + 10px); right: max(24px, env(safe-area-inset-right)); padding: 6px 10px; gap: 8px; max-width: 220px; }
+body.touch.hud-fit .hand { bottom: max(12px, env(safe-area-inset-bottom)); right: max(24px, env(safe-area-inset-right)); padding: 6px 10px; gap: 8px; max-width: 220px; }
 body.touch.hud-fit .hand .slot { width: 28px; height: 28px; }
+
+/* S40: phone Print card and pouch. Touch mode only.
+   The Print card shows only while the player is within reach of a Print (printNear, the same check as feeding and stroking); .away is added otherwise.
+   With hud-fit the pouch sits in the bottom-right corner and the stick and action buttons rise above it, so nothing overlaps. */
+body.touch .mood.away { display: none; }
+body.touch.hud-fit .tc-actions { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 52px); }
