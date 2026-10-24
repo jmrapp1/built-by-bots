@@ -19,7 +19,7 @@ import { homeHintOverride } from "@/lib/homeHint";
 import TryList from "@/components/TryList";
 import { tryOverride } from "@/lib/tryList";
 import { cardOverride, cardStatus, withCardPreview } from "@/lib/cardStatus";
-import { guideOverride } from "@/lib/guide";
+import { guideOverride, signinNoteText } from "@/lib/guide";
 import { FOLLOW, FOLLOW_TEXT } from "@/lib/follow";
 import KeepsakePicker from "@/components/KeepsakePicker";
 import PickerStrip from "@/components/PickerStrip";
@@ -45,6 +45,7 @@ import { Blot, EggIcon, EnvelopeIcon, EyeIcon, GlyphIcon, InkDrop, KeyCap, NpcIc
 import type { Genes } from "@/lib/creature";
 import MobileShell from "@/components/MobileShell";
 import { useTouchWording } from "@/components/useTouchWording";
+import { useSigninNote } from "@/components/useSigninNote";
 import { anyPanelOpen, canActNow } from "@/lib/touchControls";
 import { usePlayerState } from "@/lib/usePlayerState";
 
@@ -84,6 +85,7 @@ export default function Page() {
   const [authError, setAuthError] = useState("");
   const [confirmSent, setConfirmSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const sideNote = useSigninNote(); // S42: sideways note on the sign-in card (switch on and touch mode)
   const tw = useTouchWording(); // S38a: touch words instead of key words (switch on and touch mode)
   const [bookOpen, setBookOpen] = useState(false), [travelling, setTravelling] = useState(false); // S35: the Print book
   const [feeding, setFeeding] = useState(false);
@@ -480,6 +482,7 @@ export default function Page() {
           <form className="card signin" onSubmit={(e) => { e.preventDefault(); auth(); }} noValidate={false}>
             <div className="brand"><Blot /><h1>Blotty</h1></div>
             <p className="tagline">Raise little creatures made of ink.</p>
+            {sideNote && <p className="note signin-turn">{signinNoteText}</p>}
             <div className="tabs" data-mode={mode} role="tablist">
               <button type="button" role="tab" aria-selected={mode === "in"} className="tab" onClick={() => { if (mode !== "in") setPassword(""); setMode("in"); setAuthError(""); }}>Sign in</button>
               <button type="button" role="tab" aria-selected={mode === "up"} className="tab" onClick={() => { if (mode !== "up") setPassword(""); setMode("up"); setAuthError(""); }}>Create account</button>
@@ -513,7 +516,7 @@ export default function Page() {
       <MobileShell onClose={() => { setMenu(null); setMenuOpen(false); mp.setOpen(false); setBookOpen(false); setNpcLine(null); setNpcClose((n) => n + 1); }} signedIn prompts={{ act: canActNow({ tag: findable ? FOUND_PROMPT : feedPrompt(!!creature, printNear, !!food) ?? (nearby ? promptFor(nearby, { hasEgg: !!starter, hasCreature: !!creature, hatchWait: wait, hasWaiting: !!egg, dailyReady, dailyKnown: claimedOn !== undefined, canSplash }) : null), findable, feedTag: feedPrompt(!!creature, printNear, !!food), nearKind: nearby?.kind ?? null, hatchWait: wait, menu: !!menu, npc: !!npcLine }), snack: carried(pouch, foodIds).length > 1, follow: followMode !== "off" && !menu && !npcLine && !findable, skip: nearby?.kind === "pond" && canSplash && !menu && !npcLine && !feedTag && !findable, stroke: printNear && !!creature }} panelOpen={anyPanelOpen({ menu: !!menu, menuOpen, mapOpen: mp.open, bookOpen, npc: !!npcLine })} />
       <World initialState={start?.s?.state ?? null} reportState={saveOn ? reportState : undefined} prints={worldPrints} focusId={creature?.id ?? null} onFocus={(id) => { const i = creatures.findIndex((c) => c.id === id); if (i >= 0) setPicked(i); }} genes={shownGenes} species={shownSpecies} stage={creature?.stage ?? "blot"} eggPhase={egg ? "in-nest" : !starter ? "unclaimed" : dailyReady ? "daily" : "none"} onNearby={setNearby} onInteract={interact} onPrintNear={setPrintNear} onFindable={setFindable} onFollow={setFollowMode} onCanSplash={setCanSplash} onFeedPrint={feed} onStroke={() => setStrokeTick((n) => n + 1)} fedTick={fedTick} locked={feeding || reacting || !!menu || menuOpen || mp.open || bookOpen} onTravel={setTravelling} mapOpen={mp.open} decorPlaced={stubDecor ? placed : homeDecor?.placed ?? null} onHome={enterHome} onZoneDone={(z) => setChapter((c) => ({ place: z, n: (c?.n ?? 0) + 1 }))} onGuidePose={setGuidePose} guideGlow={guideGlow} onMapPose={mp.onPose} walkKey={userId} onMapKey={() => { if (!menu && !menuOpen && !bookOpen) mp.setOpen((v) => !v); }} onGather={gather} onMargins={setMargins} onUnfold={unfoldPage} onLoadOpened={loadOpened} onMarginsNote={marginsNote} onNpcTalk={setNpcLine} npcClose={npcClose} onWorldUnfold={unfoldWorld} onLoadWorldOpened={loadWorldOpened} onSpotsOpened={mp.onSpots} onKeepsake={keepsakeFound} worn={(stubPicker ? stubWorn : creature?.worn_cosmetic) ?? null} canGather={(k) => !!pouchAdd(pouchRef.current, k)} canOffer={!!food} />
 
-      <FirstRunGuide touch={tw} loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
+      <FirstRunGuide touch={tw} crossed={chapter} loaded={claimedOn !== undefined} clear={!menu && !menuOpen && !mp.open && !npcLine} existing={creatures.length > 0 || eggs.some((e) => !!e.hatched_at)} eggClaimed={!!starter} nearEgg={nearby?.kind === "egg"} printNear={printNear} hasSnack={!!food} hasCreature={!!creature} hasWaiting={!!egg} nearNest={nearby?.kind === "nest"} hatchWait={wait} fedTick={fedTick} strokeTick={strokeTick} mapOpen={mp.open} raise={followMode !== "off" && !npcLine && !findable && (tag || (nearby?.kind === "pond" && canSplash)) ? 60 : 0} pose={guidePose} onGlow={setGuideGlow} onStatus={setGuideStatus} preview={typeof window !== "undefined" ? guideOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <TryList loaded={claimedOn !== undefined} inGarden={!!guidePose && !menu && !menuOpen && !mp.open} guideDone={guideStatus.finished} guideHint={guideStatus.hint} dailyKnown={claimedOn !== undefined} dailyUp={dailyReady} forageTick={forageTick} fedTick={fedTick} dailyTick={dailyTick} atPond={nearby?.kind === "pond"} talking={!!npcLine} onOpen={setTryOpen} preview={typeof window !== "undefined" ? tryOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <WelcomeBack onCard={(v) => { setWelcomeUp(v); if (v) setWelcomeSeen(true); }} loaded={claimedOn !== undefined} guideDone={guideStatus.finished} guideHint={guideStatus.hint} clear={!menu && !menuOpen && !mp.open && !npcLine} creature={creature ? { id: creature.id, stage: creature.stage ?? "blot", hungry: creature.fullness < LOW } : null} preview={typeof window !== "undefined" ? welcomeOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
       <Gentle hasPrint={!!creature} welcomeShown={welcomeSeen} otherOpen={welcomeUp || tryOpen || guideStatus.hint || !!menu || menuOpen || mp.open || !!npcLine} preview={typeof window !== "undefined" ? gentleOverride(window.location.search, process.env.NODE_ENV === "production") : null} />
