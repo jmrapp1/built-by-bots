@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import raw from "@/data/playerState.json";
 import {
-  PS, PS_ENABLED, fromRows, isEnabled, isStale, fallbackSpot, mirrorKey, nosaveOverride, parseMirror, pickSource, printSpot, printsPayload, savePayload,
+  PS, PS_ENABLED, fromRows, restoreFrom, restorePlayer, restorePrints, restoreWander, restoreZone, isEnabled, isStale, fallbackSpot, mirrorKey, nosaveOverride, parseMirror, pickSource, printSpot, printsPayload, savePayload,
   serializeMirror, shouldSave, toLocal, toScene, validateState, type Ladder, type Offsets, type Saved, type Snap,
 } from "@/lib/playerState";
-import { createSaver, loadStart } from "@/lib/playerStateClient";
+import { createSaver, keepaliveRequest, loadStart } from "@/lib/playerStateClient";
 import { OFF } from "@/components/marginsScene";
 import { ROOM_OFF, HOME_ROOM, roomColliders } from "@/lib/home";
 import { READING, READING_OFF, roomColliders as readingCols, doorArrival as readingArrival, doorYaw as readingYaw } from "@/lib/reading";
@@ -306,8 +306,105 @@ describe("wiring", () => {
     expect(src("../app/page.tsx")).toContain("await flush(); await supabase().auth.signOut()");
     expect(p).not.toMatch(/\.from\("(player_state|print_state)"\)\.(insert|update|upsert|delete)/);
   });
-  it("World only reports; it does not read the saved state yet", () => {
+  it("World reports, and restores once at boot behind the kill switch", () => {
     const w = src("../components/World.tsx");
     expect(w).toContain("cb.current.reportState"); expect(w).toMatch(/if \(cb\.current\.reportState && t - stateAt > 250\)/);
+    expect(w).toContain("restoreFrom(PS_ENABLED, initialState, devStart)"); // read once, in the mount effect: a later answer never moves anything
+    expect(w).toMatch(/\}, \[\]\);\n\n  return <div ref=\{mount\}/);
+    expect(w).toContain("zones.enterZone(r.zone)"); // the one enter path; no startTravel, so no door or gate walk
+    const boot = w.slice(w.indexOf("if (restore) {\n      try {"), w.indexOf("const atWorld ="));
+    expect(boot).not.toContain("startTravel");
+    expect(w).toContain("restorePrints(restore.prints");
+    expect(w).not.toMatch(/useEffect\([^)]*initialState/); // no effect watches it
+  });
+});
+
+// Restore at boot (spec sections 3, 5, 6): the zone-frame round trip for all four zones, the kill switch, no record, and the Print rules.
+describe("restore", () => {
+  const L = ladder();
+  const ZS = ["garden", "margins", "home", "reading"] as const;
+  it("a good spot in each zone comes back as the same scene spot (frame round trip)", () => {
+    for (const [zone, x, z] of [["garden", 5, 12], ["margins", 1, 1], ["home", 0, 0.5], ["reading", 0, 0]] as const) {
+      const scene = toScene(zone, { x, z }, OFFS), saved = toLocal(zone, scene, OFFS);
+      const r = restorePlayer({ zone, x: saved.x, z: saved.z, heading: 1.2, yaw: 2.5 }, L, OFFS);
+      expect(r.zone).toBe(zone); expect(r.heading).toBe(1.2); expect(r.yaw).toBe(2.5);
+      expect(r.x).toBeCloseTo(scene.x, 9); expect(r.z).toBeCloseTo(scene.z, 9);
+      expect(r.x - OFFS[zone]).toBeCloseTo(x, 9); // the scene x is the zone offset plus the local x
+    }
+  });
+  it("every zone and every saved point ends in a free spot of its own zone", () => {
+    for (const zone of ZS) {
+      const i = L.zones[zone];
+      for (const [x, z] of [[0, 0], [100, 100], [-100, -100], [1e-3, 0], [i.halfW, i.halfD]] as const) {
+        const r = restorePlayer({ zone, x, z, heading: 0, yaw: 0 }, L, OFFS), loc = toLocal(r.zone, r, OFFS);
+        expect(r.zone).toBe(zone);
+        expect(Math.abs(loc.x)).toBeLessThanOrEqual(i.halfW + 1e-9); expect(Math.abs(loc.z)).toBeLessThanOrEqual(i.halfD + 1e-9);
+        expect(insideAny(loc, L.radius * 0.9, i.cols())).toBe(false);
+      }
+    }
+  });
+  it("a point on a collider is moved out, in every zone", () => {
+    for (const zone of ZS) {
+      const c = L.zones[zone].cols();
+      if (!c.circles.length && !c.boxes.length) continue; // the test ladder gives the Margins none
+      const t = c.circles[0] ? { x: c.circles[0].x, z: c.circles[0].z } : { x: c.boxes[0].x, z: c.boxes[0].z };
+      const r = restorePlayer({ zone, ...t, heading: 0, yaw: 0 }, L, OFFS), loc = toLocal(r.zone, r, OFFS);
+      expect(insideAny(loc, L.radius * 0.9, L.zones[r.zone].cols())).toBe(false);
+    }
+  });
+  it("a closed Reading Room is the Margins arrival, in the Margins frame", () => {
+    expect(restoreZone("reading", false)).toBe("margins"); expect(restoreZone("reading", true)).toBe("reading");
+    for (const z of ["garden", "margins", "home"] as const) expect(restoreZone(z, false)).toBe(z);
+    const r = restorePlayer({ zone: "reading", x: 1, z: 1, heading: 0, yaw: 0 }, ladder(false), OFFS);
+    expect(r.zone).toBe("margins"); expect(r.x).toBeCloseTo(OFFS.margins + 0, 9); expect(r.yaw).toBe(1);
+  });
+  const saved: Saved = { ...snap({ zone: "margins" }), at: NOW };
+  it("kill switch off, no record, or a dev preview start: nothing is restored", () => {
+    expect(restoreFrom(false, saved, false)).toBeNull();
+    expect(restoreFrom(true, null, false)).toBeNull();
+    expect(restoreFrom(true, undefined, false)).toBeNull();
+    expect(restoreFrom(true, saved, true)).toBeNull();
+    expect(restoreFrom(true, saved, false)).toBe(saved);
+  });
+  it("Prints resume wandering from their spot after a short wait, with the saved heading", () => {
+    const cols = colliders(), R = GARDEN.print.radius;
+    const w = restoreWander({ id: ID, x: 1, z: 2, h: 0.3, m: "rest" }, cols, R)!;
+    expect(w).toMatchObject({ x: 1, z: 2, tx: 1, tz: 2 }); expect(w.heading).toBeCloseTo(0.3, 9); expect(w.wait).toBeGreaterThan(0);
+    expect(restoreWander({ id: ID, x: 1, z: 2, h: 0.3, m: "wander" }, cols, R)).toEqual(w); // resting and wandering both start the same: never seated, hiding or walking along
+  });
+  it("a Print saved outside Home or on a collider ends inside Home and clear; an unplaceable one gets the usual start", () => {
+    const cols = colliders(), R = GARDEN.print.radius;
+    const far = restoreWander({ id: ID, x: 99, z: -99, h: 0, m: "wander" }, cols, R)!;
+    expect(Math.abs(far.x)).toBeLessThanOrEqual(GARDEN.size / 2); expect(Math.abs(far.z)).toBeLessThanOrEqual(GARDEN.size / 2);
+    const t = GARDEN.trees[0], on = restoreWander({ id: ID, x: t.x, z: t.z, h: 0, m: "rest" }, cols, R);
+    if (on) expect(insideAny(on, R * 0.9, cols)).toBe(false);
+    const walled = { circles: [{ x: 0, z: 0, r: 1000 }], boxes: [] };
+    expect(restoreWander({ id: ID, x: 0, z: 0, h: 0, m: "rest" }, walled, R)).toBeNull();
+    const m = restorePrints([{ id: ID, x: 1, z: 1, h: 0, m: "rest" }, { id: ID2, x: 0, z: 0, h: 0, m: "wander" }], (p) => (p.x === 0 ? walled : cols), R);
+    expect([...m.keys()]).toEqual([ID]);
+  });
+  it("no randomness is used to place anything", () => { expect(src("../lib/playerState.ts")).not.toContain("Math.random"); });
+});
+
+// The closing-page request (spec section 5): the public key and the user's own token, never a service key.
+describe("keepalive headers", () => {
+  const args = savePayload(snap(), [ID]);
+  it("apikey is the anon key and authorization is Bearer plus the user's own access token", () => {
+    const r = keepaliveRequest("https://x.example", "ANON-KEY", "USER-TOKEN", args)!;
+    expect(r.url).toBe("https://x.example/rest/v1/rpc/save_state");
+    expect(r.init).toMatchObject({ method: "POST", keepalive: true });
+    expect(r.init.headers).toEqual({ "content-type": "application/json", apikey: "ANON-KEY", authorization: "Bearer USER-TOKEN" });
+    expect(JSON.parse(r.init.body)).toEqual(JSON.parse(JSON.stringify(args)));
+  });
+  it("no token, key or url means no request (only the browser copy is written)", () => {
+    expect(keepaliveRequest("https://x.example", "K", null, args)).toBeNull();
+    expect(keepaliveRequest("https://x.example", undefined, "T", args)).toBeNull();
+    expect(keepaliveRequest(undefined, "K", "T", args)).toBeNull();
+  });
+  it("the hook builds it from the public env names and the session token only", () => {
+    const h = src("../lib/usePlayerState.ts");
+    expect(h).toContain("keepaliveRequest(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, token.current, a)");
+    expect(h).toContain("access_token"); expect(h).not.toMatch(/service_role|SERVICE/i);
+    expect(src("../lib/playerStateClient.ts")).toContain("authorization: `Bearer ${token}`");
   });
 });
