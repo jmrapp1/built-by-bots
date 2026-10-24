@@ -1,0 +1,163 @@
+{
+  "note": "S34: the Reading Room, a small quiet room off the Margins. Numbers live here, never in public text. Room-local coordinates, metres, centred on (0,0); the room sits 'offset' along x, far from everything else. Spot counts MUST equal game_spot_regions.reading_room on the server (6 = 4 day + 2 dusk). 'enabled' is the kill switch: false builds no door, no room and no dusk spots.",
+  "readingRoom": {
+    "enabled": true
+  },
+  "region": "reading_room",
+  "offset": 1200,
+  "room": {
+    "width": 14,
+    "depth": 10,
+    "wallHeight": 3.4,
+    "wallThickness": 0.5
+  },
+  "door": {
+    "margins": {
+      "x": -41,
+      "z": -9
+    },
+    "walkIn": [
+      -1,
+      0
+    ],
+    "postOffset": 1.1,
+    "postR": 0.3,
+    "zoneLateral": 0.9,
+    "zoneBack": 2.4,
+    "zoneFront": 0.8,
+    "threshold": 1.8,
+    "approach": 1.2,
+    "emerge": 0.5,
+    "arrive": 2.4,
+    "signOffset": [
+      1.0,
+      0.8
+    ]
+  },
+  "light": {
+    "hour": 12,
+    "fog": [
+      16,
+      48
+    ]
+  },
+  "look": {
+    "floor": "#efdfba",
+    "rule": "#b9c4d6",
+    "wall": "#f9eed6",
+    "base": "#2f2a44",
+    "frame": "#d8cba8",
+    "sky": "#ecdfc4",
+    "shelf": "#b4becd",
+    "shelfBoard": "#4a4360",
+    "desk": "#c9a57a",
+    "lamp": "#ffe2a0",
+    "dusk": "#c9b6ff"
+  },
+  "furniture": {
+    "shelves": [
+      {
+        "x": -4.2,
+        "z": -4.55,
+        "w": 4.2,
+        "d": 0.7
+      },
+      {
+        "x": 4.2,
+        "z": -4.55,
+        "w": 4.2,
+        "d": 0.7
+      },
+      {
+        "x": -6.55,
+        "z": -0.5,
+        "w": 0.7,
+        "d": 5
+      },
+      {
+        "x": 6.55,
+        "z": -0.5,
+        "w": 0.7,
+        "d": 5
+      }
+    ],
+    "desks": [
+      {
+        "x": -3.4,
+        "z": 1.0,
+        "w": 2.4,
+        "d": 1.1
+      },
+      {
+        "x": 3.4,
+        "z": 1.0,
+        "w": 2.4,
+        "d": 1.1
+      },
+      {
+        "x": 0,
+        "z": -2.1,
+        "w": 2.0,
+        "d": 1.0
+      }
+    ]
+  },
+  "spots": {
+    "day": [
+      {
+        "x": -5.0,
+        "z": -2.8
+      },
+      {
+        "x": 5.0,
+        "z": -2.8
+      },
+      {
+        "x": -0.9,
+        "z": 0.5
+      },
+      {
+        "x": 1.8,
+        "z": 3.0
+      }
+    ],
+    "dusk": [
+      {
+        "x": -5.2,
+        "z": 2.8
+      },
+      {
+        "x": 5.2,
+        "z": 2.8
+      }
+    ],
+    "reach": 1.5,
+    "holdSeconds": 0.9,
+    "clear": 0.5
+  },
+  "dusk": {
+    "inFrom": 18.5,
+    "inTo": 19.5,
+    "outFrom": 20.5,
+    "outTo": 22,
+    "openAt": 0.5,
+    "previewHour": 19.75
+  },
+  "kinds": [
+    "ink",
+    "glyph",
+    "scrap",
+    "egg",
+    "keepsake"
+  ],
+  "preview": {
+    "kinds": [
+      "glyph",
+      "egg",
+      "keepsake",
+      "ink",
+      "scrap",
+      "ink"
+    ]
+  }
+}

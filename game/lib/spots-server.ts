@@ -2,6 +2,7 @@
 // spot gives; the client sends a region name and a spot number and shows the answer. No numbers in any text here.
 import { classifyError, mapClaim, outcomeFrom, type Outcome } from "@/lib/margins-server";
 import { REGIONS, spotKey } from "@/lib/worldSpots";
+import { READING_REGION } from "@/lib/reading";
 
 export type Call = (region: string, spot: number) => Promise<{ data: unknown; error: { message?: string } | null }>;
 
@@ -32,7 +33,7 @@ export function openedWorldFromClaims(rows: unknown, layoutDay: string): string[
   for (const r of rows) {
     const c = mapClaim(r);
     const region = r && typeof r === "object" ? (r as Record<string, unknown>).region : undefined;
-    if (c && (c.day === null || c.day === layoutDay) && typeof region === "string" && (REGIONS as string[]).includes(region)) out.add(spotKey(region, c.spot));
+    if (c && (c.day === null || c.day === layoutDay) && typeof region === "string" && ([...REGIONS, READING_REGION] as string[]).includes(region)) out.add(spotKey(region, c.spot));
   }
   return [...out];
 }
