@@ -27,6 +27,7 @@ import {
   phaseSeconds, playerGestureSeconds, playerLean, playerSplashLanded, pondAdvance, pondBusy, pondOverride, pondPose, pondStart, retryDelay,
   ringAt, ringCount, ringDelay, shorePoint, splashLife, splashSpot, tapsBetween, towardPond, type PondState, type Splash,
 } from "@/lib/pond";
+import { lookDelta } from "@/lib/touchControls";
 import { SKIP, canSkip, handPoint, printWatches, skipFrame, skipLandings, skipPlan, skipWorld, watcherHop, type SkipPlan } from "@/lib/skip";
 import {
   HIDE, HIDEIDLE, canFind, canStartGame, firstGameDelay, hideAdvance, hideAnchor, hideArrived, hideBusy, hideCancel, hideFound, hideOverride, hidePose, hidePuffs,
@@ -978,9 +979,11 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
 
     let dragging = false;
     const dom = renderer.domElement;
-    const pd = (e: PointerEvent) => { dragging = true; downAt = { x: e.clientX, y: e.clientY }; dom.setPointerCapture(e.pointerId); };
+    let lookId = -1, lastLook = { x: 0, y: 0 }; // S37: one finger turns the camera; touch has no movementX, so use client deltas
+    const pd = (e: PointerEvent) => { if (dragging && e.pointerType !== "mouse") return; dragging = true; lookId = e.pointerId; lastLook = { x: e.clientX, y: e.clientY }; downAt = { x: e.clientX, y: e.clientY }; dom.setPointerCapture(e.pointerId); };
     let downAt: { x: number; y: number } | null = null;
     const pu = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" && e.pointerId !== lookId) return;
       dragging = false;
       const d = downAt; downAt = null;
       if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !live_npcs.length || !zones.is("margins") || travel) return;
@@ -994,9 +997,16 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     };
     const pm = (e: PointerEvent) => {
       if (!dragging) return;
+      if (e.pointerType !== "mouse") {
+        if (e.pointerId !== lookId) return;
+        const d = lookDelta(lastLook, { x: e.clientX, y: e.clientY }, GARDEN.camera.turnSpeed); lastLook = { x: e.clientX, y: e.clientY };
+        yaw += d.yaw; pitch = clampPitch(pitch + d.pitch);
+        return;
+      }
       yaw -= e.movementX * GARDEN.camera.turnSpeed;
       pitch = clampPitch(pitch + e.movementY * GARDEN.camera.turnSpeed);
     };
+    dom.addEventListener("pointercancel", (e) => { if (e.pointerId === lookId || e.pointerType === "mouse") { dragging = false; downAt = null; } });
     dom.addEventListener("pointerdown", pd);
     dom.addEventListener("pointerup", pu);
     dom.addEventListener("pointermove", pm);

@@ -2,11 +2,13 @@
 // S37 step 1: touch-mode detection, the portrait "turn your phone" cover and the full screen button.
 // Mounted only when data/mobile.json says enabled (see MobileShell), so with the flag off nothing here runs: no listeners, no class, no markup.
 import { useEffect, useRef, useState } from "react";
+import TouchControls from "@/components/TouchControls";
+import type { Prompts } from "@/lib/touchControls";
 import { MOBILE, MOBILE_ENABLED, canFullscreen, goFullscreen, isFullscreen, isPortrait, leaveFullscreen, showPortraitCover, touchMode, touchOverride, type LastInput } from "@/lib/touchInput";
 
 const prod = process.env.NODE_ENV === "production";
 
-function Inner({ signedIn }: { signedIn: boolean }) {
+function Inner({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean }) {
   const [touch, setTouch] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [full, setFull] = useState(false);
@@ -69,6 +71,7 @@ function Inner({ signedIn }: { signedIn: boolean }) {
           </svg>
         </button>
       )}
+      {touch && signedIn && !cover && <TouchControls prompts={prompts} hidden={panelOpen} />}
       {cover && (
         <div className="turn-cover" role="status" aria-live="polite">
           <svg width="160" height="120" viewBox="0 0 160 120" aria-hidden="true" fill="none" stroke="#2b2a33" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -83,7 +86,7 @@ function Inner({ signedIn }: { signedIn: boolean }) {
   );
 }
 
-export default function MobileShell({ signedIn }: { signedIn: boolean }) {
+export default function MobileShell({ signedIn, prompts, panelOpen }: { signedIn: boolean; prompts: Prompts; panelOpen: boolean }) {
   if (!MOBILE_ENABLED) return null;
-  return <Inner signedIn={signedIn} />;
+  return <Inner signedIn={signedIn} prompts={prompts} panelOpen={panelOpen} />;
 }
