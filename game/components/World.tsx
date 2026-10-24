@@ -61,6 +61,7 @@ import { MAP, newWalked, opensMap, reveal, storageKey, type Walked } from "@/lib
 import { loadWalked, saveWalkedCells } from "@/lib/mapStore";
 import { HOME_ROOM, ROOM_OFF, doorArrival, doorPath, doorPosts, doorYaw, homeOverride, inDoorZone, roomColliders } from "@/lib/home";
 import { groundOn, groundY } from "@/lib/ground";
+import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
@@ -389,6 +390,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let pitch = GARDEN.camera.pitch;
     let camPos = new THREE.Vector3();
     let camInit = false;
+    let camPivot = 0; // H3: smoothed ground height under the player (ground flag on only)
 
     // --- The Margins (slice 6a): a second area, far along x, shown by moving the player and camera there. ---
     const mo = marginsOverrides(window.location.search, process.env.NODE_ENV === "production");
@@ -1986,15 +1988,21 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       const walkDist = zones.is("reading") ? cameraDistance({ x: pos.x - READING_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, rCols) : zones.is("home") ? cameraDistance({ x: pos.x - ROOM_OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, roomCols) : zones.is("margins") ? cameraDistance({ x: pos.x - OFF, z: pos.z }, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, mCols) : cameraDistance(pos, { x: dir.x / flat, z: dir.z / flat }, GARDEN.camera.distance, GARDEN.camera.minDistance, gardenCols());
       // Blend with how far seated you are, so the camera eases in and out instead of jumping.
       const dist = walkDist + (GARDEN.camera.distance * (1 - SIT.cameraIn) - walkDist) * sf.lower;
-      const hs = cameraHeights(ground, pitch, dist);
+      const onRise = groundHeight && zones.is("garden"); // H3: only the World's own rises; Margins and rooms keep today's code
+      let hs = cameraHeights(ground, pitch, dist), want: THREE.Vector3;
+      if (onRise) {
+        if (!camInit) camPivot = ground; else camPivot = smoothPivot(camPivot, ground, dt);
+        const cs = cameraOnGround(pos.x, pos.z, { x: dir.x / flat, z: dir.z / flat }, pitch, dist, camPivot, groundY);
+        hs = { cam: cs.y, look: cs.look }; want = new THREE.Vector3(cs.x, cs.y, cs.z);
+        sun.shadow.normalBias = shadowLift(groundY, pos.x, pos.z);
+      } else {
+        want = new THREE.Vector3(pos.x + (dir.x / flat) * dist * Math.cos(pitch), hs.cam, pos.z + (dir.z / flat) * dist * Math.cos(pitch));
+        if (groundHeight && sun.shadow.normalBias !== 0) sun.shadow.normalBias = 0;
+      }
       target.set(pos.x, hs.look, pos.z);
-      const want = new THREE.Vector3(
-        pos.x + (dir.x / flat) * dist * Math.cos(pitch),
-        hs.cam,
-        pos.z + (dir.z / flat) * dist * Math.cos(pitch),
-      );
       if (!camInit) { camPos.copy(want); camInit = true; }
       camPos.lerp(want, 1 - Math.exp(-GARDEN.camera.smoothing * dt));
+      if (onRise) camPos.y = keepAbove(camPos.x, camPos.y, camPos.z, groundY);
       camera.position.copy(camPos);
       camera.lookAt(target);
 
