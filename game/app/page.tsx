@@ -592,7 +592,7 @@ export default function Page() {
         const shown = withCardPreview(creature, typeof window !== "undefined" ? cardOverride(window.location.search, process.env.NODE_ENV === "production") : null);
         const status = cardStatus(shown, tw);
         return (
-        <div className="card mood" aria-label="Your Print">
+        <div className={`card mood${printNear ? "" : " away"}`} aria-label="Your Print">
           <div className="mood-head"><h3>Your Print</h3><MoodFace face={moodFace(shown.mood)} /></div>
           <div className="growth" aria-label={`Stage: ${stageById(shown.stage ?? "blot").name}`}>
             <span className="growth-name">{speciesById(shownSpecies).name} · {stageById(shown.stage ?? "blot").name}</span>
