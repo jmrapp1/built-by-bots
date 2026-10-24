@@ -8,6 +8,7 @@ import { buildHills } from "@/components/hillsScene";
 import type { Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import { groundY } from "@/lib/ground";
+import { FEATURES, featureCircles, featureInstanceCount, featureItemsInChunk } from "@/lib/features";
 import {
   CHUNKS, HALF, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
   type Contents, type RegionId,
@@ -25,12 +26,13 @@ export type WorldShell = {
   dispose(): void;
 };
 
+const FEATURE_REGION = new Map<string, RegionId>((FEATURES.list as { id: string; region: RegionId }[]).map((f) => [f.id, f.region]));
 const mats = (look: { crown: string; trunk: string; rock: string; bush: string }) => ({
   trunk: new THREE.MeshToonMaterial({ color: look.trunk }), crown: new THREE.MeshToonMaterial({ color: look.crown }),
   rock: new THREE.MeshToonMaterial({ color: look.rock }), bush: new THREE.MeshToonMaterial({ color: look.bush }),
 });
 
-export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean } = {}): WorldShell {
+export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean; features?: boolean } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
   const gy = (x: number, z: number): number => (opts.ground ? groundY(x, z) : 0); // H2: props sit on the ground height; with the switch off this is 0, exactly as before
   const SINK = 0.08; // rocks sit a little sunk so no gap shows on a slope
@@ -149,7 +151,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   const cache = new Map<string, Circle[]>(); // collision circles per chunk (pure data; bounded to the chunks near the player)
   const st: ShellStats = { chunks: 0, instances: 0, builds: 0, drops: 0 };
   const tmp = new THREE.Object3D();
-  const circlesOf = (a: number, b: number): Circle[] => { const k = chunkKey(a, b); let v = cache.get(k); if (!v) { v = chunkCircles(chunkContents(a, b)); cache.set(k, v); } return v; };
+  const circlesOf = (a: number, b: number): Circle[] => { const k = chunkKey(a, b); let v = cache.get(k); if (!v) { v = chunkCircles(chunkContents(a, b)); if (opts.features) v = [...v, ...featureCircles(featureItemsInChunk(a, b))]; cache.set(k, v); } return v; };
 
   const landmark = (l: Contents["landmarks"][number]): THREE.Object3D => {
     const g = new THREE.Group(); g.position.set(l.x, gy(l.x, l.z), l.z);
@@ -203,8 +205,19 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     make(G.trunk, m.trunk, c.trees); make(G.crownLow, m.crown, c.trees); make(G.crownHigh, m.crown, c.trees);
     make(G.rock, m.rock, c.rocks, 1, opts.ground ? SINK : 0); make(G.bush, m.bush, c.bushes);
     for (const l of c.landmarks) { const o = landmark(l); g.add(o); extra.push(o); }
+    let fInst = 0;
+    if (opts.features) { // E3: the authored groves, belts, rings and rows, drawn with their own region's look and the same shapes as the scatter
+      const fs = featureItemsInChunk(ix, iz);
+      for (const reg of Object.keys(M) as RegionId[]) {
+        const mine = fs.filter((i) => FEATURE_REGION.get(i.f) === reg), fm = M[reg];
+        const trees = mine.filter((i) => i.k === "tree");
+        make(G.trunk, fm.trunk, trees); make(G.crownLow, fm.crown, trees); make(G.crownHigh, fm.crown, trees);
+        make(G.rock, fm.rock, mine.filter((i) => i.k === "rock"), 1, opts.ground ? SINK : 0); make(G.bush, fm.bush, mine.filter((i) => i.k === "bush"));
+      }
+      fInst = featureInstanceCount(fs);
+    }
     group.add(g);
-    const inst = c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length;
+    const inst = c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length + fInst;
     chunks.set(chunkKey(ix, iz), { g, ims, inst, extra }); st.chunks++; st.instances += inst; st.builds++;
   };
   const drop = (key: string) => {

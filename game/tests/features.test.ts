@@ -116,8 +116,8 @@ describe("off equals today", () => {
     for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(chunkContents(a, b));
     expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe(PIN);
   });
-  it("the World and its drawing do not import the features", () => {
-    for (const f of ["../lib/worldMap.ts", "../lib/world.ts", "../lib/sight.ts", "../components/worldShell.ts"]) expect(src(f)).not.toMatch(/features/);
+  it("the pure World (chunk contents, sight tooling) does not import the features; only the shell draws them, behind the switch", () => {
+    for (const f of ["../lib/worldMap.ts", "../lib/world.ts", "../lib/sight.ts"]) expect(src(f)).not.toMatch(/features/);
   });
   it("the ground and region fog switches stay off", async () => {
     const g = await import("@/data/ground.json"), r = await import("@/data/regionFog.json");
