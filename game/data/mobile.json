@@ -1,7 +1,7 @@
 {
   "note": "S37: phone support. 'enabled' is the kill switch: false means no touch detection, no portrait cover, no fullscreen button, no touch class and no touch viewport meta; the page is exactly as before. Numbers are starting guesses, unmeasured on a phone. Keep them out of public text.",
   "mobile": {
-    "enabled": false,
+    "enabled": true,
     "minTarget": 48,
     "doTarget": 84,
     "stickSize": 132,
