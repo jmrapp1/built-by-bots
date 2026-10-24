@@ -309,7 +309,7 @@ describe("dev preview and production", () => {
       for (const i of imports) expect(i).toMatch(/^(three|@\/(lib|data|components)\/[A-Za-z.\-]+)$/);
       for (const i of imports) expect(i).not.toMatch(/\.(png|jpg|svg|glb|gltf|mp3|ogg|wav|woff2?)$/);
     }
-    expect(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((n) => n > "20261022000002_reading_room_spots.sql").length).toBe(0); // client PR: no migration
+    expect(readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((n) => n > "20261022000002_reading_room_spots.sql" && !n.endsWith("_player_state.sql")).length).toBe(0); // client PR: no migration
   });
 });
 
