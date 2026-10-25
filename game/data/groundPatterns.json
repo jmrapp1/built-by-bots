@@ -22,5 +22,18 @@
     "shade": "#9fb48a",
     "light": "#f2efd8",
     "regions": { "meadow": 0, "inkwood": 0, "paper_downs": 1.0, "glyph_quarter": 0, "pressmark_shore": 0 }
+  },
+  "tideNote": "E6: Pressmark Shore tide lines, a third pattern kind (ground vertex colour only). Rippled bands like the lines a tide leaves on sand, running along the shore (north-south, 'angle' degrees off that): 'spacing' m between lines across the shore, each moved by up to 'jitter' of a spacing, wavering by 'wobble' m over 'wobbleLength' m. 'width' m is the soft half-width of a line; 'strength' how much of 'dark' mixes in. 'regions' is the strength per region.",
+  "tides": {
+    "spacing": 9,
+    "jitter": 0.35,
+    "angle": 6,
+    "wobble": 2.5,
+    "wobbleLength": 30,
+    "width": 1.2,
+    "strength": 0.26,
+    "seed": 1212,
+    "dark": "#8fa89a",
+    "regions": { "meadow": 0, "inkwood": 0, "paper_downs": 0, "glyph_quarter": 0, "pressmark_shore": 1.0 }
   }
 }

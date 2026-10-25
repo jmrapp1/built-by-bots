@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import * as THREE from "three";
 import raw from "@/data/groundPatterns.json";
-import { PATTERNS, fieldAt, fieldTint, patchEase, patchMix, patternStrength } from "@/lib/groundPatterns";
+import { TIDES, tideMix, PATTERNS, fieldAt, fieldTint, patchEase, patchMix, patternStrength } from "@/lib/groundPatterns";
 import { HOME_FLAT } from "@/lib/ground";
 import { buildWorldShell } from "@/components/worldShell";
 import { regionWeights } from "@/lib/regionFog";
@@ -51,13 +51,13 @@ describe("the ground colours", () => {
     expect(hashOf(groundColours({ features: false }).a)).toBe(PINNED_OFF);
     expect(hashOf(groundColours({}).a)).toBe(PINNED_OFF);
   });
-  it("on changes Meadow patches and Downs creases only: same count, Home square, other regions and the edge untouched", () => {
+  it("on changes Meadow patches, Downs creases and Shore tide lines only: same count, Home square, other regions and the edge untouched", () => {
     const off = groundColours({ features: false }), on = groundColours({ features: true });
     expect(on.a.length).toBe(off.a.length); expect(on.p.count).toBe(off.p.count);
     let changed = 0;
     for (let i = 0; i < on.p.count; i++) {
       const wx = on.p.getX(i), wz = -on.p.getY(i), diff = [0, 1, 2].some((k) => on.a[i * 3 + k] !== off.a[i * 3 + k]);
-      if (diff) { changed++; expect(patchMix(wx, wz).amount + creaseMix(wx, wz).amount).toBeGreaterThan(0); expect(Math.max(Math.abs(wx), Math.abs(wz))).toBeGreaterThan(HOME_FLAT); }
+      if (diff) { changed++; expect(patchMix(wx, wz).amount + creaseMix(wx, wz).amount + tideMix(wx, wz)).toBeGreaterThan(0); expect(Math.max(Math.abs(wx), Math.abs(wz))).toBeGreaterThan(HOME_FLAT); }
       else if (regionWeights(wx, wz).meadow < 1e-9) expect(patchMix(wx, wz).amount).toBe(0);
     }
     expect(changed).toBeGreaterThan(2000);
@@ -88,8 +88,31 @@ describe("Paper Downs fold creases", () => {
     for (let i = 0; i < on.p.count; i++) {
       const wx = on.p.getX(i), wz = -on.p.getY(i), diff = [0, 1, 2].some((k) => on.a[i * 3 + k] !== off.a[i * 3 + k]);
       if (creaseMix(wx, wz).amount > 0) { downs++; expect(regionWeights(wx, wz).paper_downs).toBeGreaterThan(0); }
-      if (diff && patchMix(wx, wz).amount === 0) expect(creaseMix(wx, wz).amount).toBeGreaterThan(0);
+      if (diff && patchMix(wx, wz).amount === 0 && tideMix(wx, wz) === 0) expect(creaseMix(wx, wz).amount).toBeGreaterThan(0);
     }
     expect(downs).toBeGreaterThan(200);
+  });
+});
+
+describe("Pressmark Shore tide lines", () => {
+  it("data is sane and only the Shore is on", () => { expect(TIDES.regions.pressmark_shore).toBeGreaterThan(0); for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter"] as const) expect(TIDES.regions[r]).toBe(0); expect(TIDES.strength).toBeLessThanOrEqual(0.4); expect(TIDES.jitter).toBeLessThan(0.5); expect(TIDES.dark).toMatch(/^#[0-9a-f]{6}$/i); });
+  it("is pure, finite and bounded everywhere", () => {
+    for (let x = -HALF - 20; x <= HALF + 20; x += 5) for (let z = -HALF - 20; z <= HALF + 20; z += 5) { const m = tideMix(x, z); expect(Number.isFinite(m)).toBe(true); expect(m).toBeGreaterThanOrEqual(0); expect(m).toBeLessThanOrEqual(TIDES.strength + 1e-9); expect(tideMix(x, z)).toBe(m); }
+    expect(tideMix(NaN, 0)).toBe(0); expect(tideMix(0, Infinity)).toBe(0);
+  });
+  it("is zero in Home and wherever the Shore has no weight; present in the Shore as bands", () => {
+    for (let x = -HOME_FLAT; x <= HOME_FLAT; x += 2) for (let z = -HOME_FLAT; z <= HOME_FLAT; z += 2) expect(tideMix(x, z)).toBe(0);
+    let on = 0; const cols = new Set<number>();
+    for (let x = -HALF; x <= HALF; x += 1.5) for (let z = -HALF; z <= HALF; z += 1.5) { const m = tideMix(x, z), w = regionWeights(x, z); if (w.pressmark_shore < 1e-9) expect(m).toBe(0); if (m > 0.05) { on++; cols.add(Math.round(x / 3)); } }
+    expect(on).toBeGreaterThan(300); expect(cols.size).toBeGreaterThan(5);
+  });
+  it("changes only Shore ground colour; Meadow and Downs output is untouched; nothing else moves", () => {
+    const off = groundColours({ features: false }), on = groundColours({ features: true }); let shore = 0;
+    for (let i = 0; i < on.p.count; i++) {
+      const wx = on.p.getX(i), wz = -on.p.getY(i), diff = [0, 1, 2].some((k) => on.a[i * 3 + k] !== off.a[i * 3 + k]);
+      if (tideMix(wx, wz) > 0) { shore++; expect(regionWeights(wx, wz).pressmark_shore).toBeGreaterThan(0); }
+      if (diff && patchMix(wx, wz).amount === 0 && creaseMix(wx, wz).amount === 0) expect(tideMix(wx, wz)).toBeGreaterThan(0);
+    }
+    expect(shore).toBeGreaterThan(200); expect(on.a.length).toBe(off.a.length);
   });
 });

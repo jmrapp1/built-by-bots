@@ -53,3 +53,19 @@ export function creaseMix(x: number, z: number, d: CreaseData = CREASES, pd: Pat
   const line = 1 - soft(0, d.width, best);
   return { ridge: hash(bk, 0, d.seed, 2) < 0.5, amount: str * rs * line };
 }
+
+// ---- Pressmark Shore tide lines: the third pattern kind. Same rules: pure, finite, ground colour only.
+export const TIDES = raw.tides;
+export type TideData = typeof TIDES;
+/** Tide line at x, z: how much (amount 0..1) of the dark sand colour to mix in. Lines run along the shore (north-south, turned by `angle`) and waver. */
+export function tideMix(x: number, z: number, d: TideData = TIDES, pd: PatternData = PATTERNS): number {
+  const str = clamp01(fin(d.strength)); if (!(str > 0) || !Number.isFinite(x) || !Number.isFinite(z)) return 0;
+  const w = regionWeights(x, z); let rs = 0;
+  for (const r of Object.keys(w) as RegionId[]) rs += w[r] * (d.regions[r] ?? 0);
+  rs = clamp01(fin(rs)) * patchEase(x, z, pd); if (rs <= 0) return 0;
+  const a = (d.angle * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+  const u = x * ca - z * sa + Math.sin(((x * sa + z * ca) / d.wobbleLength) * Math.PI * 2) * d.wobble, k0 = Math.floor(u / d.spacing);
+  let best = Infinity;
+  for (let k = k0 - 1; k <= k0 + 1; k++) best = Math.min(best, Math.abs(u - (k + 0.5 + (hash(k, 0, d.seed, 1) - 0.5) * 2 * d.jitter) * d.spacing));
+  return str * rs * (1 - soft(0, d.width, best));
+}
