@@ -74,6 +74,7 @@ import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
+import { SEATS, nearestSeat, seatsOn, type Seat } from "@/lib/landmarkSeats";
 import { tintEnabled, tintLight, utcMonth } from "@/lib/monthTint";
 import { cloudsEnabled, hazeAt, hazeEnabled, hazeFog, hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
@@ -516,6 +517,23 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         } catch { /* skip only this neighbour */ }
       }
     };
+    // Landmark seats: the Garden bench's look, one beside each landmark, built with the World shell and removed with it.
+    const seatsDrawn = seatsOn(window.location.search, process.env.NODE_ENV === "production"); // landmark seats; ?seats=off is dev only
+    let seatGroup: THREE.Group | null = null;
+    const buildSeats = () => {
+      if (seatGroup || !seatsDrawn) return;
+      const g = new THREE.Group();
+      for (const st of SEATS) {
+        try {
+          const b = buildPlace({ id: st.id, kind: "rest", x: 0, z: 0, label: "Sit and rest", prompt: "Sit and rest" });
+          b.position.set(st.x, groundHeight ? groundY(st.x, st.z) : 0, st.z);
+          b.rotation.y = st.face + Math.PI / 2; // long side across the view of the landmark
+          g.add(b);
+        } catch { /* skip only this seat */ }
+      }
+      seatGroup = g; scene.add(g);
+    };
+    const dropSeats = () => { if (seatGroup) { scene.remove(seatGroup); seatGroup = null; } };
     const dropWNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); wNpcs = wNpcs.filter((o) => o !== n); };
     const dropWorldNpcs = () => { for (const n of [...wNpcs]) closeNpcTalk(n); for (const n of wNpcs) n.scene.dispose(); wNpcs = []; };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
@@ -597,6 +615,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       buildShoreSights(); // T2: the shore sights come and go with the spots (built once per stay)
       buildRegionSights();
       buildWorldNpcs();
+      buildSeats();
       if (spotsOff || sc) return;
       wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
       wSpots = allSpotsForDay(wDay);
@@ -613,7 +632,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       });
       reportSpots();
     };
-    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); dropRegionSights(); dropWorldNpcs(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); dropRegionSights(); dropWorldNpcs(); dropSeats(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
@@ -751,6 +770,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     // Sitting: a short walk to the seat, a settle, a held pose, and a clear stand-up (lib/sit.ts).
     let sit: SitState = STANDING;
     let sitFrom: Vec = { x: 0, z: 0 };
+    let sitTo: Vec = NIGHT.sit, sitFace: Vec = NIGHT.bed, seatNear: Place | null = null; // the seat being used: the Garden bench by default, a landmark seat in the World
     let hourNow = override ?? hourOfDay(new Date());
     // S32: bug watching. With bugWatching.enabled false createBugSim returns null: nothing is built, no loop work, no glance.
     const bugPrev = bugPreview(window.location.search, process.env.NODE_ENV === "production");
@@ -1019,8 +1039,18 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         } else if (nearby?.kind === "rest") {
           // Sit beside the bed, or get up again; any walking key also stands up.
           const was = sit.phase;
+          if (was === "standing") { sitTo = NIGHT.sit; sitFace = NIGHT.bed; }
           sit = sitToggle(sit, reducedMotion);
           if (was === "standing" && sit.phase === "going") sitFrom = pos;
+        } else if (nearby?.kind === "seat") {
+          // A landmark seat in the World: the same sit and stand-up as the bench, toward this seat and facing its landmark.
+          const seat = SEATS.find((o) => o.id === nearby?.id);
+          const was = sit.phase;
+          if (seat && (was !== "standing" || nearestSeat(pos, [seat]))) {
+            if (was === "standing") { sitTo = { x: seat.x, z: seat.z }; sitFace = { x: seat.x + Math.sin(seat.face), z: seat.z + Math.cos(seat.face) }; }
+            sit = sitToggle(sit, reducedMotion);
+            if (was === "standing" && sit.phase === "going") sitFrom = pos;
+          }
         } else if (nearby?.kind === "pond") {
           // No lean and no ring in the dark: the pond follows the Print's own day window.
           if (pgStart < 0 && canPlayerSplash(hourNow)) { pgStart = performance.now(); pgLanded = false; pgSkip = false; } // lean over and splash
@@ -1232,8 +1262,8 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       sit = sitAdvance(sit, dt, reducedMotion);
       const sf = sitFrame(sit, reducedMotion);
       // While going to the seat the player glides there; while seated or rising they stay put.
-      if (sit.phase === "going") pos = lerpPos(sitFrom, NIGHT.sit, sf.move);
-      else if (sit.phase === "seated") pos = { x: NIGHT.sit.x, z: NIGHT.sit.z };
+      if (sit.phase === "going") pos = lerpPos(sitFrom, sitTo, sf.move);
+      else if (sit.phase === "seated") pos = { x: sitTo.x, z: sitTo.z };
             // The player's splash: a smooth lean over the water (down, hold, up); the splash lands once, mid-lean.
       let pgLean = 0;
       if (pgStart >= 0) {
@@ -1319,7 +1349,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         const r = movePlayer(l, { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") }, yaw,
           keys.has("ShiftLeft") || keys.has("ShiftRight") ? GARDEN.player.jogSpeed : GARDEN.player.speed, dt, GARDEN.player.radius, mCols, MARGINS.size);
         return { pos: { x: r.pos.x + OFF, z: r.pos.z }, heading: r.heading };
-      })() : !canWalk(sit) ? { pos, heading: Math.atan2(NIGHT.bed.x - pos.x, NIGHT.bed.z - pos.z) } : pgStart >= 0 ? { pos, heading: towardPond(pos) } : movePlayer(
+      })() : !canWalk(sit) ? { pos, heading: Math.atan2(sitFace.x - pos.x, sitFace.z - pos.z) } : pgStart >= 0 ? { pos, heading: towardPond(pos) } : movePlayer(
         pos,
         { forward: k("KeyW", "ArrowUp") - k("KeyS", "ArrowDown"), right: k("KeyD", "ArrowRight") - k("KeyA", "ArrowLeft") },
         yaw,
@@ -1992,6 +2022,11 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         }
         wNpcNear = best && !travel ? { id: `npc-${best.n.npc.id}`, kind: "npc", x: best.n.at.x, z: best.n.at.z, label: best.n.npc.prompt, prompt: best.n.npc.prompt } : null;
       } else wNpcNear = null;
+      if (seatsDrawn && zones.is("garden") && !travel) { // landmark seats: the one in reach (or the one you are using, so E stands you up again)
+        const s0 = sit.phase !== "standing" ? SEATS.find((o) => o.x === sitTo.x && o.z === sitTo.z) ?? null : null;
+        const s1: Seat | null = s0 ?? (sit.phase === "standing" ? nearestSeat(pos) : null);
+        seatNear = s1 ? { id: s1.id, kind: "seat", x: s1.x, z: s1.z, label: "Sit and rest", prompt: "Sit and rest" } : null;
+      } else seatNear = null;
       if (dayScraps && zones.is("garden")) dayScraps.update(t / 1000, reducedMotion); // the day's scraps lift and settle the same way
       if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
@@ -2094,7 +2129,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (want && want !== decorShown) { decorShown = want; decor.show(want, t / 1000); }
         decor.update(t / 1000, reducedMotion, nearby?.kind === "decor" ? nearby.id : null);
       }
-      const n = travel ? null : zones.is("margins") ? mNear : zones.is("reading") ? rNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? wNpcNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
+      const n = travel ? null : zones.is("margins") ? mNear : zones.is("reading") ? rNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? wNpcNear ?? seatNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase, weather: zones.is("garden") ? weatherNow(hourNow).tint : 0, cover: zones.is("garden") ? weatherNow(hourNow).intensity : 0 });
       renderer.render(scene, camera);
