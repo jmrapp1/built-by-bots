@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import raw from "@/data/monthTint.json";
-import { KEYS, lightingAt } from "@/lib/daynight";
+import { KEYS, lerpColor, lightingAt } from "@/lib/daynight";
 import { dayWeight, tintAmount, tintEnabled, tintLight, tintOverride, utcMonth } from "@/lib/monthTint";
 
 const hex = /^#[0-9a-f]{6}$/i;
@@ -79,5 +79,39 @@ describe("month tint: the switch and the wiring", () => {
     const w = strip(readFileSync("components/World.tsx", "utf8"));
     expect(w).toMatch(/monthTintOn && zones\.is\("garden"\)\) L = tintLight\(L, utcMonth\(new Date\(\)\), hourNow\)/);
     expect(w).toMatch(/tintEnabled\(window\.location\.search, process\.env\.NODE_ENV === "production"\)/);
+  });
+});
+
+describe("month tint: each month is pinned", () => {
+  // Written out by hand, so swapping two months in the data file fails here. Changing a look on purpose means changing this table too.
+  const PIN: [string, string, number][] = [
+    ["January", "#cfe0f2", 0.1],
+    ["February", "#d6e2ef", 0.08],
+    ["March", "#d8efc8", 0.09],
+    ["April", "#c8eed2", 0.11],
+    ["May", "#c4f0b4", 0.12],
+    ["June", "#fff0b0", 0.12],
+    ["July", "#ffe6a0", 0.13],
+    ["August", "#ffdc98", 0.12],
+    ["September", "#f6d49a", 0.11],
+    ["October", "#f2b98a", 0.13],
+    ["November", "#dcc2b4", 0.1],
+    ["December", "#c4d6ec", 0.11],
+  ];
+  it("has these twelve names, colours and strengths, in this order", () => {
+    expect(raw.months.map((m) => [m.name, m.color, m.strength])).toEqual(PIN);
+  });
+  it.each(PIN.map((p, i) => [i, ...p] as const))("month %i (%s) tints toward %s at midday", (i, _name, color, strength) => {
+    const L = lightingAt(12), T = tintLight(L, i, 12);
+    expect(tintAmount(i, 12)).toBeCloseTo(strength, 10);
+    expect(T).toEqual(tintLight(L, i, 12));
+    expect(T.sun).toBe(lerpColor(L.sun, color, strength));
+    expect(T.hemisphereSky).toBe(lerpColor(L.hemisphereSky, color, strength));
+  });
+  it("picks each month by its own number from a UTC date", () => {
+    PIN.forEach(([, color, strength], i) => {
+      const d = new Date(Date.UTC(2026, i, 15, 12)), L = lightingAt(12);
+      expect(tintLight(L, utcMonth(d), 12).sun).toBe(lerpColor(L.sun, color, strength));
+    });
   });
 });
