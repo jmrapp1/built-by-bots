@@ -64,6 +64,7 @@ import { groundLift, groundOn, groundY } from "@/lib/ground";
 import { fogAt, regionFogOn } from "@/lib/regionFog";
 import { featuresOn } from "@/lib/features";
 import { groundInkOn } from "@/lib/groundInk";
+import { sunFollow } from "@/lib/sunFollow";
 import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
@@ -358,7 +359,8 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     sun.shadow.camera.top = 18;
     sun.shadow.camera.bottom = -18;
     sun.shadow.bias = -0.0015;
-    scene.add(sun);
+    scene.add(sun); scene.add(sun.target);
+    let sunOff: readonly [number, number, number] = L0.sunPosition as [number, number, number];
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(HOME.size, HOME.size),
@@ -1061,7 +1063,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       hemi.intensity = L.hemisphereIntensity;
       sun.color.set(L.sun);
       sun.intensity = L.sunIntensity;
-      sun.position.set(...L.sunPosition);
+      sunOff = L.sunPosition as [number, number, number]; sun.position.set(...L.sunPosition);
     };
     // Dev-only starts for the Margins (ignored in production): ?area=margins ?unfold=1 ?gate=1
     const homeStart = homeOverride(window.location.search, process.env.NODE_ENV === "production");
@@ -1305,6 +1307,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       }
       if (live.current.mapOpen && t - poseAt > 200) { poseAt = t; cb.current.onMapPose?.(walked, zones.is("garden") ? { x: pos.x, z: pos.z, yaw } : null); }
       if (regionFog && zones.is("garden")) { const fg = fogAt(pos.x, pos.z, true); (scene.fog as THREE.Fog).near = fg[0]; (scene.fog as THREE.Fog).far = fg[1]; } // E1: this region's fog, eased across the seams
+      { const sf2 = sunFollow(sunOff, pos.x, pos.z, !!shell && zones.is("garden")); sun.position.set(...sf2.pos); sun.target.position.set(...sf2.target); sun.target.updateMatrixWorld(); } // the shadow box travels with the player in the World
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;

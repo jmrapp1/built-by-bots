@@ -120,7 +120,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     applyInk(groundMat, INK);
   }
   const ground = new THREE.Mesh(gg, groundMat);
-  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.03; group.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.03; ground.receiveShadow = true; group.add(ground);
   const skirt = new THREE.Mesh(keep(new THREE.PlaneGeometry(WORLD.size + 900, WORLD.size + 900)), keep(new THREE.MeshToonMaterial({ color: WORLD.look.meadow.ground })));
   skirt.rotation.x = -Math.PI / 2; skirt.position.y = -0.06; group.add(skirt);
 
