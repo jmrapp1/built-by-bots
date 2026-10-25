@@ -73,6 +73,8 @@ import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/ho
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
+import foliageRaw from "@/data/foliage.json";
+import { rustleBlooms, rustleGrass, rustleSettings, rustleStep, type RustleState } from "@/lib/foliage";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
 import { SEATS, nearestSeat, seatsOn, type Seat } from "@/lib/landmarkSeats";
 import { tintEnabled, tintLight, utcMonth } from "@/lib/monthTint";
@@ -1243,6 +1245,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       }
     };
     let perf = perfStart(RS.pixelRatio, 0);
+    const rustleOn = rustleGrass(foliageRaw) || rustleBlooms(foliageRaw), rustleCfg = rustleSettings(), rustleState: RustleState = new Map(), rustleMq = window.matchMedia("(prefers-reduced-motion: reduce)"); // F4: read live each frame, so the setting takes effect without a reload
     const tick = (t: number) => {
       for (const rp of ripples) {
         const r = ripple((t / 6000) % 1, rp.offset, reducedMotion);
@@ -1378,6 +1381,10 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       if (regionFog && zones.is("garden")) { const fg = fogAt(pos.x, pos.z, true); (scene.fog as THREE.Fog).near = fg[0]; (scene.fog as THREE.Fog).far = fg[1]; } // E1: this region's fog, eased across the seams
       { const sf2 = sunFollow(sunOff, pos.x, pos.z, !!shell && zones.is("garden"), SUN_SHADOW.dist); sun.position.set(...sf2.pos); sun.target.position.set(...sf2.target); sun.target.updateMatrixWorld(); } // the shadow box travels with the player in the World
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
+      if (shell && zones.is("garden")) { // F4: rustle. One small list a frame: the player, then the Prints; the bend itself is in the shader. Empty (still) under reduced motion or with the switch off.
+        const who = [{ id: "_me", x: pos.x, z: pos.z }]; if (rustleOn) { if (primaryId && primaryId !== "_" && wander) who.push({ id: primaryId, x: wander.x, z: wander.z }); for (const o of others) who.push({ id: o.id, x: o.w.x, z: o.w.z }); }
+        shell.setPushers(rustleOn ? rustleStep(rustleState, who, dt, rustleCfg, rustleMq.matches) : []);
+      }
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;
         d = Math.atan2(Math.sin(d), Math.cos(d));

@@ -109,3 +109,41 @@ export function buildRegionGrass(d: FoliageData = FOLIAGE, r: RegionGrassData = 
 let regionCache: Built | null = null;
 export const shippedRegionGrass = (): Built => (regionCache ??= buildRegionGrass());
 export const regionGrassInChunk = (ix: number, iz: number, b: Built = shippedRegionGrass()): GrassItem[] => (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS ? [] : b.perChunk.get(keyOf(ix, iz)) ?? []);
+
+// F4: rustle. Grass and blooms lean away from the player and from moving Prints, then spring back. The bend itself is in the vertex shader (components/worldShell.ts);
+// everything here is pure: the flag, the tunables and the per-frame list of pushers. No collider, no server data, nothing stored.
+export type RustleData = { enabled: boolean; maxPushers: number; radius: number; maxBend: number; recover: number; grass: boolean; blooms: boolean };
+export const RUSTLE: RustleData = (raw as unknown as { rustle: RustleData }).rustle;
+const on = (d: unknown, k: string): boolean => { try { return (d as Record<string, { enabled?: unknown } | undefined>)?.[k]?.enabled === true; } catch { return false; } };
+/** Anything but a plain true is off. A sub-flag: it needs grass or blooms on, and does nothing without one. */
+export const rustleFlag = (d: unknown): boolean => on(d, "rustle") && (on(d, "foliage") || on(d, "blooms"));
+const layer = (d: unknown, base: string, key: "grass" | "blooms"): boolean => { try { return rustleFlag(d) && on(d, base) && (d as { rustle: Record<string, unknown> }).rustle[key] === true; } catch { return false; } };
+/** The grass bends only if rustle, foliage and rustle.grass are all a plain true. */
+export const rustleGrass = (d: unknown): boolean => layer(d, "foliage", "grass");
+/** The blooms bend only if rustle, blooms and rustle.blooms are all a plain true. */
+export const rustleBlooms = (d: unknown): boolean => layer(d, "blooms", "blooms");
+const num = (v: unknown, lo: number, hi: number, dflt: number): number => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt);
+/** The tunables, clamped to something safe whatever the file says. maxPushers is a whole number from 1 to 8. */
+export function rustleSettings(r: Partial<RustleData> = RUSTLE): { maxPushers: number; radius: number; maxBend: number; recover: number } {
+  return { maxPushers: Math.floor(num(r?.maxPushers, 1, 8, 4)), radius: num(r?.radius, 0.2, 3, 0.9), maxBend: num(r?.maxBend, 0, 60, 25), recover: num(r?.recover, 0.1, 4, 0.8) };
+}
+
+export type PushIn = { id: string; x: number; z: number };
+export type PushOut = { x: number; z: number; s: number };
+export type RustleState = Map<string, { x: number; z: number; s: number }>;
+/** Metres per second above which something counts as moving. A teleport (more than JUMP metres in one frame) is not walking. */
+export const MOVING = 0.4, JUMP = 3, RISE = 0.12;
+/** One frame. `who` is the player first, then the Prints in any order. Keeps the player and the nearest others to the player, at most `max` in all. Strength climbs to 1 in about RISE seconds while
+ *  something moves and falls over `recover` seconds once it stops, so it springs back. Reduced motion: nothing pushes. Only pushers with some strength are returned. */
+export function rustleStep(state: RustleState, who: PushIn[], dt: number, cfg: { maxPushers: number; recover: number }, reduced: boolean): PushOut[] {
+  const max = Math.max(0, Math.floor(cfg.maxPushers)); if (reduced || max < 1 || !(dt > 0) || !who.length) { state.clear(); return []; }
+  const me = who[0], keep = [me, ...who.slice(1).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z) || (a.id < b.id ? -1 : 1))].slice(0, max);
+  const seen = new Set(keep.map((k) => k.id)); for (const k of [...state.keys()]) if (!seen.has(k)) state.delete(k);
+  const out: PushOut[] = [];
+  for (const k of keep) {
+    const e = state.get(k.id) ?? { x: k.x, z: k.z, s: 0 }, step = Math.hypot(k.x - e.x, k.z - e.z), moving = step / dt > MOVING && step < JUMP;
+    e.s = moving ? Math.min(1, e.s + dt / RISE) : Math.max(0, e.s - dt / Math.max(0.1, cfg.recover)); e.x = k.x; e.z = k.z; state.set(k.id, e);
+    if (e.s > 0.001) out.push({ x: k.x, z: k.z, s: e.s });
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 {
- "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye. F2: 'blooms' is a separate switch for small flower clumps (Meadow and Paper Downs), with its own seed and caps (bloomsPerChunk, bloomsWorld; 0 removes only the blooms); the same rules as the grass. 'palette' is the petal colours, baked into the clumps (no per-instance colour). F3: 'grassRegions' is a sub-switch (it also needs 'foliage' on) for grass in the other regions: its own seed and per-region density, and a root and tip colour per region (dry straw on the Downs, dark ink-green in Inkwood, pale salt grass on the Shore, sparse tufts in the Glyph Quarter). It takes only what the Meadow grass leaves of grassPerChunk and grassWorld, so those caps still hold for all grass together.",
+ "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye. F2: 'blooms' is a separate switch for small flower clumps (Meadow and Paper Downs), with its own seed and caps (bloomsPerChunk, bloomsWorld; 0 removes only the blooms); the same rules as the grass. 'palette' is the petal colours, baked into the clumps (no per-instance colour). F3: 'grassRegions' is a sub-switch (it also needs 'foliage' on) for grass in the other regions: its own seed and per-region density, and a root and tip colour per region (dry straw on the Downs, dark ink-green in Inkwood, pale salt grass on the Shore, sparse tufts in the Glyph Quarter). It takes only what the Meadow grass leaves of grassPerChunk and grassWorld, so those caps still hold for all grass together. F4: 'rustle' is a sub-switch (it also needs the layer it bends to be on: 'foliage' for grass, 'blooms' for blooms): grass and blooms near the player and near moving Prints lean away and spring back. Only a plain true is on; anything else leaves the shader untouched and everything exactly as before. 'maxPushers' is the most things that push at once (the player first, then the nearest Prints); 'radius' is metres; 'maxBend' is degrees at the tip; 'recover' is seconds to spring back; 'grass' and 'blooms' turn each layer off alone. It is a vertex-shader bend: no collider, no new draw, nothing stored. Reduced motion turns it off. First guesses to tune by eye; phone cost is unmeasured (maxPushers 1, or enabled false, is the lever).",
  "foliage": {
   "enabled": true,
   "seed": 9137,
@@ -70,5 +70,14 @@
     "tip": "#d6e0c8"
    }
   }
+ },
+ "rustle": {
+  "enabled": true,
+  "maxPushers": 4,
+  "radius": 0.9,
+  "maxBend": 25,
+  "recover": 0.8,
+  "grass": true,
+  "blooms": true
  }
 }
