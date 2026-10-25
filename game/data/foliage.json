@@ -1,5 +1,5 @@
 {
- "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye. F2: 'blooms' is a separate switch for small flower clumps (Meadow and Paper Downs), with its own seed and caps (bloomsPerChunk, bloomsWorld; 0 removes only the blooms); the same rules as the grass. 'palette' is the petal colours, baked into the clumps (no per-instance colour).",
+ "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye. F2: 'blooms' is a separate switch for small flower clumps (Meadow and Paper Downs), with its own seed and caps (bloomsPerChunk, bloomsWorld; 0 removes only the blooms); the same rules as the grass. 'palette' is the petal colours, baked into the clumps (no per-instance colour). F3: 'grassRegions' is a sub-switch (it also needs 'foliage' on) for grass in the other regions: its own seed and per-region density, and a root and tip colour per region (dry straw on the Downs, dark ink-green in Inkwood, pale salt grass on the Shore, sparse tufts in the Glyph Quarter). It takes only what the Meadow grass leaves of grassPerChunk and grassWorld, so those caps still hold for all grass together.",
  "foliage": {
   "enabled": true,
   "seed": 9137,
@@ -41,5 +41,34 @@
    "#d9a441",
    "#9bb8d9"
   ]
+ },
+ "grassRegions": {
+  "enabled": true,
+  "seed": 7753,
+  "density": {
+   "meadow": 0,
+   "inkwood": 4,
+   "paper_downs": 3,
+   "glyph_quarter": 0.8,
+   "pressmark_shore": 3
+  },
+  "tint": {
+   "inkwood": {
+    "root": "#2f4a3a",
+    "tip": "#5f8a6a"
+   },
+   "paper_downs": {
+    "root": "#9a8450",
+    "tip": "#e0c878"
+   },
+   "glyph_quarter": {
+    "root": "#6b6a4a",
+    "tip": "#b8b48a"
+   },
+   "pressmark_shore": {
+    "root": "#8a9a86",
+    "tip": "#d6e0c8"
+   }
+  }
  }
 }
