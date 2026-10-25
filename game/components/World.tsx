@@ -5,6 +5,7 @@ import { buildNpc, type NpcScene } from "@/components/npcScene";
 import { buildSights, type SightScene } from "@/components/sightScene";
 import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
 import { SHORE_SIGHTS, shoreSightsForDay } from "@/lib/shoreSights";
+import { REGION_SIGHTS, SIGHT_REGIONS, regionSightsForDay } from "@/lib/regionSights";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { addOutline, disposeTree } from "@/lib/outline";
@@ -484,6 +485,19 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const showDream = () => { if (dreamGlyph) return; try { dreamGlyph = buildDreamGlyph(scene); } catch { dreamGlyph = null; } };
     const dropDream = () => { try { dreamGlyph?.dispose(); } catch { /* nothing */ } dreamGlyph = null; dreamLvl = 0; };
     const dropShoreSights = () => { try { shoreSights?.dispose(); } catch { /* nothing */ } shoreSights = null; };
+    // Night sights in Paper Downs, Inkwood and Glyph Quarter: the shore pattern again, one scene per region (looks only).
+    const regionSights = new Map<string, SightScene>(); let regionLvl = 0;
+    const buildRegionSights = () => {
+      for (const r of SIGHT_REGIONS) {
+        try {
+          const d = REGION_SIGHTS[r]; if (!d || regionSights.has(r)) continue;
+          regionLvl = sightLevel(hourNow, d.window);
+          const sc = buildSights(regionSightsForDay(utcDay(new Date()), r, d), groundHeight ? groundY : () => 0, d);
+          scene.add(sc.group); regionSights.set(r, sc);
+        } catch { /* this region's sights are skipped; the world loads */ }
+      }
+    };
+    const dropRegionSights = () => { for (const sc of regionSights.values()) { try { sc.dispose(); } catch { /* nothing */ } } regionSights.clear(); };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
     const wipe = document.createElement("div");
@@ -562,6 +576,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     };
     const startSpots = () => {
       buildShoreSights(); // T2: the shore sights come and go with the spots (built once per stay)
+      buildRegionSights();
       if (spotsOff || sc) return;
       wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
       wSpots = allSpotsForDay(wDay);
@@ -578,7 +593,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       });
       reportSpots();
     };
-    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); dropRegionSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
@@ -1921,6 +1936,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
           const cap = shoreSights.update({ t: t / 1000, dt, player: pos, level: shoreLvl, reduced: reducedMotion });
           if (cap) cb.current.onMarginsNote?.(cap);
         } catch { dropShoreSights(); }
+      }
+      if (regionSights.size && zones.is("garden")) { // the region sights fade with the hour like the shore ones; their caption goes to the same note line
+        try {
+          regionLvl = levelStep(regionLvl, sightLevel(hourNow, REGION_SIGHTS.paper_downs!.window), dt, reducedMotion);
+          for (const sc of regionSights.values()) { const cap = sc.update({ t: t / 1000, dt, player: pos, level: regionLvl, reduced: reducedMotion }); if (cap) cb.current.onMarginsNote?.(cap); }
+        } catch { dropRegionSights(); }
       }
       if (dreamGlyph) { // S24: only while asleep in the garden; the plane is hidden (not updated) otherwise
         const asleepNow = bed === "sleep" && zones.is("garden");
