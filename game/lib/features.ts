@@ -181,7 +181,7 @@ export const hedgeTouches = (x: number, z: number, r: number, pieces: HedgePiece
   pieces.some((p) => Math.abs(x - p.x) < p.w / 2 + r + pad && Math.abs(z - p.z) < p.d / 2 + r + pad);
 
 // ---- E5: region prop families (Meadow: tufts and haystacks; Inkwood Edge: ink drips and ferns). Seeded patches, pure, drawn only with the features on. ----
-export type PropKind = "tuft" | "haystack" | "drip" | "fern" | "pinwheel" | "pagestone";
+export type PropKind = "tuft" | "haystack" | "drip" | "fern" | "pinwheel" | "pagestone" | "reed" | "driftwood";
 export type PropPatch = { id: string; region: RegionId; kind: PropKind; at: Pt; rx: number; rz: number; count: number; s: [number, number]; seed: number };
 export type PropItem = Item & { k: PropKind; f: string };
 export type PropLimits = { perChunk: number; minGap: number };
@@ -189,9 +189,9 @@ const rawF = raw.features as unknown as { props?: PropPatch[]; propLimits?: Prop
 export const PROPS: PropPatch[] = rawF.props ?? [];
 export const PROP_LIMITS: PropLimits = rawF.propLimits ?? { perChunk: 60, minGap: 0.9 };
 /** Footprint radius per unit of scale. Haystacks and page-stones are solid circles; tufts, drips, ferns and pinwheels are walk-through but keep their own space. */
-export const PROP_R: Record<PropKind, number> = { tuft: 0.35, haystack: 1.0, drip: 0.3, fern: 0.55, pinwheel: 0.3, pagestone: 0.65 };
+export const PROP_R: Record<PropKind, number> = { tuft: 0.35, haystack: 1.0, drip: 0.3, fern: 0.55, pinwheel: 0.3, pagestone: 0.65, reed: 0.3, driftwood: 1.0 };
 export const propRadius = (i: { k: PropKind; s: number }) => PROP_R[i.k] * i.s;
-export const propSolid = (i: { k: PropKind }) => i.k === "haystack" || i.k === "pagestone";
+export const propSolid = (i: { k: PropKind }) => i.k === "haystack" || i.k === "pagestone" || i.k === "driftwood";
 
 function solidsNear(x: number, z: number): Circle[] { // scatter trunks, rocks and bushes in the 3x3 chunks around (pure data)
   const ix = chunkOf(x), iz = chunkOf(z), out: Circle[] = [];
@@ -210,7 +210,7 @@ export function buildPatch(p: PropPatch, limits: PropLimits = PROP_LIMITS): Prop
     if (hedgeTouches(it.x, it.z, rad, hp, 0.5)) continue;
     if (feats.some((c) => Math.hypot(c.x - it.x, c.z - it.z) < c.r + rad + 0.3)) continue;
     if (solidsNear(it.x, it.z).some((c) => Math.hypot(c.x - it.x, c.z - it.z) < c.r + rad + 0.3)) continue;
-    if (out.some((o) => Math.hypot(o.x - it.x, o.z - it.z) < rad + propRadius(o) + limits.minGap * (p.kind === "haystack" || p.kind === "pagestone" ? 1.5 : 0.3))) continue;
+    if (out.some((o) => Math.hypot(o.x - it.x, o.z - it.z) < rad + propRadius(o) + limits.minGap * (p.kind === "haystack" || p.kind === "pagestone" || p.kind === "driftwood" ? 1.5 : 0.3))) continue;
     out.push(it);
   }
   return out;
