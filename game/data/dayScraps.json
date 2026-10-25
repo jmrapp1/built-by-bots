@@ -1,0 +1,7 @@
+{
+  "note": "Day scraps across the World: a few loose bits of paper that lie in different places each UTC day, in every region. Looks only: not collectable, no reward, nothing saved or sent. Uses the same paper and glyph marks as the Garden scraps. Edit counts and distances here.",
+  "counts": { "meadow": 4, "inkwood": 5, "paper_downs": 5, "glyph_quarter": 5, "pressmark_shore": 4 },
+  "tries": 80,
+  "minGap": 9,
+  "clear": { "scenery": 1.6, "pages": 1.5, "garden": 2, "keep": 1 }
+}

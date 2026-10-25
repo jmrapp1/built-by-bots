@@ -45,6 +45,7 @@ import { allSpotsForDay, nearestSpot as nearestWorldSpot, spotKey, spotsOverride
 import { FOUND_EGG, QUIET, afterClaimsRead, foodOf, isLocalPreview, settleUnfold, unfoldView, type Outcome, type Shown } from "@/lib/margins-server";
 import { COSMETIC_IDS, cosmeticOverride, cycleAt, lanternGlow, putOnFrame, putOnSeconds } from "@/lib/cosmetics";
 import { scrapOverride, scrapsFor } from "@/lib/scraps";
+import { dayScrapBits } from "@/lib/dayScraps";
 import { DREAM, bedYaw, dreamAt, dreamLevel, dreamOverride } from "@/lib/dream";
 import { buildDreamGlyph, type DreamGlyph } from "@/components/dreamGlyph";
 import { buildDrizzle, type Drizzle } from "@/components/drizzle";
@@ -470,12 +471,13 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     };
     // S23: glyph scraps, scenery only. Built with the garden, freed when it is left; ?scraps=near|many|off is dev only.
     const scrapMode = scrapOverride(window.location.search, process.env.NODE_ENV === "production");
-    let glyphScraps: GlyphScraps | null = null;
+    let glyphScraps: GlyphScraps | null = null, dayScraps: GlyphScraps | null = null;
     const showScraps = () => {
       if (glyphScraps) return;
+      if (scrapMode !== "off") { try { dayScraps = buildGlyphScraps(dayScrapBits(utcDay(new Date())), 1, groundHeight ? groundY : undefined); scene.add(dayScraps.group); } catch { dayScraps = null; } } // the day's scraps across the World (looks only)
       try { const f = scrapsFor(scrapMode); glyphScraps = buildGlyphScraps(f.bits, f.scale); scene.add(glyphScraps.group); } catch { glyphScraps = null; }
     };
-    const dropScraps = () => { try { if (glyphScraps) scene.remove(glyphScraps.group); glyphScraps?.dispose(); } catch { /* nothing */ } glyphScraps = null; };
+    const dropScraps = () => { try { if (dayScraps) scene.remove(dayScraps.group); dayScraps?.dispose(); } catch { /* nothing */ } dayScraps = null; try { if (glyphScraps) scene.remove(glyphScraps.group); glyphScraps?.dispose(); } catch { /* nothing */ } glyphScraps = null; };
     // S24: the dream glyph, one plane. Built with the garden, freed when it is left. Look only.
     let dreamGlyph: DreamGlyph | null = null, dreamLvl = 0, dreamSet = false;
     // S25: the ink drizzle, one line object. Built with the garden, freed when it is left. Look only.
@@ -1953,6 +1955,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (zones.is("garden")) drizzle.update(weatherNow(hourNow), t / 1000, reducedMotion, { x: pos.x, z: pos.z }, wander ? { x: wander.x, z: wander.z } : { x: NIGHT.bed.x, z: NIGHT.bed.z });
         else drizzle.object.visible = false;
       }
+      if (dayScraps && zones.is("garden")) dayScraps.update(t / 1000, reducedMotion); // the day's scraps lift and settle the same way
       if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
       let wNear: Place | null = null;

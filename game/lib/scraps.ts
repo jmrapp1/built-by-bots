@@ -10,7 +10,7 @@ import forage from "@/data/forage.json";
 export const GLYPH_BITS = raw;
 export const GLYPH_IDS = raw.glyphs as readonly string[];
 export type GlyphMode = "near" | "many" | "off";
-export type GlyphBit = { x: number; z: number; glyph: number; yaw: number; phase: number };
+export type GlyphBit = { x: number; z: number; glyph: number; yaw: number; phase: number; y?: number }; // y: ground height under it (World rises); 0 when absent
 
 // Dev-only preview: ?scraps=near|many|off. Ignored (null) in production builds. Nothing is saved.
 export const scrapOverride = (search: string, isProduction: boolean): GlyphMode | null => {
