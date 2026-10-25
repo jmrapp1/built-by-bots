@@ -4,7 +4,7 @@ import world from "@/data/world.json";
 import map from "@/data/map.json";
 import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
-import { CLUSTERS, clusterScatterIn, insideClusterReach, shippedClusters } from "./clusters";
+import { CLUSTERS, capChunk, clusterScatterIn, insideClusterReach, shippedClusters } from "./clusters";
 
 export const WORLD = world;
 export type RegionId = "meadow" | "inkwood" | "paper_downs" | "glyph_quarter" | "pressmark_shore";
@@ -96,7 +96,9 @@ export function buildContents(ix: number, iz: number, seed: number, clusters: bo
   put(out.trees, count(top("tree")), region === "inkwood" ? 1.0 : 0.8, region === "inkwood" ? 1.9 : 1.4, "tree");
   put(out.rocks, count(top("rock")), 0.6, 1.6, "rock");
   put(out.bushes, count(top("bush")), 0.7, 1.3, "bush");
+  const strays = { trees: out.trees.length, rocks: out.rocks.length, bushes: out.bushes.length };
   if (cl) for (const m of clusterScatterIn(ix, iz, cl.scatter)) (m.k === "tree" ? out.trees : m.k === "rock" ? out.rocks : out.bushes).push({ x: m.x, z: m.z, s: m.s, r: m.r });
+  if (cl) capChunk(out, strays, ix, iz);
   out.landmarks = LANDMARKS.filter((l) => l.x >= x0 && l.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && l.z >= z0 && l.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
   out.posts = map.signposts.filter((p) => p.x >= x0 && p.x < x1 && p.z >= z0 && p.z < z1).map((p) => ({ x: p.x, z: p.z, r: POST_R }));
   return out;

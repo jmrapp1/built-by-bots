@@ -342,8 +342,8 @@
      {
       "k": "tree",
       "n": [
-       14,
-       20
+       16,
+       22
       ],
       "zone": "core",
       "s": [
@@ -367,8 +367,8 @@
      {
       "k": "bush",
       "n": [
-       7,
-       11
+       11,
+       16
       ],
       "zone": "skirt",
       "s": [
@@ -459,8 +459,8 @@
      {
       "k": "bush",
       "n": [
-       10,
-       14
+       16,
+       22
       ],
       "zone": "core",
       "s": [
@@ -472,7 +472,7 @@
       "k": "tree",
       "n": [
        2,
-       3
+       4
       ],
       "zone": "skirt",
       "s": [
@@ -542,9 +542,9 @@
   "cells": {
    "meadow": {
     "cell": 22,
-    "chance": 0.9,
-    "gap": 8,
-    "size": 1.67,
+    "chance": 0.95,
+    "gap": 6,
+    "size": 2.18,
     "stray": 0.25,
     "treeScale": 1.0,
     "mix": {
@@ -592,9 +592,9 @@
    },
    "paper_downs": {
     "cell": 26,
-    "chance": 0.8,
-    "gap": 12,
-    "size": 1.67,
+    "chance": 0.95,
+    "gap": 10,
+    "size": 2.18,
     "stray": 0.2,
     "treeScale": 1.0,
     "mix": {
@@ -613,9 +613,9 @@
    },
    "glyph_quarter": {
     "cell": 20,
-    "chance": 0.85,
-    "gap": 8,
-    "size": 1.5,
+    "chance": 0.95,
+    "gap": 6,
+    "size": 1.95,
     "stray": 0.2,
     "treeScale": 1.0,
     "mix": {
@@ -633,9 +633,9 @@
    },
    "pressmark_shore": {
     "cell": 20,
-    "chance": 0.9,
-    "gap": 8,
-    "size": 1.67,
+    "chance": 0.95,
+    "gap": 6,
+    "size": 2.18,
     "stray": 0.25,
     "treeScale": 1.0,
     "mix": {

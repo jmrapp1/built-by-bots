@@ -1,4 +1,5 @@
 // W2: the World's pure functions: determinism, order independence, bounds, keep-outs, collisions, streaming window.
+import { featureItemsInChunk } from "@/lib/features";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { GARDEN } from "@/lib/world";
@@ -35,7 +36,7 @@ describe("world chunks", () => {
   });
   it("regions: the north is Inkwood Edge, denser than the meadow, with a different look", () => {
     expect(regionAt(0)).toBe("meadow"); expect(regionAt(WORLD.inkwoodZ - 1)).toBe("inkwood");
-    const trees = (z: number) => { let n = 0; for (const [a, b] of all()) { const { z0, z1 } = chunkBounds(a, b); if (z >= z0 && z < z1) n += chunkContents(a, b).trees.length; } return n; };
+    const trees = (z: number) => { let n = 0; for (const [a, b] of all()) { const { z0, z1 } = chunkBounds(a, b); if (z >= z0 && z < z1) n += chunkContents(a, b).trees.length + featureItemsInChunk(a, b).filter((f) => f.k === "tree").length; } return n; }; // C3: the authored groves count too (the scatter alone is now clustered and capped)
     expect(trees(-100)).toBeGreaterThan(trees(40) * 2);
     expect(WORLD.look.meadow.crown).not.toBe(WORLD.look.inkwood.crown);
   });

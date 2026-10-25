@@ -3,9 +3,15 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import raw from "@/data/clusters.json";
 import { CLUSTERS, buildClusters, clusterScatterIn, clustersFlag, clusterSites, shippedClusters, type ClustersData } from "@/lib/clusters";
-import { landAccepts, landAt } from "@/lib/clusters";
+import { DROP_ORDER, capChunk, landAccepts, landAt } from "@/lib/clusters";
+import { featureInstanceCount, featureItemsInChunk } from "@/lib/features";
+import { instanceCount } from "@/lib/worldMap";
+import { mulberry32 } from "@/lib/margins";
+import { reachability, reachedNear } from "@/lib/sight";
+import { worldColliders } from "@/lib/sight";
+import map from "@/data/map.json";
 import { CHUNKS, HALF, WORLD, buildContents, chunkCircles, chunkContents, regionAt } from "@/lib/worldMap";
-import { FEATURES, buildAll, buildHedges, buildProps, hedgeTouches, itemRadius, keepClear, propRadius } from "@/lib/features";
+import { FEATURES, PROP_LIMITS, featureCircles, propCircles, buildAll, buildHedges, buildProps, hedgeTouches, itemRadius, keepClear, propRadius } from "@/lib/features";
 
 const all = (on: boolean) => { const out: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) out.push(buildContents(a, b, WORLD.seed, on)); return out; };
 const sha = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -84,8 +90,8 @@ describe("the rules", () => {
     expect(inCluster / (inCluster + strayTotal)).toBeGreaterThan(0.7);
   });
   it("cluster members reach the collision list (trees, rocks, bushes) through chunkCircles", () => {
-    let c = 0; for (let a = 0; a < CHUNKS; a++) for (let d = 0; d < CHUNKS; d++) { const circ = chunkCircles(chunkContents(a, d)); for (const m of clusterScatterIn(a, d)) { c++; expect(circ.some((x) => x.x === m.x && x.z === m.z && Math.abs(x.r - itemRadius(m)) < 1e-9)).toBe(true); } }
-    expect(c).toBe(b.scatter.length);
+    let c = 0; for (let a = 0; a < CHUNKS; a++) for (let d = 0; d < CHUNKS; d++) { const circ = chunkCircles(chunkContents(a, d)); for (const m of clusterScatterIn(a, d)) { if (!chunkContents(a, d)[m.k === "tree" ? "trees" : m.k === "rock" ? "rocks" : "bushes"].some((q) => q.x === m.x && q.z === m.z)) continue; /* dropped by the chunk cap */ c++; expect(circ.some((x) => x.x === m.x && x.z === m.z && Math.abs(x.r - itemRadius(m)) < 1e-9)).toBe(true); } }
+    expect(c).toBeGreaterThan(b.scatter.length * 0.6); // the rest were dropped by the chunk cap
   });
   it("cluster props join the prop list after the patches, once, and off is the old list", () => {
     const props = buildProps(); expect(props.filter((p) => p.f.startsWith("cell-") || b.centres.some((c) => c.id === p.f)).length).toBeGreaterThan(0);
@@ -125,5 +131,40 @@ describe("C2: the land rule", () => {
     let t = 0, r = 0, u = 0, ot = 0, or = 0, ou = 0;
     for (let a = 0; a < CHUNKS; a++) for (let c = 0; c < CHUNKS; c++) { const x = chunkContents(a, c), y = buildContents(a, c, WORLD.seed, false); t += x.trees.length; r += x.rocks.length; u += x.bushes.length; ot += y.trees.length; or += y.rocks.length; ou += y.bushes.length; }
     expect(t).toBeGreaterThanOrEqual(ot); expect(r).toBeGreaterThanOrEqual(or); expect(u).toBeGreaterThanOrEqual(ou);
+  });
+});
+
+describe("C3: caps, ceilings, no traps", () => {
+  const it0 = (n: number): { x: number; z: number; s: number; r: number }[] => Array.from({ length: n }, (_, i) => ({ x: i, z: 0, s: 1, r: 0 }));
+  it("the caps are 260 instances a chunk and 140 props a chunk", () => { expect(FEATURES.limits.perChunk).toBe(260); expect(PROP_LIMITS.perChunk).toBe(140); });
+  it("every chunk, scatter plus authored items, stays inside the instance cap", () => {
+    for (let a = 0; a < CHUNKS; a++) for (let c = 0; c < CHUNKS; c++) expect(instanceCount(chunkContents(a, c)) + featureInstanceCount(featureItemsInChunk(a, c)), `${a},${c}`).toBeLessThanOrEqual(FEATURES.limits.perChunk);
+  });
+  it("a full chunk drops the stray scatter first, then bushes, then rocks, and trees last", () => {
+    expect(DROP_ORDER).toEqual(["stray", "bushes", "rocks", "trees"]);
+    const mk = () => ({ trees: it0(10), rocks: it0(10), bushes: it0(10), landmarks: [] as unknown[] }); // 3 strays of each kind come first in each list; cost 30 + 10 + 10 = 50
+    const base = featureInstanceCount(featureItemsInChunk(0, 0)), cap = (n: number) => 50 + base - n;
+    // a little over: only strays go
+    let c = mk(), s = { trees: 3, rocks: 3, bushes: 3 }; capChunk(c, s, 0, 0, 50 + base - 3);
+    expect(c.bushes.length).toBe(7); expect(c.rocks.length).toBe(10 - 0 - (c.rocks.length === 10 ? 0 : 0)); // 3 over: three stray bushes
+    expect(c.trees.length).toBe(10); expect(c.rocks.length).toBe(10);
+    // more over than the strays can pay: bushes then rocks go next, trees stay
+    c = mk(); s = { trees: 0, rocks: 0, bushes: 0 }; capChunk(c, s, 0, 0, 50 + base - 12);
+    expect(c.bushes.length).toBe(0); expect(c.rocks.length).toBe(8); expect(c.trees.length).toBe(10);
+    // trees only when nothing else is left
+    c = mk(); s = { trees: 0, rocks: 0, bushes: 0 }; capChunk(c, s, 0, 0, 50 + base - 23);
+    expect(c.bushes.length + c.rocks.length).toBe(0); expect(c.trees.length).toBeLessThan(10);
+    void cap; void mulberry32;
+  });
+  it("world totals stay under the phone ceilings", () => {
+    let t = 0, r = 0, u = 0; for (let a = 0; a < CHUNKS; a++) for (let c = 0; c < CHUNKS; c++) { const x = chunkContents(a, c); t += x.trees.length; r += x.rocks.length; u += x.bushes.length; }
+    expect(t).toBeLessThanOrEqual(1000); expect(r).toBeLessThanOrEqual(450); expect(u).toBeLessThanOrEqual(650); expect(buildProps().length).toBeLessThanOrEqual(1600);
+  });
+  it("from the spawn the walk reaches every cluster's rim and the landmarks", () => {
+    const base = worldColliders(), grid = reachability({ circles: [...base.circles, ...featureCircles(buildAll()), ...propCircles(buildProps())], boxes: base.boxes }, 0.5), miss: string[] = [];
+    for (const c of shippedClusters().centres) { const ok = [0, 1, 2, 3, 4, 5, 6, 7].some((i) => reachedNear(grid, c.x + Math.cos(i * Math.PI / 4) * (c.reach + 1), c.z + Math.sin(i * Math.PI / 4) * (c.reach + 1), 1.5)); if (!ok) miss.push(c.id); }
+    expect(miss).toEqual([]);
+    for (const l of WORLD.landmarks) expect(reachedNear(grid, l.x, l.z + l.r + 1.5, 2), l.id).toBe(true);
+    void map;
   });
 });

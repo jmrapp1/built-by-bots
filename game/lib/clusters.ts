@@ -10,7 +10,7 @@ import { groundY } from "./ground";
 import map from "@/data/map.json";
 import worldRaw from "@/data/world.json";
 import type { Item, RegionId } from "./worldMap";
-import { FEATURES, PROP_LIMITS, buildAll, buildHedges, featureCircles, hedgeTouches, itemRadius, keepClear, propRadius, propSolid } from "./features";
+import { FEATURES, PROP_LIMITS, buildAll, featureInstanceCount, featureItemsInChunk, buildHedges, featureCircles, hedgeTouches, itemRadius, keepClear, propRadius, propSolid } from "./features";
 import type { PropItem, PropKind } from "./features";
 
 export type ClusterKind = "grove" | "lone" | "cairn" | "thicket" | "pool" | "line";
@@ -168,3 +168,13 @@ export const insideClusterReach = (x: number, z: number, rad = 0, b: Built = shi
 /** Cluster props (tufts, ferns, drips, haystacks, pinwheels, page-stones), in build order. */
 export const clusterProps = (): PropItem[] => shippedClusters().props;
 export { propSolid };
+
+/** One chunk's instance budget (scatter + authored items, a tree is three draws; `features.limits.perChunk`). When it is full the chunk drops, in order: the stray scatter, then cluster bushes, then cluster rocks, and cluster trees last, so groves survive. `strays` = how many leading entries of each list are stray. Only runs with clusters on. */
+export const DROP_ORDER = ["stray", "bushes", "rocks", "trees"] as const;
+type Lists = { trees: Item[]; rocks: Item[]; bushes: Item[]; landmarks: unknown[] };
+export function capChunk(c: Lists, strays: { trees: number; rocks: number; bushes: number }, ix: number, iz: number, cap: number = FEATURES.limits.perChunk): void {
+  let over = c.trees.length * 3 + c.rocks.length + c.bushes.length + c.landmarks.length + featureInstanceCount(featureItemsInChunk(ix, iz)) - cap; if (over <= 0) return;
+  const W = { bushes: 1, rocks: 1, trees: 3 } as const, order = ["bushes", "rocks", "trees"] as const;
+  for (const k of order) { let n = strays[k]; while (over > 0 && n > 0) { c[k].splice(--n, 1); strays[k] = n; over -= W[k]; } }
+  for (const k of order) while (over > 0 && c[k].length > 0) { c[k].pop(); over -= W[k]; }
+}
