@@ -36,14 +36,14 @@ const HEDGE_REGION = new Map<string, RegionId>(HEDGES.map((h) => [h.id, h.region
 const FEATURE_REGION = new Map<string, RegionId>((FEATURES.list as { id: string; region: RegionId }[]).map((f) => [f.id, f.region]));
 /** E5: shared helper: strip a shape to position and normal, non-indexed, so shapes of different kinds merge into one. */
 const plain = (g: THREE.BufferGeometry): THREE.BufferGeometry => { const n = g.index ? g.toNonIndexed() : g; n.deleteAttribute("uv"); return n; };
-/** E5: a tuft of tiny flowers: three thin leaves and three small ink-coloured blooms, one colour per vertex so one instanced draw gives four colours. */
-function tuftGeo(): THREE.BufferGeometry {
+/** E5: a tuft of tiny flowers: three thin leaves and three small ink-coloured blooms (each sitting on its own leaf tip), one colour per vertex so one instanced draw gives four colours. */
+export function tuftGeo(): THREE.BufferGeometry {
   const paint = (g: THREE.BufferGeometry, hex: string) => { const c = new THREE.Color(hex), n = g.getAttribute("position").count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) a.set([c.r, c.g, c.b], i * 3); g.setAttribute("color", new THREE.BufferAttribute(a, 3)); return g; };
   const parts: THREE.BufferGeometry[] = [], bloom = ["#d9606b", "#e8b84a", "#8b6fa8"];
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2 + 0.4, ox = Math.cos(a) * 0.12, oz = Math.sin(a) * 0.12;
     parts.push(paint(plain(lathe([[0, 0], [0.05, 0], [0.025, 0.25], [0, 0.42]], 4).translate(ox, 0, oz)), "#6f9a5a"));
-    parts.push(paint(plain(wobbleSphere(0.075, 0.1, 7 + k, 6).translate(ox * 1.4, 0.46, oz * 1.4)), bloom[k]));
+    parts.push(paint(plain(wobbleSphere(0.075, 0.1, 7 + k, 6).translate(ox, 0.42, oz)), bloom[k]));
   }
   return mergeGeometries(parts)!;
 }
