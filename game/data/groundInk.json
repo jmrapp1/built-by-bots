@@ -1,0 +1,16 @@
+{
+  "note": "Ink on the land. Engraver-style marks that follow the ground height: thin contour lines, soft hatching on the shaded side of slopes, a cool shade on the downhill side, a faint paper grain and a slow wash on flat land. All numbers are guesses, tuned here. Anything but a plain true for 'enabled' is off, and off means the ground material is exactly as before. Distances are metres from the camera.",
+  "groundInk": {
+    "enabled": true,
+    "contour": { "step": 0.4, "minHeight": 0.12, "width": 1.1, "strength": 0.55 },
+    "hatch": { "spacing": 0.9, "angleDeg": 35, "width": 0.3, "strength": 0.5, "minSteep": 0.03, "fullSteep": 0.15 },
+    "shade": { "downhill": 0.1, "crest": 0.04, "hollow": 0.05, "heightRef": 3.4 },
+    "light": [8, 6],
+    "grain": { "amount": 0.025, "cell": 0.35, "far": 55 },
+    "wash": { "amount": 0.035, "cell": 14 },
+    "homeEase": 16,
+    "fade": { "near": 40, "far": 110 },
+    "mix": { "ink": 0.25, "darken": 0.55, "inkColor": "#2a2438" },
+    "regions": { "meadow": 1.0, "inkwood": 0.8, "paper_downs": 1.3, "glyph_quarter": 0.4, "pressmark_shore": 0.7 }
+  }
+}

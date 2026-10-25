@@ -106,7 +106,7 @@ describe("H1 wiring (flag off equals main)", () => {
   it("the player lifts only with the switch on, in the garden zone, and the Margins branch is untouched", () => {
     expect(world).toContain('else if (groundHeight && zones.is("garden")) ground = groundY(pos.x, pos.z);');
     expect(world).toContain("let ground = 0;");
-    expect(world).toContain("buildWorldShell(scene, { hills: hillsOn, ground: groundHeight, features: featuresDrawn })");
+    expect(world).toContain("buildWorldShell(scene, { hills: hillsOn, ground: groundHeight, features: featuresDrawn, groundInk: inkOn })");
   });
   it("the mesh is displaced only when asked", () => { expect(shell).toContain("if (opts.ground) {"); });
   it("data file: switch true, scale at most 1", () => { expect(GROUND.enabled).toBe(true); expect(GROUND.scale).toBeGreaterThan(0); expect(GROUND.scale).toBeLessThanOrEqual(1); });
