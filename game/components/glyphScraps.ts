@@ -41,7 +41,8 @@ export function atlas(paper = true, ink = "#2f2a44"): THREE.CanvasTexture {
   return tex;
 }
 
-export function buildGlyphScraps(bits: GlyphBit[], scale: number): GlyphScraps {
+export function buildGlyphScraps(bits: GlyphBit[], scale: number, groundAt?: (x: number, z: number) => number): GlyphScraps {
+  if (groundAt) bits = bits.map((b) => ({ ...b, y: groundAt(b.x, b.z) }));
   const group = new THREE.Group();
   const geo = new THREE.PlaneGeometry(1, 1);
   const tex = atlas();
@@ -66,7 +67,7 @@ export function buildGlyphScraps(bits: GlyphBit[], scale: number): GlyphScraps {
       const tl = tiltAt(t, b.phase, reduced);
       e.set(-Math.PI / 2 + tl.x, 0, b.yaw + tl.z, "YXZ"); // lies flat; the yaw turns it about its own up
       q.setFromEuler(e);
-      p.set(b.x, liftAt(t, b.phase, reduced), b.z);
+      p.set(b.x, (b.y ?? 0) + liftAt(t, b.phase, reduced), b.z);
       m4.compose(p, q, sc);
       mesh.setMatrixAt(i, m4);
     });
