@@ -32,11 +32,11 @@ describe("H3 camera on rises", () => {
       expect(s.y).toBeCloseTo(h.cam, 9); expect(s.look).toBeCloseTo(h.look, 9); expect(s.dist).toBe(c.distance);
     }
   });
-  it("flag off: ships off, and the data file decides in production", () => {
-    expect(GROUND.enabled).toBe(false);
-    expect(groundOn("", true)).toBe(false);
-    expect(groundOn("?ground=1", true)).toBe(false); // inert in production
-    for (const p of [0.1, 0.45, 1.2]) { const h = cameraHeights(0, p, 6); expect(h.cam).toBeCloseTo(GARDEN.camera.height + Math.sin(p) * 6); expect(h.look).toBeCloseTo(GARDEN.camera.height * 0.7); }
+  it("production: the data file decides (on), ?ground= is inert; the flat formulas still hold with the switch forced off", () => {
+    expect(GROUND.enabled).toBe(true);
+    expect(groundOn("", true)).toBe(true);
+    expect(groundOn("?ground=0", true)).toBe(true);
+        for (const p of [0.1, 0.45, 1.2]) { const h = cameraHeights(0, p, 6); expect(h.cam).toBeCloseTo(GARDEN.camera.height + Math.sin(p) * 6); expect(h.look).toBeCloseTo(GARDEN.camera.height * 0.7); }
   });
   it("pull-in shortens the distance when a rise is behind the player", () => {
     const rise = (x: number, z: number) => (z > 3 ? 4 : 0); // a wall of land 3 m behind

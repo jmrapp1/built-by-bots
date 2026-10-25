@@ -12,8 +12,8 @@ const ON = { scale: GROUND.scale };
 const grid = (step: number, f: (x: number, z: number) => void) => { for (let x = -HALF; x <= HALF; x += step) for (let z = -HALF; z <= HALF; z += step) f(x, z); };
 
 describe("H1 switch", () => {
-  it("ships off; anything but a plain true is off", () => {
-    expect(GROUND_ENABLED).toBe(false);
+  it("ships on; anything but a plain true is off", () => {
+    expect(GROUND_ENABLED).toBe(true);
     for (const v of ["true", 1, null, undefined, {}]) expect(groundFlag({ ground: { enabled: v } })).toBe(false);
     expect(groundFlag({ ground: { enabled: true } })).toBe(true);
     expect(groundFlag(null)).toBe(false);
@@ -109,7 +109,7 @@ describe("H1 wiring (flag off equals main)", () => {
     expect(world).toContain("buildWorldShell(scene, { hills: hillsOn, ground: groundHeight, features: featuresDrawn })");
   });
   it("the mesh is displaced only when asked", () => { expect(shell).toContain("if (opts.ground) {"); });
-  it("data file: switch false, scale at most 1", () => { expect(GROUND.enabled).toBe(false); expect(GROUND.scale).toBeGreaterThan(0); expect(GROUND.scale).toBeLessThanOrEqual(1); });
+  it("data file: switch true, scale at most 1", () => { expect(GROUND.enabled).toBe(true); expect(GROUND.scale).toBeGreaterThan(0); expect(GROUND.scale).toBeLessThanOrEqual(1); });
 });
 
 describe("H1 ascii height map (printed so it can be checked without a phone)", () => {
