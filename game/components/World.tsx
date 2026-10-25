@@ -65,6 +65,7 @@ import { fogAt, regionFogOn } from "@/lib/regionFog";
 import { featuresOn } from "@/lib/features";
 import { groundInkOn } from "@/lib/groundInk";
 import { sunFollow } from "@/lib/sunFollow";
+import { SUN_SHADOW, shadowMapSize } from "@/lib/sunShadow";
 import { cameraOnGround, keepAbove, shadowLift, smoothPivot } from "@/lib/groundCamera";
 import { buildGardenDoor, buildHomeScene, type HomeScene } from "@/components/homeScene";
 import { buildDecorScene, type DecorScene } from "@/components/decorScene";
@@ -351,14 +352,14 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const sun = new THREE.DirectionalLight(L0.sun, L0.sunIntensity);
     sun.position.set(...L0.sunPosition);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(RS.shadowMap, RS.shadowMap);
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 40;
-    sun.shadow.camera.left = -18;
-    sun.shadow.camera.right = 18;
-    sun.shadow.camera.top = 18;
-    sun.shadow.camera.bottom = -18;
-    sun.shadow.bias = -0.0015;
+    const SM = shadowMapSize(touchRender, RS.shadowMap); sun.shadow.mapSize.set(SM, SM);
+    sun.shadow.camera.near = SUN_SHADOW.near;
+    sun.shadow.camera.far = SUN_SHADOW.far;
+    sun.shadow.camera.left = -SUN_SHADOW.half;
+    sun.shadow.camera.right = SUN_SHADOW.half;
+    sun.shadow.camera.top = SUN_SHADOW.half;
+    sun.shadow.camera.bottom = -SUN_SHADOW.half;
+    sun.shadow.bias = SUN_SHADOW.bias;
     scene.add(sun); scene.add(sun.target);
     let sunOff: readonly [number, number, number] = L0.sunPosition as [number, number, number];
 
@@ -1307,7 +1308,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       }
       if (live.current.mapOpen && t - poseAt > 200) { poseAt = t; cb.current.onMapPose?.(walked, zones.is("garden") ? { x: pos.x, z: pos.z, yaw } : null); }
       if (regionFog && zones.is("garden")) { const fg = fogAt(pos.x, pos.z, true); (scene.fog as THREE.Fog).near = fg[0]; (scene.fog as THREE.Fog).far = fg[1]; } // E1: this region's fog, eased across the seams
-      { const sf2 = sunFollow(sunOff, pos.x, pos.z, !!shell && zones.is("garden")); sun.position.set(...sf2.pos); sun.target.position.set(...sf2.target); sun.target.updateMatrixWorld(); } // the shadow box travels with the player in the World
+      { const sf2 = sunFollow(sunOff, pos.x, pos.z, !!shell && zones.is("garden"), SUN_SHADOW.dist); sun.position.set(...sf2.pos); sun.target.position.set(...sf2.target); sun.target.updateMatrixWorld(); } // the shadow box travels with the player in the World
       if (shell) shell.update(pos.x, pos.z); // streams the nearest missing chunks, a couple per frame
       if (res.heading !== null) {
         let d = res.heading - player.rotation.y;

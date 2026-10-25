@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { buildWorldShell } from "@/components/worldShell";
 import { sunFollow } from "@/lib/sunFollow";
+import { SUN_SHADOW, shadowMapSize } from "@/lib/sunShadow";
+import { shadowLift } from "@/lib/groundCamera";
 
 const groundMesh = (scene: THREE.Scene) => { let m: THREE.Mesh | null = null; scene.traverse((o) => { const x = o as THREE.Mesh; if (!m && x.isMesh && x.geometry.attributes.color && x.geometry.attributes.position.count > 10000) m = x; }); return m as unknown as THREE.Mesh; };
 
@@ -29,13 +31,36 @@ describe("props cast shadows", () => {
     const ims = meshes(false); expect(ims.length).toBeGreaterThan(0);
     expect(ims.every((m) => m.castShadow)).toBe(true);
   });
-  it("with features on, only the small tufts, drips and ferns stay out of the shadow pass", () => {
-    const ims = meshes(true), off = ims.filter((m) => !m.castShadow);
-    expect(ims.length - off.length).toBeGreaterThan(0);
-    expect(off.length).toBeGreaterThan(0);
+  it("with features on, every instanced prop casts, tufts, drips and ferns included", () => {
+    const ims = meshes(true); expect(ims.length).toBeGreaterThan(0);
+    expect(ims.every((m) => m.castShadow)).toBe(true);
   });
   it("hedge boxes and shell objects cast", () => {
     const w = readFileSync(new URL("../components/worldShell.ts", import.meta.url), "utf8");
     expect(w).toContain("o.castShadow = true; o.scale"); expect(w).toContain("m.castShadow = true; m.scale.set(sx, sy, sz)");
+  });
+});
+
+describe("shadow reach", () => {
+  const w = readFileSync(new URL("../components/World.tsx", import.meta.url), "utf8");
+  it("the box is about 4x the old 18 m and World reads it from SUN_SHADOW", () => {
+    expect(SUN_SHADOW.half).toBeGreaterThanOrEqual(64); expect(SUN_SHADOW.half).toBeLessThanOrEqual(80);
+    expect(w).toContain("-SUN_SHADOW.half"); expect(w).toContain("SUN_SHADOW.bias"); expect(w).toContain("SUN_SHADOW.dist");
+  });
+  it("the depth range holds the ground at the box edge, the 3.4 m hills and 6 m props", () => {
+    const o = [8, 14, 6], len = Math.hypot(...o), cosEl = Math.hypot(o[0], o[2]) / len;
+    const nearest = SUN_SHADOW.dist - SUN_SHADOW.half * cosEl - 3.4 - 6, farthest = SUN_SHADOW.dist + SUN_SHADOW.half * cosEl + 3.4;
+    expect(nearest).toBeGreaterThan(SUN_SHADOW.near); expect(farthest).toBeLessThan(SUN_SHADOW.far);
+  });
+  it("sunFollow keeps the sun's direction at the set distance and still snaps to whole metres", () => {
+    const r = sunFollow([8, 14, 6], 40.4, -90.6, true, SUN_SHADOW.dist);
+    expect(r.target).toEqual([40, 0, -91]);
+    expect(Math.hypot(r.pos[0] - 40, r.pos[1], r.pos[2] + 91)).toBeCloseTo(SUN_SHADOW.dist, 6);
+  });
+  it("desktop gets the bigger map, a phone keeps its own", () => {
+    expect(shadowMapSize(false, 1024)).toBe(SUN_SHADOW.mapDesktop); expect(shadowMapSize(true, 1024)).toBe(1024);
+  });
+  it("the normal-bias lift is capped at the new, larger value", () => {
+    expect(shadowLift((x: number) => x * 5, 0, 0)).toBe(SUN_SHADOW.liftCap); expect(shadowLift(() => 0, 0, 0)).toBe(0);
   });
 });
