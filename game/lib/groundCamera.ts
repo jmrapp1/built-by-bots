@@ -1,4 +1,5 @@
 // H3: the follow camera on rises. Pure (no three.js, clock or storage). Used only when the ground flag is on; flag off never calls this.
+import { SUN_SHADOW } from "@/lib/sunShadow";
 import { GARDEN } from "@/lib/world";
 import { cameraHeights } from "@/lib/follow";
 
@@ -28,5 +29,5 @@ export const smoothPivot = (cur: number, target: number, dt: number, rate = 5): 
 /** Shadow lift: a little extra normal bias where the land tilts, so shadows do not stripe or float on a rise. 0 on flat ground. Capped. */
 export function shadowLift(gy: Ground, x: number, z: number): number {
   const e = 0.5, s = Math.hypot(gy(x + e, z) - gy(x - e, z), gy(x, z + e) - gy(x, z - e)) / (2 * e);
-  return Math.min(0.05, s * 0.2);
+  return Math.min(SUN_SHADOW.liftCap, s * 0.2 * (SUN_SHADOW.liftCap / 0.05));
 }

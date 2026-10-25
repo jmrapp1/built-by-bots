@@ -50,7 +50,7 @@ describe("H3 camera on rises", () => {
   });
   it("shadow lift is 0 on flat ground and capped on slopes", () => {
     expect(shadowLift(() => 0, 3, 3)).toBe(0);
-    expect(shadowLift((x) => x * 5, 0, 0)).toBe(0.05);
-    for (const [x, z] of [[-75, 10], [30, -100]]) { const v = shadowLift(groundY, x, z); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(0.05); }
+    expect(shadowLift((x) => x * 5, 0, 0)).toBe(0.1);
+    for (const [x, z] of [[-75, 10], [30, -100]]) { const v = shadowLift(groundY, x, z); expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(0.1); }
   });
 });
