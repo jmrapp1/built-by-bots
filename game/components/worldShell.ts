@@ -11,6 +11,7 @@ import { groundY } from "@/lib/ground";
 import { INK, homeEase, regionInk } from "@/lib/groundInk";
 import { applyInk } from "@/components/groundInkShader";
 import { CREASES, PATTERNS, TIDES, creaseMix, patchMix, tideMix } from "@/lib/groundPatterns";
+import { grassInChunk } from "@/lib/foliage";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
@@ -46,6 +47,19 @@ export function tuftGeo(): THREE.BufferGeometry {
     parts.push(paint(plain(wobbleSphere(0.075, 0.1, 7 + k, 6).translate(ox, 0.42, oz)), bloom[k]));
   }
   return mergeGeometries(parts)!;
+}
+/** F1: a grass bundle: five thin tapered blades (two triangles each) leaning a little apart, dark at the root and light at the tip, one colour per vertex. Every blade starts on the ground (walk-through, ankle to knee high). */
+export function grassGeo(): THREE.BufferGeometry {
+  const pos: number[] = [], col: number[] = [], root = new THREE.Color("#4f7a3f"), tip = new THREE.Color("#a9c86a");
+  const v = (x: number, y: number, z: number, t: number) => { pos.push(x, y, z); const c = root.clone().lerp(tip, t); col.push(c.r, c.g, c.b); };
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2 + 0.3, h = 0.5 + 0.12 * Math.sin(k * 2.3), lean = 0.12 + 0.05 * Math.cos(k * 1.7), bx = Math.cos(a) * 0.1, bz = Math.sin(a) * 0.1;
+    const dx = -Math.sin(a) * 0.035, dz = Math.cos(a) * 0.035, mx = bx + Math.cos(a) * lean * 0.4, mz = bz + Math.sin(a) * lean * 0.4, tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
+    v(bx - dx, 0, bz - dz, 0); v(bx + dx, 0, bz + dz, 0); v(mx + dx * 0.5, h * 0.6, mz + dz * 0.5, 0.6);
+    v(bx - dx, 0, bz - dz, 0); v(mx + dx * 0.5, h * 0.6, mz + dz * 0.5, 0.6); v(mx - dx * 0.5, h * 0.6, mz - dz * 0.5, 0.6);
+    v(mx - dx * 0.5, h * 0.6, mz - dz * 0.5, 0.6); v(mx + dx * 0.5, h * 0.6, mz + dz * 0.5, 0.6); v(tx, h, tz, 1);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3)); g.computeVertexNormals(); return g;
 }
 /** E5: an ink drip hung in the air: a thin thread that swells into a teardrop (walk-through, drawn at head height and above). */
 const dripGeo = (): THREE.BufferGeometry => mergeGeometries([plain(lathe([[0, 3.9], [0.02, 3.9], [0.02, 3.1], [0.13, 2.95], [0.11, 2.55], [0.05, 2.3], [0, 2.15]], 6))])!;
@@ -135,7 +149,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     pole: keep(poleGeo(0.8, 1, 1, 8).translate(0, 0.5, 0)),
     cyl: keep(unitCylGeo()),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
-    tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
+    grass: keep(grassGeo()), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
   };
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
   for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
@@ -143,7 +157,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     paper: keep(new THREE.MeshToonMaterial({ color: "#f1dfae" })), ink: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })),
     red: keep(new THREE.MeshToonMaterial({ color: "#d9606b" })), leaf: keep(new THREE.MeshToonMaterial({ color: WORLD.look.inkwood.crown })),
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
-    tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })), drip: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })), fern: keep(new THREE.MeshToonMaterial({ color: "#4f7a5e", side: THREE.DoubleSide })), pin: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), stone: keep(new THREE.MeshToonMaterial({ color: "#d8d0b8" })), reed: keep(new THREE.MeshToonMaterial({ vertexColors: true })), wood: keep(new THREE.MeshToonMaterial({ color: "#b9a88a" })), gbook: keep(new THREE.MeshToonMaterial({ vertexColors: true })),
+    grass: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })), drip: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })), fern: keep(new THREE.MeshToonMaterial({ color: "#4f7a5e", side: THREE.DoubleSide })), pin: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), stone: keep(new THREE.MeshToonMaterial({ color: "#d8d0b8" })), reed: keep(new THREE.MeshToonMaterial({ vertexColors: true })), wood: keep(new THREE.MeshToonMaterial({ color: "#b9a88a" })), gbook: keep(new THREE.MeshToonMaterial({ vertexColors: true })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
     shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
     water: keep(new THREE.MeshToonMaterial({ color: "#4d6a78" })), deck: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
@@ -300,7 +314,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
       g.add(im); ims.push(im);
     };
     make(G.trunk, m.trunk, c.trees); make(G.crownLow, m.crown, c.trees); make(G.crownHigh, m.crown, c.trees);
-    make(G.rock, m.rock, c.rocks, 1, opts.ground ? SINK : 0); make(G.bush, m.bush, c.bushes);
+    make(G.rock, m.rock, c.rocks, 1, opts.ground ? SINK : 0); make(G.bush, m.bush, c.bushes, 1, opts.ground ? SINK : 0);
     for (const l of c.landmarks) { const o = landmark(l); g.add(o); extra.push(o); }
     let fInst = 0;
     if (opts.features) { // E3: the authored groves, belts, rings and rows, drawn with their own region's look and the same shapes as the scatter
@@ -309,11 +323,12 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
         const mine = fs.filter((i) => FEATURE_REGION.get(i.f) === reg), fm = M[reg];
         const trees = mine.filter((i) => i.k === "tree");
         make(G.trunk, fm.trunk, trees); make(G.crownLow, fm.crown, trees); make(G.crownHigh, fm.crown, trees);
-        make(G.rock, fm.rock, mine.filter((i) => i.k === "rock"), 1, opts.ground ? SINK : 0); make(G.bush, fm.bush, mine.filter((i) => i.k === "bush"));
+        make(G.rock, fm.rock, mine.filter((i) => i.k === "rock"), 1, opts.ground ? SINK : 0); make(G.bush, fm.bush, mine.filter((i) => i.k === "bush"), 1, opts.ground ? SINK : 0);
       }
       fInst = featureInstanceCount(fs);
       const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, Inkwood drips and ferns, Downs pinwheels and page-stones, Shore reeds and driftwood, one instanced draw per shape
-      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft")); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); make(G.pinwheel, L.pin, ps.filter((i) => i.k === "pinwheel")); make(G.pagestone, L.stone, ps.filter((i) => i.k === "pagestone"), 1, opts.ground ? SINK : 0); make(G.reed, L.reed, ps.filter((i) => i.k === "reed")); make(G.driftwood, L.wood, ps.filter((i) => i.k === "driftwood"), 1, opts.ground ? SINK : 0); make(G.bookstack, L.gbook, ps.filter((i) => i.k === "bookstack"), 1, opts.ground ? SINK : 0); make(G.glyphpillar, L.gbook, ps.filter((i) => i.k === "glyphpillar"), 1, opts.ground ? SINK : 0); make(G.lamppost, L.gbook, ps.filter((i) => i.k === "lamppost"), 1, opts.ground ? SINK : 0); fInst += ps.length;
+      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft"), 1, opts.ground ? SINK : 0); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); make(G.pinwheel, L.pin, ps.filter((i) => i.k === "pinwheel")); make(G.pagestone, L.stone, ps.filter((i) => i.k === "pagestone"), 1, opts.ground ? SINK : 0); make(G.reed, L.reed, ps.filter((i) => i.k === "reed")); make(G.driftwood, L.wood, ps.filter((i) => i.k === "driftwood"), 1, opts.ground ? SINK : 0); make(G.bookstack, L.gbook, ps.filter((i) => i.k === "bookstack"), 1, opts.ground ? SINK : 0); make(G.glyphpillar, L.gbook, ps.filter((i) => i.k === "glyphpillar"), 1, opts.ground ? SINK : 0); make(G.lamppost, L.gbook, ps.filter((i) => i.k === "lamppost"), 1, opts.ground ? SINK : 0); fInst += ps.length;
+      const gr = grassInChunk(ix, iz); make(G.grass, L.grass, gr, 1, opts.ground ? SINK : 0); fInst += gr.length; // F1: the grass layer, own budget, no collider (casts like every prop)
       for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
         const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.castShadow = true; o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
       }
