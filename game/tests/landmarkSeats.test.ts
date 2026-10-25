@@ -99,6 +99,11 @@ describe("landmark seats: wiring and limits", () => {
     expect(world).toMatch(/seatsDrawn && zones\.is\("garden"\)/);
     expect(world).not.toMatch(/SEATS[^\n]*(onGather|onInteract|fetch|localStorage)/);
   });
+  it("World passes the real production flag to seatsOn, so ?seats=off can never reach a live build", () => {
+    const calls = world.match(/seatsOn\([^\n]*\)/g) ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('seatsOn(window.location.search, process.env.NODE_ENV === "production")');
+  });
   it("the bench in the Garden still sits at the night spot facing the bed", () => {
     expect(world).toContain('if (was === "standing") { sitTo = NIGHT.sit; sitFace = NIGHT.bed; }');
     expect(world).toContain("let sitTo: Vec = NIGHT.sit, sitFace: Vec = NIGHT.bed");
