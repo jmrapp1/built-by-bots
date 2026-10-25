@@ -13,10 +13,10 @@ const items = buildProps();
 const shellOf = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-34, 0, true); return { scene, shell }; };
 
 describe("prop data", () => {
-  it("has unique ids, Meadow and Inkwood only so far, all four shapes, and counts that fit the cap", () => {
+  it("has unique ids, Meadow, Inkwood and Paper Downs only so far, all six shapes, and counts that fit the cap", () => {
     expect(new Set(PROPS.map((p) => p.id)).size).toBe(PROPS.length);
-    for (const p of PROPS) { expect(["meadow", "inkwood"], p.id).toContain(p.region); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
-    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack", "drip", "fern"]));
+    for (const p of PROPS) { expect(["meadow", "inkwood", "paper_downs"], p.id).toContain(p.region); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
+    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack", "drip", "fern", "pinwheel", "pagestone"]));
   });
   it("every patch builds something", () => { for (const p of PROPS) expect(buildPatch(p).length, p.id).toBeGreaterThan(0); });
 });
@@ -77,10 +77,31 @@ describe("Inkwood Edge", () => {
   });
 });
 
+describe("Paper Downs", () => {
+  const dn = items.filter((i) => regionAt(i.z, i.x) === "paper_downs");
+  it("has pinwheels and page-stones, every one inside the Downs; only page-stones are solid", () => {
+    expect(new Set(dn.map((i) => i.k))).toEqual(new Set(["pinwheel", "pagestone"]));
+    expect(dn.length).toBe(items.filter((i) => i.k === "pinwheel" || i.k === "pagestone").length);
+    expect(propCircles(dn).length).toBe(dn.filter((i) => i.k === "pagestone").length);
+    for (const p of PROPS.filter((q) => q.region === "paper_downs")) expect(buildPatch(p).length, p.id).toBeGreaterThanOrEqual(Math.floor(p.count / 2));
+  });
+  it("is deterministic and a changed seed changes it", () => {
+    for (const kind of ["pinwheel", "pagestone"]) {
+      const p = PROPS.find((q) => q.kind === kind)!;
+      expect(JSON.stringify(buildPatch(p))).toBe(JSON.stringify(buildPatch(p)));
+      expect(JSON.stringify(buildPatch({ ...p, seed: p.seed + 1 }))).not.toBe(JSON.stringify(buildPatch(p)));
+    }
+  });
+  it("with the features on, a shell in the Downs draws the new shapes; off draws none", () => {
+    const at = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(92, -90, true); return shell.stats().instances; };
+    expect(at(true)).toBeGreaterThan(at(false));
+  });
+});
+
 describe("walking", () => {
   const base = worldColliders(), withP = { circles: [...base.circles, ...featureCircles(buildAll()), ...propCircles(items)], boxes: [...base.boxes, ...hedgeBoxes(buildHedges())] };
-  it("with the haystacks in (tufts, drips and ferns are walk-through), the walk from the spawn still reaches every landmark, the gate, the signposts and the corners, and seals no room-sized pocket", () => {
-    expect(propCircles(items).length).toBe(items.filter((i) => i.k === "haystack").length);
+  it("with the haystacks in (tufts, drips, ferns and pinwheels are walk-through), the walk from the spawn still reaches every landmark, the gate, the signposts and the corners, and seals no room-sized pocket", () => {
+    expect(propCircles(items).length).toBe(items.filter((i) => i.k === "haystack" || i.k === "pagestone").length);
     const r1 = reachability(withP, 0.5), rr = reachReport(r1, map.signposts);
     expect(Object.values(rr.landmarksReached).every(Boolean)).toBe(true);
     expect(rr.gateReached).toBe(true); expect(rr.signpostsReached).toBe(rr.signposts); expect(rr.corners.every(Boolean)).toBe(true);
