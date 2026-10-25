@@ -202,7 +202,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
 
   const landmark = (l: Contents["landmarks"][number]): THREE.Object3D => {
     const g = new THREE.Group(); g.position.set(l.x, gy(l.x, l.z), l.z);
-    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy: number, sz: number, y = 0, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.y = y; m.rotation.y = rotY; g.add(m); return m; };
+    const add = (geo: THREE.BufferGeometry, mat: THREE.Material, sx: number, sy: number, sz: number, y = 0, rotY = 0) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.scale.set(sx, sy, sz); m.position.y = y; m.rotation.y = rotY; g.add(m); return m; };
     if (l.kind === "tower") { // the Page Tower: a stack of pages with an ink band and a red cap
       add(G.box, L.paper, l.r * 2, l.h * 0.3, l.r * 2); add(G.box, L.paper, l.r * 1.94, l.h * 0.26, l.r * 2.04, l.h * 0.3, 0.05); add(G.box, L.paper, l.r * 2.03, l.h * 0.22, l.r * 1.96, l.h * 0.56, -0.04); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.5); add(G.box, L.ink, l.r * 2.15, 0.9, l.r * 2.15, l.h * 0.22);
       add(G.spike, L.red, l.r * 3, l.h * 0.26, l.r * 3, l.h * 0.78, Math.PI / 4); // the cap's tip bends (the spec's curled top page is not done)
@@ -242,9 +242,10 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
 
   const build = (ix: number, iz: number) => {
     const c = scatterOf(ix, iz), g = new THREE.Group(), ims: THREE.InstancedMesh[] = [], extra: THREE.Object3D[] = [], m = M[c.region];
-    const make = (geo: THREE.BufferGeometry, mat: THREE.Material, items: { x: number; z: number; s: number; r: number }[], sy = 1, sink = 0) => {
+    const make = (geo: THREE.BufferGeometry, mat: THREE.Material, items: { x: number; z: number; s: number; r: number }[], sy = 1, sink = 0, cast = true) => {
       if (!items.length) return;
       const im = new THREE.InstancedMesh(geo, mat, items.length);
+      im.castShadow = cast; // instanced meshes do not cast unless told to; tufts, ferns and drips are too small to be worth a shadow
       items.forEach((it, i) => { tmp.position.set(it.x, gy(it.x, it.z) - sink, it.z); tmp.rotation.set(0, it.r, 0); tmp.scale.set(it.s, it.s * sy, it.s); tmp.updateMatrix(); im.setMatrixAt(i, tmp.matrix); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); // so each chunk is culled on its own
       g.add(im); ims.push(im);
@@ -263,9 +264,9 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
       }
       fInst = featureInstanceCount(fs);
       const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, Inkwood drips and ferns, one instanced draw per shape
-      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft")); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); fInst += ps.length;
+      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft"), 1, 0, false); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip"), 1, 0, false); make(G.fern, L.fern, ps.filter((i) => i.k === "fern"), 1, 0, false); fInst += ps.length;
       for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
-        const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
+        const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.castShadow = true; o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
       }
     }
     group.add(g);
