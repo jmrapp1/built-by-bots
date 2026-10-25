@@ -1,0 +1,12 @@
+{
+  "note": "E6: ground patterns, painted into the ground vertex colours only (no geometry, no shader). Runs only with features.enabled on; anything else is today's ground exactly. Region by region: this slice is Meadow field patches (a quilt of irregular fields, each a slightly different green). 'regions' is the strength per region (0 = untouched, so only Meadow changes now). Fields are the cells of a jittered grid ('cell' m, 'jitter' 0..0.5 of a cell); each field takes one tint from 'tints' and mixes 'strength' of it into the ground colour. 'homeEase' m: the patches fade to nothing at the edge of the Home square. Metres. Guesses, tuned by eye.",
+  "groundPatterns": {
+    "cell": 26,
+    "jitter": 0.4,
+    "strength": 0.22,
+    "homeEase": 24,
+    "seed": 606,
+    "tints": ["#b9d98a", "#8fc79a", "#d3e08f", "#a4cf7c", "#c9dc9f"],
+    "regions": { "meadow": 1.0, "inkwood": 0, "paper_downs": 0, "glyph_quarter": 0, "pressmark_shore": 0 }
+  }
+}
