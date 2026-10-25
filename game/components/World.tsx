@@ -74,6 +74,7 @@ import { buildDecorScene, type DecorScene } from "@/components/decorScene";
 import { nearestPlot, type Placed } from "@/lib/decor";
 import { buildWorldShell, type WorldShell } from "@/components/worldShell";
 import { buildSkyScene, type SkyScene } from "@/components/skyScene";
+import { tintEnabled, tintLight, utcMonth } from "@/lib/monthTint";
 import { cloudsEnabled, hazeAt, hazeEnabled, hazeFog, hillsEnabled, moonPhase, skyEnabled, starsEnabled, zenithAt } from "@/lib/sky";
 import { OFF, buildGate, buildMarginsScene, type MarginsScene } from "@/components/marginsScene";
 import { READING, READING_ENABLED, READING_OFF, READING_SPOTS, doorArrival as readingArrival, doorPath as readingDoorPath, doorYaw as readingYaw, findLook, inDoorZone as inReadingDoor, levelFor, levelStep as readingLevelStep, marginsDoorCircles, nearestReadingSpot, openedFromKeys, previewKind, quietIfUnknown, readingOverride, roomColliders as readingColliders, roomWalkEnd, spotKey as readingSpotKey, type Look } from "@/lib/reading";
@@ -1082,10 +1083,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     // Re-read the clock about once a second. The change itself is slow and eased,
     // so there is no sudden flash, which also keeps it gentle for reduced-motion.
     let lightClock = 0;
+    const monthTintOn = tintEnabled(window.location.search, process.env.NODE_ENV === "production"); // month tint; ?tint=off is dev only
     const applyLight = () => {
       hourNow = override ?? hourOfDay(new Date());
       const inRoom = zones.is("home") || zones.is("reading"), roomSky = zones.is("reading") ? READING.look.sky : HOME_ROOM.look.sky; // a room: fixed soft daylight, its own sky colour, no clock inside
-      const L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : zones.is("reading") ? READING.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
+      let L = weatherLight(lightingAt(zones.is("home") ? HOME_ROOM.light.hour : zones.is("reading") ? READING.light.hour : hourNow), zones.is("garden") ? weatherNow(hourNow).tint : 0); // S25: a touch greyer in the garden while it drizzles. The room has fixed soft daylight; no clock inside
+      if (monthTintOn && zones.is("garden")) L = tintLight(L, utcMonth(new Date()), hourNow); // month tint: the World's daylight only, faded out at dawn, dusk and night
       (scene.background as THREE.Color).set(inRoom ? roomSky : L.sky);
       const haze = hazeOn && zones.is("garden") ? hazeAt(hourNow) : null;
       (scene.fog as THREE.Fog).color.set(inRoom ? roomSky : hazeFog(L.fog, haze));
