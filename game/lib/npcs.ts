@@ -2,6 +2,8 @@
 // timings and the hint cycle. No three.js, clock or server here. Lines live in data/npcs.json.
 // Missing or malformed data skips the neighbour; it never throws.
 import npcData from "@/data/npcs.json";
+import worldNpcData from "@/data/worldNpcs.json";
+import { HALF } from "@/lib/worldMap";
 import { MARGINS, gateFrame, gatePosts, inGateZone } from "@/lib/margins";
 import { insideAny, type Colliders, type Vec } from "@/lib/world";
 
@@ -25,6 +27,9 @@ export const LOOKS = ["moth", "owl", "traveller"] as const;
 export type Look = (typeof LOOKS)[number];
 // Two ways to place a neighbour: beside the Margins gate, or at a fixed point in the Margins (with a rest facing).
 export type Spot = { from: "gate"; out: number; side: number } | { at: [number, number]; face: number };
+// "margins" neighbours stand in the Margins (all the original ones). "world" neighbours stand at a fixed point in the open World
+// (data/worldNpcs.json): they only speak short lines, and have no gift, no day list and no gate form.
+export type NpcArea = "margins" | "world";
 export type Hint = { text: string; icons: IconName[] };
 // N4: the words for the one-time gift (the server decides whether it is given; these are only the lines).
 export type GiftWords = { line: string; thanks: string; icons: IconName[] };
@@ -33,7 +38,7 @@ export type Gift2Words = { line: string; thanks: string; waiting: string; icons:
 export type AtSpot = { at: [number, number]; face: number };
 export const MAX_DAY_SPOTS = 9, MIN_DAY_SPOTS = 3;
 export type Npc = {
-  id: string; name: string; look: Look; area: "margins"; prompt: string; radius: number;
+  id: string; name: string; look: Look; area: NpcArea; prompt: string; radius: number;
   spot: Spot; // where she stands (for a neighbour with `spots`, the first of them)
   spots: AtSpot[] | null; // N3: a short list; the day picks one (null for the others)
   noticeEnter: number; noticeLeave: number; talkEnter: number; talkLeave: number;
@@ -55,8 +60,10 @@ export function checkNpc(raw: unknown): Npc | null {
     const r = raw as Record<string, any>;
     if (!r || typeof r !== "object") return null;
     if (typeof r.id !== "string" || !r.id || typeof r.name !== "string" || typeof r.prompt !== "string" || !r.prompt) return null;
-    if (r.area !== "margins" || !LOOKS.includes(r.look)) return null;
-    const half = MARGINS.size / 2 - 2;
+    if ((r.area !== "margins" && r.area !== "world") || !LOOKS.includes(r.look)) return null;
+    const world = r.area === "world";
+    if (world && (r.spots !== undefined || r.gift !== undefined || r.gift2 !== undefined || !r.spot || r.spot.from !== undefined)) return null; // a World neighbour: one fixed point, words only
+    const half = world ? HALF - 2 : MARGINS.size / 2 - 2;
     const atSpot = (v: any): AtSpot | null => {
       if (!v || typeof v !== "object" || !Array.isArray(v.at) || v.at.length !== 2) return null;
       const [x, z] = v.at;
@@ -102,7 +109,7 @@ export function checkNpc(raw: unknown): Npc | null {
       const okLine = (t: unknown) => typeof t === "string" && !!t.trim() && t.length <= MAX_LINE;
       if (icons && wi && okLine(w.line) && okLine(w.thanks) && okLine(w.waiting)) gift2 = { line: w.line, thanks: w.thanks, waiting: w.waiting, icons, waitingIcons: wi };
     }
-    return { id: r.id, name: r.name, look: r.look, area: "margins", prompt: r.prompt, radius: r.radius, spot, spots,
+    return { id: r.id, name: r.name, look: r.look, area: r.area as NpcArea, prompt: r.prompt, radius: r.radius, spot, spots,
       noticeEnter: r.noticeEnter, noticeLeave: r.noticeLeave, talkEnter: r.talkEnter, talkLeave: r.talkLeave, timeIcons, otherwise: g.otherwise, extra, hints, gift, gift2 };
   } catch { return null; }
 }
@@ -117,7 +124,9 @@ export function checkNpcs(raw: unknown): Npc[] {
     return out;
   } catch { return []; }
 }
-export const NPCS: Npc[] = checkNpcs(npcData);
+export const NPCS: Npc[] = checkNpcs(npcData).filter((n) => n.area === "margins"); // the Margins neighbours, as before
+/** Neighbours in the open World: words only, nothing given, saved or sent. A Margins entry in this file is ignored. */
+export const WORLD_NPCS: Npc[] = checkNpcs(worldNpcData).filter((n) => n.area === "world");
 export const npcById = (id: string, list: Npc[] = NPCS): Npc | null => list.find((n) => n.id === id) ?? null;
 
 // The day number from a YYYY-MM-DD string (the game's UTC day), or null when it is not a day.

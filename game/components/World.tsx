@@ -1,6 +1,6 @@
 "use client";
 import { createZoneController } from "@/lib/zones";
-import { NOTICE0, NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, npcSpotUsable, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
+import { NOTICE0, NPCS, WORLD_NPCS, TALK0, closeTalk, greetingIcons, noticeStep, npcSpot, npcSpotUsable, talk, talkStillNear, withinSlack, type Notice, type Npc, type Talk } from "@/lib/npcs";
 import { buildNpc, type NpcScene } from "@/components/npcScene";
 import { buildSights, type SightScene } from "@/components/sightScene";
 import { SIGHTS, levelStep, sightLevel, sightsForDay } from "@/lib/sights";
@@ -501,6 +501,22 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     };
     const dropRegionSights = () => { for (const sc of regionSights.values()) { try { sc.dispose(); } catch { /* nothing */ } } regionSights.clear(); };
     const dropNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); live_npcs = live_npcs.filter((o) => o !== n); rebuildNpcCols(); };
+    // Neighbours in the open World (words only): built with the World shell, freed with it. Each stands at one fixed point.
+    let wNpcs: Live[] = [], wNpcNear: Place | null = null;
+    const buildWorldNpcs = () => {
+      if (wNpcs.length) return;
+      for (const npc of WORLD_NPCS) {
+        try {
+          const at = npcSpot(npc);
+          const scene2 = buildNpc(npc);
+          scene2.group.position.set(at.x, groundHeight ? groundY(at.x, at.z) : 0, at.z);
+          scene.add(scene2.group);
+          wNpcs.push({ npc, scene: scene2, at, note: NOTICE0, talk: TALK0, t: 0 });
+        } catch { /* skip only this neighbour */ }
+      }
+    };
+    const dropWNpc = (n: Live) => { closeNpcTalk(n); n.scene.dispose(); wNpcs = wNpcs.filter((o) => o !== n); };
+    const dropWorldNpcs = () => { for (const n of [...wNpcs]) closeNpcTalk(n); for (const n of wNpcs) n.scene.dispose(); wNpcs = []; };
     const dropNpcs = () => { for (const n of [...live_npcs]) closeNpcTalk(n); for (const n of live_npcs) n.scene.dispose(); live_npcs = []; if (mLayout) mCols = mLayout.cols; };
     const wipe = document.createElement("div");
     wipe.className = "page-wipe";
@@ -579,6 +595,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     const startSpots = () => {
       buildShoreSights(); // T2: the shore sights come and go with the spots (built once per stay)
       buildRegionSights();
+      buildWorldNpcs();
       if (spotsOff || sc) return;
       wDay = utcDay(new Date()); // fixed for this stay in the garden; a new day is laid out on the next return
       wSpots = allSpotsForDay(wDay);
@@ -595,7 +612,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       });
       reportSpots();
     };
-    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); dropRegionSights(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
+    const stopSpots = () => { dropScraps(); dropDream(); dropDrizzle(); dropShoreSights(); dropRegionSights(); dropWorldNpcs(); wVisit++; sc?.dispose(); sc = null; wSpots = []; wCand = null; wHold = 0; wPending = false; wReportKey = ""; };
     // W2: the World round the garden belongs to the garden zone: built on entering it, freed on leaving it.
     let shell: WorldShell | null = null;
     let gdoor: HomeScene | null = null;
@@ -953,7 +970,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let guideAt = 0, guideSent = false, stateAt = 0;
     const talkTo = (n: Live) => {
       if (live.current.locked || travel) return;
-      for (const o of live_npcs) if (o !== n) closeNpcTalk(o, false); // never two strips at once
+      for (const o of [...live_npcs, ...wNpcs]) if (o !== n) closeNpcTalk(o, false); // never two strips at once
       n.talk = talk(n.talk, n.npc.hints.length);
       const h = n.npc.hints[n.talk.shown];
       if (h) cb.current.onNpcTalk?.({ id: n.npc.id, name: n.npc.name, text: h.text, icons: h.icons, last: n.talk.shown === n.npc.hints.length - 1 });
@@ -988,7 +1005,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         } else if (zones.is("home")) {
           if (nearby?.kind === "decor" && !live.current.locked) cb.current.onInteract(nearby); // ?decor=stub: open the strip for this plot
         } else if (nearby?.kind === "npc") {
-          const n = live_npcs.find((o) => `npc-${o.npc.id}` === nearby?.id);
+          const n = [...live_npcs, ...wNpcs].find((o) => `npc-${o.npc.id}` === nearby?.id);
           if (n) talkTo(n);
         } else if (zones.is("margins")) {
           // unfolding is a hold, handled each frame
@@ -1024,12 +1041,12 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
       if (lookOn && e.pointerType !== "mouse" && e.pointerId !== lookId) return;
       dragging = false;
       const d = downAt; downAt = null;
-      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !live_npcs.length || !zones.is("margins") || travel) return;
+      if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5 || !(zones.is("margins") ? live_npcs.length : zones.is("garden") ? wNpcs.length : 0) || travel) return;
       const r = dom.getBoundingClientRect(); // a tap on one, close enough to talk, is the same as pressing E
       const ray = new THREE.Raycaster();
       ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-      for (const n of live_npcs) {
-        if (Math.hypot(pos.x - OFF - n.at.x, pos.z - n.at.z) > n.npc.talkLeave) continue;
+      for (const n of zones.is("margins") ? live_npcs : wNpcs) {
+        if (Math.hypot(pos.x - (zones.is("margins") ? OFF : 0) - n.at.x, pos.z - n.at.z) > n.npc.talkLeave) continue;
         if (ray.intersectObject(n.scene.hit, true).length) { talkTo(n); break; }
       }
     };
@@ -1145,8 +1162,9 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
     let raf = 0;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches || !!rPreview?.reduced; // ?reading=reduced (dev only) also forces it
     // The player walks the whole World; collision data for the streamed chunks comes from the pure map, never from what is drawn.
-    const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8)], boxes: [...cols.boxes, ...shell.boxesNear(pos.x, pos.z, 8)] } : cols);
-    const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8)], boxes: [...cols.boxes, ...shell.boxesNear(x, z, 8)] } : cols);
+    const wNpcCircles = () => wNpcs.map((n) => ({ x: n.at.x, z: n.at.z, r: n.npc.radius }));
+    const gardenCols = () => (shell ? { circles: [...cols.circles, ...shell.circlesNear(pos.x, pos.z, 8), ...wNpcCircles()], boxes: [...cols.boxes, ...shell.boxesNear(pos.x, pos.z, 8)] } : cols);
+    const colsAt = (x: number, z: number): Colliders => (shell ? { circles: [...cols.circles, ...shell.circlesNear(x, z, 8), ...wNpcCircles()], boxes: [...cols.boxes, ...shell.boxesNear(x, z, 8)] } : cols);
     const FAR: Vec = { x: 1e6, z: 1e6 };
     // One frame of walking to a goal anywhere in the World, along a route that is re-planned every routeEvery seconds.
     const walkTo = (w: Wander, st: Walk, goal: Vec, speed: number, dt: number, ts: number, gc: Colliders, player: Vec): { w: Wander; moving: boolean } => {
@@ -1836,7 +1854,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
               if (withinSlack(dist, nearby?.id === `npc-${n.npc.id}`, n.npc.talkEnter, n.npc.talkLeave) && (!best || dist < best.dist)) best = { n, dist };
             } catch { dropNpc(n); } // broken at runtime: skip only this one, keep the world
           }
-          if (live.current.npcClose !== npcClosed) { npcClosed = live.current.npcClose; for (const n of live_npcs) closeNpcTalk(n); }
+          if (live.current.npcClose !== npcClosed) { npcClosed = live.current.npcClose; for (const n of [...live_npcs, ...wNpcs]) closeNpcTalk(n); }
           if (best && !mActive && !uSpot && !inGateZone(l, "home")) mNear = { id: `npc-${best.n.npc.id}`, kind: "npc", x: best.n.at.x + OFF, z: best.n.at.z, label: best.n.npc.prompt, prompt: best.n.npc.prompt };
         }
         if (sights) { // T1: the fade follows the hour (a plain short fade with reduced motion); the first time you come near one, its caption
@@ -1955,6 +1973,22 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (zones.is("garden")) drizzle.update(weatherNow(hourNow), t / 1000, reducedMotion, { x: pos.x, z: pos.z }, wander ? { x: wander.x, z: wander.z } : { x: NIGHT.bed.x, z: NIGHT.bed.z });
         else drizzle.object.visible = false;
       }
+      if (wNpcs.length && zones.is("garden")) { // World neighbours: notice, turn and bloom the bubble like the Margins ones; a strip closes when you walk off
+        let best: { n: Live; dist: number } | null = null;
+        for (const n of [...wNpcs]) {
+          try {
+            const dist = Math.hypot(pos.x - n.at.x, pos.z - n.at.z);
+            n.note = noticeStep(n.note, dist, n.npc.noticeEnter, n.npc.noticeLeave, dt, reducedMotion);
+            n.t += dt;
+            n.scene.update({ t: n.t, turn: n.note.turn, bubble: n.note.bubble, faceYaw: Math.atan2(pos.x - n.at.x, pos.z - n.at.z), restYaw: n.at.face, reduced: reducedMotion, icons: greetingIcons(n.npc, hourNow) });
+            const was = n.talk.open;
+            n.talk = talkStillNear(n.talk, dist, n.npc);
+            if (was && !n.talk.open) cb.current.onNpcTalk?.(null);
+            if (withinSlack(dist, nearby?.id === `npc-${n.npc.id}`, n.npc.talkEnter, n.npc.talkLeave) && (!best || dist < best.dist)) best = { n, dist };
+          } catch { dropWNpc(n); } // broken at runtime: skip only this one, keep the world
+        }
+        wNpcNear = best && !travel ? { id: `npc-${best.n.npc.id}`, kind: "npc", x: best.n.at.x, z: best.n.at.z, label: best.n.npc.prompt, prompt: best.n.npc.prompt } : null;
+      } else wNpcNear = null;
       if (dayScraps && zones.is("garden")) dayScraps.update(t / 1000, reducedMotion); // the day's scraps lift and settle the same way
       if (glyphScraps && zones.is("garden")) glyphScraps.update(t / 1000, reducedMotion); // S23: only the lift and tilt; skipped for reduced motion inside
       // W5: the spots across the World. Hold E at a folded page; the server says what is inside.
@@ -2057,7 +2091,7 @@ export default function World({ genes, prints, focusId = null, onFocus, species 
         if (want && want !== decorShown) { decorShown = want; decor.show(want, t / 1000); }
         decor.update(t / 1000, reducedMotion, nearby?.kind === "decor" ? nearby.id : null);
       }
-      const n = travel ? null : zones.is("margins") ? mNear : zones.is("reading") ? rNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
+      const n = travel ? null : zones.is("margins") ? mNear : zones.is("reading") ? rNear : zones.is("home") ? (inDoorZone({ x: pos.x - ROOM_OFF, z: pos.z }, "room") ? ROOM_DOOR : decor && !travel ? nearestPlot({ x: pos.x - ROOM_OFF, z: pos.z }) : null) : wNear ?? wNpcNear ?? (inDoorZone(pos, "garden") ? GARDEN_DOOR : nearestPlace(pos));
       if (n?.id !== nearby?.id) { nearby = n; cb.current.onNearby(n); }
       if (skyScene) skyScene.update({ at: camera.position, hour: hourNow, t: t / 1000, reduced: reducedMotion, phase: skyPhase, weather: zones.is("garden") ? weatherNow(hourNow).tint : 0, cover: zones.is("garden") ? weatherNow(hourNow).intensity : 0 });
       renderer.render(scene, camera);
