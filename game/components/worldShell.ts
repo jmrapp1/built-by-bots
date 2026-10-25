@@ -10,7 +10,7 @@ import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import { groundY } from "@/lib/ground";
 import { INK, homeEase, regionInk } from "@/lib/groundInk";
 import { applyInk } from "@/components/groundInkShader";
-import { CREASES, PATTERNS, creaseMix, patchMix } from "@/lib/groundPatterns";
+import { CREASES, PATTERNS, TIDES, creaseMix, patchMix, tideMix } from "@/lib/groundPatterns";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
@@ -157,12 +157,12 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   const BLEND = 16; // metres either side of a region edge
   const gg = keep(new THREE.PlaneGeometry(WORLD.size, WORLD.size, SEG, SEG));
   { // vertex colours: meadow in the south, inkwood in the north, blended over a band round the region edge
-    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), sh = new THREE.Color(WORLD.look.pressmark_shore.ground), c = new THREE.Color(), tints = PATTERNS.tints.map((h) => new THREE.Color(h)), shade = new THREE.Color(CREASES.shade), ridge = new THREE.Color(CREASES.light);
+    const pos = gg.attributes.position, col: number[] = [], a = new THREE.Color(WORLD.look.meadow.ground), b = new THREE.Color(WORLD.look.inkwood.ground), d = new THREE.Color(WORLD.look.paper_downs.ground), q = new THREE.Color(WORLD.look.glyph_quarter.ground), sh = new THREE.Color(WORLD.look.pressmark_shore.ground), c = new THREE.Color(), tints = PATTERNS.tints.map((h) => new THREE.Color(h)), shade = new THREE.Color(CREASES.shade), ridge = new THREE.Color(CREASES.light), tide = new THREE.Color(TIDES.dark);
     for (let i = 0; i < pos.count; i++) {
       const wx = pos.getX(i), wz = -pos.getY(i), north = Math.min(1, Math.max(0, (WORLD.inkwoodZ + 14 - wz) / 28)), east = Math.min(1, Math.max(0, (wx - WORLD.paperDownsX + 14) / 28)), south = soft((wz - WORLD.glyphZ + BLEND) / (BLEND * 2));
       const shore = soft((wx - WORLD.shoreX + BLEND) / (BLEND * 2)) * (1 - north) * (1 - south);
       c.copy(a).lerp(b, north).lerp(d, north * east).lerp(q, south).lerp(sh, shore);
-      if (opts.features) { const m = patchMix(wx, wz); if (m.amount > 0) c.lerp(tints[m.tint], m.amount); const cm = creaseMix(wx, wz); if (cm.amount > 0) c.lerp(cm.ridge ? ridge : shade, cm.amount); } // E6: field patches, ground colour only; off = the lines above, untouched
+      if (opts.features) { const m = patchMix(wx, wz); if (m.amount > 0) c.lerp(tints[m.tint], m.amount); const cm = creaseMix(wx, wz); if (cm.amount > 0) c.lerp(cm.ridge ? ridge : shade, cm.amount); const tm = tideMix(wx, wz); if (tm > 0) c.lerp(tide, tm); } // E6: field patches, ground colour only; off = the lines above, untouched
       col.push(c.r, c.g, c.b);
     }
     gg.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
