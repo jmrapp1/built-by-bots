@@ -1,11 +1,14 @@
 // C1: seeded clusters. Most scenery lives in groups with a centre, a shape and bare ground round them; the old uniform scatter keeps only a thin 'stray' share.
 // Pure and seeded, the buildFeature pattern: every cluster builds its whole item list from its own seed, independent of chunk edges, and a chunk takes the items inside it.
 // The build is global and cached, so the result never depends on which chunk is asked for first. No Math.random, no clock, no three.js.
-// The land rule (slope, dips, path edges) is slice C2: here every site is accepted. Caps are slice C3: here they are unchanged.
+// C2: the land rule. A cell site is accepted only if the land gives its kind a reason to be there (slope, dips, path edges, landmark feet). Authored anchors are placed by hand and skip it. Caps are slice C3: here they are unchanged.
 import raw from "@/data/clusters.json";
 import shore from "@/data/shoreSights.json";
 import { mulberry32 } from "./margins";
-import { HALF, WORLD, chunkBounds, regionAt, CHUNKS } from "./worldMap";
+import { HALF, WORLD, chunkBounds, regionAt, CHUNKS, distToPath } from "./worldMap";
+import { groundY } from "./ground";
+import map from "@/data/map.json";
+import worldRaw from "@/data/world.json";
 import type { Item, RegionId } from "./worldMap";
 import { FEATURES, PROP_LIMITS, buildAll, buildHedges, featureCircles, hedgeTouches, itemRadius, keepClear, propRadius, propSolid } from "./features";
 import type { PropItem, PropKind } from "./features";
@@ -33,6 +36,34 @@ const REGIONS: RegionId[] = ["meadow", "inkwood", "paper_downs", "glyph_quarter"
 // authored places where something is meant to be found: members keep this clear (the shore sights use the same distance for scenery)
 const SIGHTS = (shore as { points: { x: number; z: number }[]; clear: { scenery: number } }), SIGHT_CLEAR = SIGHTS.clear.scenery;
 const SOLID_PROP = new Set(["haystack", "pagestone"]);
+const LAND = worldRaw.landmarks as { x: number; z: number; r: number }[];
+const SIGNS = (map as { signposts: { x: number; z: number }[] }).signposts;
+const LAND_CLEAR = 5; // members keep each landmark's radius + this clear (the ground's flat zone uses the same distance)
+const LONE_GAP = 14, FLAT = 0.08, SHORE_EDGE = 110, FLAT_SHARE = 0.6;
+
+/** The land under a site, from the pure ground height. slope = gradient from +-1.5 m; hollow = mean height 10 m away minus the centre (positive = a dip or slope base). */
+export function landAt(x: number, z: number): { slope: number; hollow: number; y: number; path: number } {
+  const y = groundY(x, z), e = 1.5, gx = (groundY(x + e, z) - groundY(x - e, z)) / (2 * e), gz = (groundY(x, z + e) - groundY(x, z - e)) / (2 * e);
+  const ring = (groundY(x + 10, z) + groundY(x - 10, z) + groundY(x, z + 10) + groundY(x, z - 10)) / 4;
+  return { slope: Math.hypot(gx, gz), hollow: ring - y, y, path: distToPath(x, z) };
+}
+const landmarkGap = (x: number, z: number): number => LAND.reduce((m, l) => Math.min(m, Math.hypot(l.x - x, l.z - z) - l.r), Infinity);
+const signGap = (x: number, z: number): number => SIGNS.reduce((m, s) => Math.min(m, Math.hypot(s.x - x, s.z - z)), Infinity);
+/** Does the land give this kind a reason to be here? `others` = the centres already accepted. Cell sites only. */
+export function landAccepts(kind: ClusterKind, region: RegionId, x: number, z: number, seed: number, others: Centre[]): boolean {
+  const L = landAt(x, z), flat = L.slope < FLAT, shore = region === "pressmark_shore" && x > SHORE_EDGE, base = L.hollow > 0.08;
+  const nearPath = L.path >= 4 && L.path <= 12;
+  // dead-flat ground (the Glyph Quarter is one) has no dip or crest to give a reason: there the land rule falls back to a seeded share, so a flat region still gets clusters
+  const dead = L.slope < 0.005 && Math.abs(L.hollow) < 0.02 && (seed % 100) / 100 < FLAT_SHARE;
+  switch (kind) {
+    case "grove": return flat && ((L.y > 0.15 && L.y < 1.5) || (seed % 100) / 100 < 0.6); // flat or gentle; hill shoulders always, other flat ground most of the time
+    case "pool": return dead || L.hollow > 0.12 || (L.path >= 5 && L.path <= 10) || shore;
+    case "cairn": { const lg = landmarkGap(x, z), sg = signGap(x, z); return dead || L.hollow < -0.1 || (lg >= 6 && lg <= 12) || (sg >= 3 && sg <= 8); }
+    case "thicket": return dead || base || others.some((c) => c.kind === "grove" && c.region === region && Math.hypot(c.x - x, c.z - z) >= c.reach - 2 && Math.hypot(c.x - x, c.z - z) <= c.reach + 6);
+    case "lone": return flat && others.every((c) => Math.hypot(c.x - x, c.z - z) >= LONE_GAP);
+    case "line": return dead || nearPath || base || shore || (region === "paper_downs" && L.hollow < -0.1);
+  }
+}
 
 type Site = { id: string; region: RegionId; kind: ClusterKind; at: Pt; seed: number; hv: number };
 
@@ -82,7 +113,8 @@ export function buildClusters(d: ClustersData = CLUSTERS): Built {
   const minGap = FEATURES.limits.minGap, softGap = PROP_LIMITS.minGap * 0.3;
   for (const site of clusterSites(d)) {
     const cell = d.cells[site.region], base = d.kinds[site.kind]; if (!cell || !base) continue;
-    if (site.hv >= 0 && centres.some((c) => Math.hypot(c.x - site.at[0], c.z - site.at[1]) < cell.gap)) continue; // older anchors win, then the lower hash
+    if (site.hv >= 0 && centres.some((c) => Math.hypot(c.x - site.at[0], c.z - site.at[1]) < (c.kind === "lone" ? Math.max(cell.gap, LONE_GAP) : cell.gap))) continue; // older anchors win, then the lower hash; a lone one keeps a wider berth
+    if (site.hv >= 0 && !landAccepts(site.kind, site.region, site.at[0], site.at[1], site.seed, centres)) continue; // the land rule (cell sites only)
     const kd: KindDef = { ...base, ...(cell.overrides?.[site.kind] ?? {}) };
     const rnd = mulberry32(site.seed), size = cell.size * (0.85 + rnd() * 0.3), facing = rnd() * Math.PI * 2, squash = 0.7 + rnd() * 0.3;
     const rc = kd.rc * size, rs = kd.rs * size, cx = site.at[0], cz = site.at[1], cf = Math.cos(facing), sf = Math.sin(facing);
@@ -108,6 +140,7 @@ export function buildClusters(d: ClustersData = CLUSTERS): Built {
         if (keepClear(x, z, rad)) continue;
         if (hedgeTouches(x, z, rad, hp, 0.5)) continue;
         if (feats.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + rad + 0.3)) continue;
+        if (LAND.some((l) => Math.hypot(l.x - x, l.z - z) < l.r + LAND_CLEAR + rad)) continue;
         if (SIGHTS.points.some((p) => Math.hypot(p.x - x, p.z - z) < rad + SIGHT_CLEAR + 0.3)) continue;
         if (idx.near(x, z).some((o) => Math.hypot(o.x - x, o.z - z) < rad + o.rad + (solid && o.solid ? kd.gap ?? minGap : softGap))) continue;
         const mem: Member = { x, z, s: round(s), r: round(jit * Math.PI * 2), k, f: site.id, rad, solid };

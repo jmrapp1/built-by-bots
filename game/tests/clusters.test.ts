@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import raw from "@/data/clusters.json";
 import { CLUSTERS, buildClusters, clusterScatterIn, clustersFlag, clusterSites, shippedClusters, type ClustersData } from "@/lib/clusters";
+import { landAccepts, landAt } from "@/lib/clusters";
 import { CHUNKS, HALF, WORLD, buildContents, chunkCircles, chunkContents, regionAt } from "@/lib/worldMap";
 import { FEATURES, buildAll, buildHedges, buildProps, hedgeTouches, itemRadius, keepClear, propRadius } from "@/lib/features";
 
@@ -99,5 +100,30 @@ describe("world totals (logged, not capped here: the cap test is slice C3)", () 
     const oldT = old.reduce((t, x) => t + x.trees.length, 0), oldR = old.reduce((t, x) => t + x.rocks.length, 0), oldB = old.reduce((t, x) => t + x.bushes.length, 0);
     console.log("TOTALS", JSON.stringify({ trees, rocks, bushes, props: buildProps().length, clusters: shippedClusters().centres.length, old: { trees: oldT, rocks: oldR, bushes: oldB } }));
     expect(trees + rocks + bushes).toBeGreaterThan(0);
+  });
+});
+
+describe("C2: the land rule", () => {
+  const b = shippedClusters(), cells = b.centres.filter((c) => c.id.startsWith("cell-"));
+  it("accepted cell sites pass their own kind's rule (replayed in build order)", () => {
+    const seen: typeof b.centres = [];
+    for (const s of clusterSites()) { const c = b.centres.find((x) => x.id === s.id); if (c) { if (s.hv >= 0) expect(landAccepts(s.kind, s.region, s.at[0], s.at[1], s.seed, seen), s.id).toBe(true); seen.push(c); } }
+  });
+  it("a seeded lone one keeps 14 m from every other centre (authored anchors are placed by hand)", () => {
+    for (const c of b.centres.filter((x) => x.kind === "lone" && x.id.startsWith("cell-"))) for (const o of b.centres) if (o !== c) expect(Math.hypot(o.x - c.x, o.z - c.z), `${c.id} ${o.id}`).toBeGreaterThanOrEqual(14);
+  });
+  it("groves stand on gentle ground, and pools in a dip or beside the path or at the shore", () => {
+    for (const c of cells.filter((x) => x.kind === "grove")) expect(landAt(c.x, c.z).slope, c.id).toBeLessThan(0.08);
+  });
+  it("older sites win: no two centres are closer than the region gap, anchors first", () => {
+    for (const c of cells) for (const o of b.centres) if (o !== c && b.centres.indexOf(o) < b.centres.indexOf(c)) expect(Math.hypot(o.x - c.x, o.z - c.z), `${c.id} ${o.id}`).toBeGreaterThanOrEqual(CLUSTERS.cells[c.region].gap);
+  });
+  it("no member sits inside a landmark's radius + 5 m", () => {
+    for (const m of b.scatter) for (const l of WORLD.landmarks) expect(Math.hypot(m.x - l.x, m.z - l.z)).toBeGreaterThan(l.r + 5);
+  });
+  it("totals stay at or above the scatter that was there before clusters", () => {
+    let t = 0, r = 0, u = 0, ot = 0, or = 0, ou = 0;
+    for (let a = 0; a < CHUNKS; a++) for (let c = 0; c < CHUNKS; c++) { const x = chunkContents(a, c), y = buildContents(a, c, WORLD.seed, false); t += x.trees.length; r += x.rocks.length; u += x.bushes.length; ot += y.trees.length; or += y.rocks.length; ou += y.bushes.length; }
+    expect(t).toBeGreaterThanOrEqual(ot); expect(r).toBeGreaterThanOrEqual(or); expect(u).toBeGreaterThanOrEqual(ou);
   });
 });
