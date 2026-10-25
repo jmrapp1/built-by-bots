@@ -109,7 +109,7 @@ describe("the scatter under the hedges", () => {
   it("on: more instances than off (the hedge meshes), and the scatter itself still pinned to today's contents", () => {
     expect(shellOf(true).shell.stats().instances).toBeGreaterThan(shellOf(false).shell.stats().instances);
     const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));
-    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab");
+    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("4ce8c673f1e291d52539444a70fde2f47fdc0aa83d996d1ebc7eeec081f4f45f");
   });
   it("wiring: World passes the hedge boxes into the walking and follow colliders; the pure World does not import features", () => {
     const w = readFileSync(new URL("../components/World.tsx", import.meta.url), "utf8");

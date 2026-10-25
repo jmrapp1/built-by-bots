@@ -80,4 +80,4 @@ describe("the bundle shape", () => {
   });
 });
 
-const PINNED_CONTENTS = "7d54b869449a6f66d55c50224a376216bf585db3e3a4455b6cd35ee3d18cdaa1"; // same value on main before this slice
+const PINNED_CONTENTS = "148e536acfa4a600ae932b77e0dae09b8857688e9bff7164d66d4264afe9ed49"; // re-pinned when the region signposts were added (the scatter keeps clear of each new post)
