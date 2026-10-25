@@ -8,6 +8,8 @@ import { buildHills } from "@/components/hillsScene";
 import type { Box, Circle } from "@/lib/world";
 import { SIGNPOSTS, type Signpost } from "@/lib/map";
 import { groundY } from "@/lib/ground";
+import { INK, homeEase, regionInk } from "@/lib/groundInk";
+import { applyInk } from "@/components/groundInkShader";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
@@ -51,7 +53,7 @@ const mats = (look: { crown: string; trunk: string; rock: string; bush: string }
   rock: new THREE.MeshToonMaterial({ color: look.rock }), bush: new THREE.MeshToonMaterial({ color: look.bush }),
 });
 
-export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean; features?: boolean } = {}): WorldShell {
+export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean; features?: boolean; groundInk?: boolean } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
   const gy = (x: number, z: number): number => (opts.ground ? groundY(x, z) : 0); // H2: props sit on the ground height; with the switch off this is 0, exactly as before
   const SINK = 0.08; // rocks sit a little sunk so no gap shows on a slope
@@ -110,7 +112,14 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     for (let i = 0; i < pos.count; i++) pos.setZ(i, groundY(pos.getX(i), -pos.getY(i)));
     pos.needsUpdate = true; gg.computeVertexNormals();
   }
-  const ground = new THREE.Mesh(gg, keep(new THREE.MeshToonMaterial({ vertexColors: true })));
+  const groundMat = keep(new THREE.MeshToonMaterial({ vertexColors: true }));
+  if (opts.groundInk) { // ink on the land: two per-vertex floats and a shader patch on this material only; off = the plain material, untouched
+    const pos = gg.attributes.position, reg: number[] = [], home: number[] = [];
+    for (let i = 0; i < pos.count; i++) { const wx = pos.getX(i), wz = -pos.getY(i); reg.push(regionInk(wx, wz)); home.push(homeEase(wx, wz)); }
+    gg.setAttribute("inkRegion", new THREE.Float32BufferAttribute(reg, 1)); gg.setAttribute("inkHome", new THREE.Float32BufferAttribute(home, 1));
+    applyInk(groundMat, INK);
+  }
+  const ground = new THREE.Mesh(gg, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.03; group.add(ground);
   const skirt = new THREE.Mesh(keep(new THREE.PlaneGeometry(WORLD.size + 900, WORLD.size + 900)), keep(new THREE.MeshToonMaterial({ color: WORLD.look.meadow.ground })));
   skirt.rotation.x = -Math.PI / 2; skirt.position.y = -0.06; group.add(skirt);

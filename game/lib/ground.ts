@@ -37,6 +37,9 @@ export function flatDistance(x: number, z: number): number {
   return d;
 }
 
+/** The ground's own "land rises here" mask: 0 in every flat zone and at the World edge, easing to 1. The ink uses the same rule for "flat here". */
+export const flatMask = (x: number, z: number, feather: number = GROUND.feather, edgeF: number = GROUND.edgeFeather): number => soft(flatDistance(x, z) / feather) * soft((HALF - Math.max(Math.abs(x), Math.abs(z))) / edgeF);
+
 export type GroundOpts = { scale?: number; rises?: Rise[]; feather?: number; edgeFeather?: number };
 /** Ground height in metres at x, z. Finite, never negative, 0 in every flat zone and at the World edge. Pure. */
 export function groundY(x: number, z: number, o: GroundOpts = {}): number {
