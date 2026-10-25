@@ -1,0 +1,42 @@
+{
+  "note": "Landmark seats: a place to sit beside each landmark in the open World, on the side toward Home. Looks and rest only: nothing is given, saved or sent. Sitting is the same walk-over, settle and stand-up as the Garden bench (lib/sit.ts). Flip enabled to false (or use ?seats=off in dev) to remove them.",
+  "enabled": true,
+  "reach": 2.2,
+  "seats": [
+    {
+      "landmark": "page-tower",
+      "x": 66.1,
+      "z": 34.0
+    },
+    {
+      "landmark": "bookmark-spire",
+      "x": -81.1,
+      "z": 67.6
+    },
+    {
+      "landmark": "great-ink-tree",
+      "x": -28.6,
+      "z": -91.6
+    },
+    {
+      "landmark": "lantern-post",
+      "x": 54.5,
+      "z": -105.1
+    },
+    {
+      "landmark": "paper-kite-hill",
+      "x": 43.3,
+      "z": -75.8
+    },
+    {
+      "landmark": "bookshelf-wall",
+      "x": 18.6,
+      "z": 96.7
+    },
+    {
+      "landmark": "lantern-bridge",
+      "x": 96.4,
+      "z": -7.7
+    }
+  ]
+}
