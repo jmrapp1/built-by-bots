@@ -6,7 +6,8 @@ import raw from "@/data/features.json";
 import map from "@/data/map.json";
 import { GARDEN, HOME, type Box, type Circle } from "./world";
 import { mulberry32 } from "./margins";
-import { CHUNKS, HALF, WORLD, TREE_R, ROCK_R, BUSH_R, chunkBounds, distToPath } from "./worldMap";
+import { CHUNKS, HALF, WORLD, TREE_R, ROCK_R, BUSH_R, chunkBounds, chunkCircles, chunkContents, chunkOf, distToPath } from "./worldMap";
+import { regionAt } from "./worldMap";
 import type { Item, RegionId } from "./worldMap";
 
 export const FEATURES = raw.features;
@@ -177,3 +178,58 @@ export const hedgeBoxes = (pieces: HedgePiece[]): Box[] => pieces.map(({ x, z, w
 /** Does a round thing of radius r at (x, z) touch a hedge (with `pad` to spare)? Used to clear the scatter from under hedges. */
 export const hedgeTouches = (x: number, z: number, r: number, pieces: HedgePiece[] = buildHedges(), pad = 0.4): boolean =>
   pieces.some((p) => Math.abs(x - p.x) < p.w / 2 + r + pad && Math.abs(z - p.z) < p.d / 2 + r + pad);
+
+// ---- E5: region prop families (Meadow first: tufts and haystacks). Seeded patches, pure, drawn only with the features on. ----
+export type PropKind = "tuft" | "haystack";
+export type PropPatch = { id: string; region: RegionId; kind: PropKind; at: Pt; rx: number; rz: number; count: number; s: [number, number]; seed: number };
+export type PropItem = Item & { k: PropKind; f: string };
+export type PropLimits = { perChunk: number; minGap: number };
+const rawF = raw.features as unknown as { props?: PropPatch[]; propLimits?: PropLimits };
+export const PROPS: PropPatch[] = rawF.props ?? [];
+export const PROP_LIMITS: PropLimits = rawF.propLimits ?? { perChunk: 60, minGap: 0.9 };
+/** Footprint radius per unit of scale. Haystacks are solid circles; tufts are walk-through but keep their own space. */
+export const PROP_R: Record<PropKind, number> = { tuft: 0.35, haystack: 1.0 };
+export const propRadius = (i: { k: PropKind; s: number }) => PROP_R[i.k] * i.s;
+export const propSolid = (i: { k: PropKind }) => i.k === "haystack";
+
+function solidsNear(x: number, z: number): Circle[] { // scatter trunks, rocks and bushes in the 3x3 chunks around (pure data)
+  const ix = chunkOf(x), iz = chunkOf(z), out: Circle[] = [];
+  for (let a = Math.max(0, ix - 1); a <= Math.min(CHUNKS - 1, ix + 1); a++) for (let b = Math.max(0, iz - 1); b <= Math.min(CHUNKS - 1, iz + 1); b++) out.push(...chunkCircles(chunkContents(a, b)));
+  return out;
+}
+/** The items of one patch: a pure function of the patch. Items keep clear of the keep-clear places, hedges, authored features and scatter solids, and of each other. */
+export function buildPatch(p: PropPatch, limits: PropLimits = PROP_LIMITS): PropItem[] {
+  const rnd = mulberry32(p.seed), out: PropItem[] = [], feats = featureCircles(buildAll()), hp = buildHedges();
+  for (let n = 0; n < p.count * 12 && out.length < p.count; n++) {
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()), s = p.s[0] + rnd() * (p.s[1] - p.s[0]), r = rnd() * Math.PI * 2;
+    const it: PropItem = { x: round(p.at[0] + Math.cos(a) * d * p.rx), z: round(p.at[1] + Math.sin(a) * d * p.rz), s: round(s), r: round(r), k: p.kind, f: p.id }, rad = propRadius(it);
+    if (Math.abs(it.x) > HALF - rad - 0.5 || Math.abs(it.z) > HALF - rad - 0.5) continue;
+    if (regionAt(it.z, it.x) !== p.region) continue;
+    if (keepClear(it.x, it.z, rad + 0.5)) continue;
+    if (hedgeTouches(it.x, it.z, rad, hp, 0.5)) continue;
+    if (feats.some((c) => Math.hypot(c.x - it.x, c.z - it.z) < c.r + rad + 0.3)) continue;
+    if (solidsNear(it.x, it.z).some((c) => Math.hypot(c.x - it.x, c.z - it.z) < c.r + rad + 0.3)) continue;
+    if (out.some((o) => Math.hypot(o.x - it.x, o.z - it.z) < rad + propRadius(o) + limits.minGap * (p.kind === "haystack" ? 1.5 : 0.3))) continue;
+    out.push(it);
+  }
+  return out;
+}
+let propCache: PropItem[] | null = null;
+/** Every prop item, in list order, with each chunk held to the per-chunk cap (the first items in list order win). Cached for the shipped list. */
+export function buildProps(list: PropPatch[] = PROPS, limits: PropLimits = PROP_LIMITS): PropItem[] {
+  if (list === PROPS && limits === PROP_LIMITS && propCache) return propCache;
+  const used = new Map<string, number>(), out: PropItem[] = [];
+  for (const it of list.flatMap((p) => buildPatch(p, limits))) {
+    const key = `${chunkOf(it.x)},${chunkOf(it.z)}`, n = used.get(key) ?? 0;
+    if (n >= limits.perChunk) continue;
+    used.set(key, n + 1); out.push(it);
+  }
+  if (list === PROPS && limits === PROP_LIMITS) propCache = out;
+  return out;
+}
+export function propItemsInChunk(ix: number, iz: number, items: PropItem[] = buildProps()): PropItem[] {
+  if (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS) return [];
+  const { x0, z0, x1, z1 } = chunkBounds(ix, iz);
+  return items.filter((i) => i.x >= x0 && i.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && i.z >= z0 && i.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
+}
+export const propCircles = (items: PropItem[]): Circle[] => items.filter(propSolid).map((i) => ({ x: i.x, z: i.z, r: propRadius(i) }));
