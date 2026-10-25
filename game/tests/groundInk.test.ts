@@ -30,7 +30,7 @@ describe("the switch", () => {
   });
   it("does not touch the ground, fog or features switches", async () => {
     const g = await import("@/data/ground.json"), r = await import("@/data/regionFog.json"), f = await import("@/data/features.json");
-    expect(g.default.ground.enabled).toBe(true); expect(r.default.regionFog.enabled).toBe(false); expect(f.default.features.enabled).toBe(false);
+    expect(g.default.ground.enabled).toBe(true); expect(r.default.regionFog.enabled).toBe(true); expect(f.default.features.enabled).toBe(true);
   });
 });
 

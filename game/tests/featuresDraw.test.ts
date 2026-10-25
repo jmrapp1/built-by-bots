@@ -12,7 +12,7 @@ const shellOf = (features: boolean, at: [number, number]) => { const scene = new
 const first = buildAll()[0];
 
 describe("the switch", () => {
-  it("ships off", () => { expect(raw.features.enabled).toBe(false); expect(featuresOn("", true)).toBe(false); expect(featuresOn("", false)).toBe(false); });
+  it("ships on", () => { expect(raw.features.enabled).toBe(true); expect(featuresOn("", true)).toBe(true); expect(featuresOn("", false)).toBe(true); });
   it("?features= overrides in dev only", () => {
     const on = { features: { enabled: true } }, off = { features: { enabled: false } };
     expect(featuresOn("?features=1", false, off)).toBe(true);

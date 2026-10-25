@@ -102,9 +102,9 @@ describe("off equals today", () => {
     const names = (s: { scene: THREE.Scene }) => { let n = 0; s.scene.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh && (o as THREE.InstancedMesh).material && ((o as THREE.InstancedMesh).material as THREE.MeshToonMaterial).vertexColors) n++; }); return n; };
     expect(names(off)).toBe(0); expect(names(on)).toBeGreaterThan(0);
   });
-  it("the scatter itself is pinned to today's contents; the switch is off in the data, and ?features= still overrides in dev only", () => {
+  it("the scatter itself is pinned to today's contents; the switch is on in the data, and ?features= still overrides in dev only", () => {
     const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(chunkContents(a, b));
     expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab");
-    expect(featuresOn("", true)).toBe(false); expect(featuresOn("?features=1", false)).toBe(true); expect(featuresOn("?features=1", true)).toBe(false);
+    expect(featuresOn("", true)).toBe(true); expect(featuresOn("?features=0", false)).toBe(false); expect(featuresOn("?features=1", true)).toBe(true);
   });
 });

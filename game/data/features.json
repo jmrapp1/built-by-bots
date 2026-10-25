@@ -1,7 +1,7 @@
 {
   "note": "E2: the authored feature list for the World: groves, belts, rows and rings, each a shape plus a recipe and a seed. Nothing here is drawn yet; the builder (lib/features.ts) turns it into items and a later slice (E3) draws them. 'enabled' ships false and nothing reads it for drawing in E2; anything but a plain true is off. Metres. Shapes: 'belt' = a curve through 'points' (x,z) with 'width' across; 'row' = a straight line a to b with 'gaps' [t0,t1] fractions left open; 'ring' = a circle at 'at' with radius 'r', 'width' deep, 'opening' = [from,to] degrees left open. Recipe: k = tree|rock|bush, s = [min,max] scale, spacing = metres between items along the shape. Every item keeps clear of Home, the path, the gate, signposts and landmark feet (one check, lib/features.ts keepClear). E4: 'hedges' are straight, axis-aligned hedgerows (a to b along x or z, 'thick' and 'h' in metres, 'gaps' [t0,t1] fractions left open, at least gapWidth across); drawn as boxes with box colliders; the scatter is cleared from under them. E5: 'props' are small region prop patches (Meadow: tufts and haystacks; Inkwood Edge: ink drips and ferns, both walk-through), scattered inside an ellipse (at, rx, rz) from their own seed, kept clear like everything else; haystacks collide as circles, tufts are walk-through; propLimits caps draws per chunk. Values are first guesses to tune by eye.",
   "features": {
-    "enabled": false,
+    "enabled": true,
     "limits": { "minGap": 1.6, "gapWidth": 4, "perChunk": 200 },
     "list": [
       { "id": "meadow-west-copse", "region": "meadow", "shape": "belt", "points": [[-60, -20], [-52, 0], [-58, 22]], "width": 8, "recipe": { "k": "tree", "s": [0.8, 1.1], "spacing": 3.4 }, "seed": 101 },

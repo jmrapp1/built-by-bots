@@ -11,9 +11,9 @@ const src = (f: string) => readFileSync(new URL(f, import.meta.url), "utf8");
 const R = ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const;
 
 describe("the switch", () => {
-  it("ships off, and only a plain true is on", () => {
-    expect(raw.regionFog.enabled).toBe(false);
-    expect(regionFogFlag(raw)).toBe(false);
+  it("ships on, and only a plain true is on", () => {
+    expect(raw.regionFog.enabled).toBe(true);
+    expect(regionFogFlag(raw)).toBe(true);
     for (const v of ["true", 1, "1", null, undefined, {}, []]) expect(regionFogFlag({ regionFog: { enabled: v } })).toBe(false);
     expect(regionFogFlag({ regionFog: { enabled: true } })).toBe(true);
     expect(regionFogFlag(null)).toBe(false);
@@ -26,7 +26,7 @@ describe("the switch", () => {
     expect(regionFogOn("?regionfog=1", true, off)).toBe(false);
     expect(regionFogOn("?regionfog=0", true, on)).toBe(true);
     expect(regionFogOn("", false, off)).toBe(false);
-    expect(regionFogOn("", false)).toBe(false); expect(regionFogOn("?other=1", true)).toBe(false); // the shipped file is off
+    expect(regionFogOn("", false)).toBe(true); expect(regionFogOn("?other=1", true)).toBe(true); // the shipped file is on
   });
 });
 
