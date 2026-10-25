@@ -1,0 +1,20 @@
+{
+  "note": "A slight colour shift of the World's daylight by UTC month. Looks only. Each month has a colour and a strength (0 to max); the light is eased that far toward the colour. It fades to nothing before dusk and after dawn, so the night and dusk lighting are untouched, and it never moves the sky or fog. Index 0 is January.",
+  "max": 0.14,
+  "full": [9, 15],
+  "none": [7.5, 17.5],
+  "months": [
+    { "name": "January",   "color": "#cfe0f2", "strength": 0.10 },
+    { "name": "February",  "color": "#d6e2ef", "strength": 0.08 },
+    { "name": "March",     "color": "#d8efc8", "strength": 0.09 },
+    { "name": "April",     "color": "#c8eed2", "strength": 0.11 },
+    { "name": "May",       "color": "#c4f0b4", "strength": 0.12 },
+    { "name": "June",      "color": "#fff0b0", "strength": 0.12 },
+    { "name": "July",      "color": "#ffe6a0", "strength": 0.13 },
+    { "name": "August",    "color": "#ffdc98", "strength": 0.12 },
+    { "name": "September", "color": "#f6d49a", "strength": 0.11 },
+    { "name": "October",   "color": "#f2b98a", "strength": 0.13 },
+    { "name": "November",  "color": "#dcc2b4", "strength": 0.10 },
+    { "name": "December",  "color": "#c4d6ec", "strength": 0.11 }
+  ]
+}
