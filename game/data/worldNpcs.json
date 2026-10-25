@@ -1,0 +1,67 @@
+{
+  "note": "Neighbours in the open World: words only. Each stands at one fixed point, turns to you, and speaks short hints (where the signposts and night sights are). Nothing is given, saved or sent. Same shape as npcs.json with area \"world\" and one `spot` {at:[x,z], face}; no gift, no spots list. Each must stand inside the World, clear of scenery, the path, Home, the gate and every signpost.",
+  "npcs": [
+    {
+      "id": "inkwood-reader",
+      "name": "The Root-reader",
+      "area": "world",
+      "look": "owl",
+      "spot": { "at": [-18, -68], "face": 0.9 },
+      "radius": 0.55,
+      "noticeEnter": 6,
+      "noticeLeave": 7.5,
+      "talkEnter": 3,
+      "talkLeave": 4.2,
+      "greeting": { "timeIcons": [{ "from": 5.5, "to": 18.5, "icon": "leaf" }], "otherwise": "moon", "extra": ["question"] },
+      "prompt": "Talk to the Root-reader",
+      "hints": [
+        { "text": "Signposts stand along the old paths. Each one points toward somewhere worth the walk.", "icons": ["trail"] },
+        { "text": "After dark the ink glows between the roots. Come when the lanterns are lit.", "icons": ["moon"] },
+        { "text": "Moths rest on dark leaves in the Inkwood at night.", "icons": ["moon", "leaf"] },
+        { "text": "Look down as you walk. A scrap of paper lies somewhere new each day.", "icons": ["crumb"] },
+        { "text": "The Great Ink Tree stands tall here. Walk toward it and you will not lose your way.", "icons": ["leaf", "trail"] }
+      ]
+    },
+    {
+      "id": "downs-keeper",
+      "name": "The Kite-keeper",
+      "area": "world",
+      "look": "moth",
+      "spot": { "at": [22, -84], "face": -2.4 },
+      "radius": 0.55,
+      "noticeEnter": 6,
+      "noticeLeave": 7.5,
+      "talkEnter": 3,
+      "talkLeave": 4.2,
+      "greeting": { "timeIcons": [{ "from": 5.5, "to": 18.5, "icon": "leaf" }], "otherwise": "moon", "extra": ["question"] },
+      "prompt": "Talk to the Kite-keeper",
+      "hints": [
+        { "text": "The post with the kite on it marks the Downs. Beyond it the grass runs pale and wide.", "icons": ["trail"] },
+        { "text": "At dusk a ring of light sits on the pale grass. Walk slowly and you may find one.", "icons": ["moon", "question"] },
+        { "text": "Ink glows in the folds of the hills once the lanterns are lit.", "icons": ["drop", "moon"] },
+        { "text": "A moth likes to rest on a paper kite's tail after dark.", "icons": ["moon"] },
+        { "text": "Folded pages hide out here too. Hold E beside one to unfold it.", "icons": ["book", "leaf"] }
+      ]
+    },
+    {
+      "id": "quarter-turner",
+      "name": "The Page-turner",
+      "area": "world",
+      "look": "traveller",
+      "spot": { "at": [-14, 68], "face": 0.4 },
+      "radius": 0.55,
+      "noticeEnter": 6,
+      "noticeLeave": 7.5,
+      "talkEnter": 3,
+      "talkLeave": 4.2,
+      "greeting": { "timeIcons": [{ "from": 6, "to": 19, "icon": "trail" }], "otherwise": "moon", "extra": ["question"] },
+      "prompt": "Talk to the Page-turner",
+      "hints": [
+        { "text": "The Quarter is all stones and shelves. The post with a book on it will turn you right.", "icons": ["book", "trail"] },
+        { "text": "Lantern ink glows on the stones after dark. Look for it between the shelves.", "icons": ["drop", "moon"] },
+        { "text": "A loose page sometimes holds a moth at night.", "icons": ["moon", "book"] },
+        { "text": "Scraps of paper blow in from somewhere new every morning.", "icons": ["crumb"] }
+      ]
+    }
+  ]
+}
