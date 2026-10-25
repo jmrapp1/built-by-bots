@@ -119,9 +119,9 @@ describe("off equals today", () => {
   it("the pure World (chunk contents, sight tooling) does not import the features; only the shell draws them, behind the switch", () => {
     for (const f of ["../lib/worldMap.ts", "../lib/world.ts", "../lib/sight.ts"]) expect(src(f)).not.toMatch(/features/);
   });
-  it("the ground and region fog switches stay off", async () => {
+  it("region fog stays off (the ground is on since the hills went live)", async () => {
     const g = await import("@/data/ground.json"), r = await import("@/data/regionFog.json");
-    expect(g.default.ground.enabled).toBe(false);
+    expect(g.default.ground.enabled).toBe(true);
     expect(r.default.regionFog.enabled).toBe(false);
   });
 });

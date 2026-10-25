@@ -1,7 +1,7 @@
 {
-  "note": "H1: ground height in the larger World. 'enabled' ships false; anything but a plain true is off, and off means the World is flat exactly as before. 'scale' multiplies every rise (H1 keeps them very low because props still sit at y 0 until H2). Rises are cosine bumps: x, z, radius r and height h in metres. 'feather' is how far the land takes to ease up from a flat zone. Flat zones themselves are in lib/ground.ts.",
+  "note": "H1: ground height in the larger World. 'enabled' is true (the hills are live); anything but a plain true is off, and off means the World is flat exactly as before. 'scale' multiplies every rise (H1 keeps them very low because props still sit at y 0 until H2). Rises are cosine bumps: x, z, radius r and height h in metres. 'feather' is how far the land takes to ease up from a flat zone. Flat zones themselves are in lib/ground.ts.",
   "ground": {
-    "enabled": false,
+    "enabled": true,
     "scale": 1.0,
     "maxSlope": 0.2,
     "feather": 32,
