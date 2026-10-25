@@ -14,6 +14,11 @@ export type BloomData = { enabled: boolean; seed: number; bloomsPerChunk: number
 export const BLOOMS: BloomData = (raw as unknown as { blooms: BloomData }).blooms;
 /** Anything but a plain true is off. Independent of the grass switch. */
 export const bloomsFlag = (d: unknown): boolean => { try { return (d as { blooms?: { enabled?: unknown } })?.blooms?.enabled === true; } catch { return false; } };
+// F3: grass in the other regions, behind its own switch, with a root and tip colour per region. A separate scatter (own seed), so the Meadow grass is exactly what it was.
+export type RegionGrassData = { enabled: boolean; seed: number; density: Record<RegionId, number>; tint: Partial<Record<RegionId, { root: string; tip: string }>> };
+export const GRASS_REGIONS: RegionGrassData = (raw as unknown as { grassRegions: RegionGrassData }).grassRegions;
+/** Anything but a plain true is off. It also needs the grass switch on: it is a sub-flag. */
+export const grassRegionsFlag = (d: unknown): boolean => { try { const o = d as { foliage?: { enabled?: unknown }; grassRegions?: { enabled?: unknown } }; return o?.foliage?.enabled === true && o?.grassRegions?.enabled === true; } catch { return false; } };
 /** Footprint radius per unit of scale, for spacing and keeping off solid things. */
 export const BLOOM_R = 0.3;
 /** Anything but a plain true is off. */
@@ -94,3 +99,13 @@ export function buildBlooms(d: BloomData = BLOOMS): BloomBuilt {
 let bloomCache: BloomBuilt | null = null;
 export const shippedBlooms = (): BloomBuilt => (bloomCache ??= buildBlooms());
 export const bloomsInChunk = (ix: number, iz: number, b: BloomBuilt = shippedBlooms()): BloomItem[] => (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS ? [] : b.perChunk.get(keyOf(ix, iz)) ?? []);
+
+/** F3: the grass of the other regions. Its caps are what the Meadow grass leaves of the grass caps, so the grass as a whole never passes grassWorld, nor grassPerChunk in any chunk. */
+export function buildRegionGrass(d: FoliageData = FOLIAGE, r: RegionGrassData = GRASS_REGIONS, base: Built = shippedGrass()): Built {
+  if (!grassRegionsFlag({ foliage: d, grassRegions: r })) return { all: [], perChunk: new Map() };
+  let maxBase = 0; for (const l of base.perChunk.values()) maxBase = Math.max(maxBase, l.length);
+  return scatter<GrassItem>({ enabled: true, seed: r.seed, perChunk: d.grassPerChunk - maxBase, world: d.grassWorld - base.all.length, minGap: d.minGap, scale: d.scale, density: r.density }, "grass", GRASS_R, 0);
+}
+let regionCache: Built | null = null;
+export const shippedRegionGrass = (): Built => (regionCache ??= buildRegionGrass());
+export const regionGrassInChunk = (ix: number, iz: number, b: Built = shippedRegionGrass()): GrassItem[] => (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS ? [] : b.perChunk.get(keyOf(ix, iz)) ?? []);

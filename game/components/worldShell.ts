@@ -11,11 +11,11 @@ import { groundY } from "@/lib/ground";
 import { INK, homeEase, regionInk } from "@/lib/groundInk";
 import { applyInk } from "@/components/groundInkShader";
 import { CREASES, PATTERNS, TIDES, creaseMix, patchMix, tideMix } from "@/lib/groundPatterns";
-import { BLOOMS, bloomsInChunk, bloomsFlag, grassInChunk, type BloomItem } from "@/lib/foliage";
+import { BLOOMS, GRASS_REGIONS, bloomsInChunk, bloomsFlag, grassInChunk, regionGrassInChunk, type BloomItem } from "@/lib/foliage";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
-  BUSH_R, CHUNKS, HALF, ROCK_R, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, nearbyCircles, pathPoints,
+  BUSH_R, CHUNKS, HALF, ROCK_R, TREE_R, WORLD, chunkBounds, chunkCircles, chunkContents, chunkKey, chunkOf, chunksAround, regionAt, nearbyCircles, pathPoints,
   type Contents, type RegionId,
 } from "@/lib/worldMap";
 
@@ -49,8 +49,8 @@ export function tuftGeo(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 /** F1: a grass bundle: five thin tapered blades (two triangles each) leaning a little apart, dark at the root and light at the tip, one colour per vertex. Every blade starts on the ground (walk-through, ankle to knee high). */
-export function grassGeo(): THREE.BufferGeometry {
-  const pos: number[] = [], col: number[] = [], root = new THREE.Color("#4f7a3f"), tip = new THREE.Color("#a9c86a");
+export function grassGeo(rootHex = "#4f7a3f", tipHex = "#a9c86a"): THREE.BufferGeometry {
+  const pos: number[] = [], col: number[] = [], root = new THREE.Color(rootHex), tip = new THREE.Color(tipHex);
   const v = (x: number, y: number, z: number, t: number) => { pos.push(x, y, z); const c = root.clone().lerp(tip, t); col.push(c.r, c.g, c.b); };
   for (let k = 0; k < 5; k++) {
     const a = (k / 5) * Math.PI * 2 + 0.3, h = 0.5 + 0.12 * Math.sin(k * 2.3), lean = 0.12 + 0.05 * Math.cos(k * 1.7), bx = Math.cos(a) * 0.1, bz = Math.sin(a) * 0.1;
@@ -181,7 +181,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     pole: keep(poleGeo(0.8, 1, 1, 8).translate(0, 0.5, 0)),
     cyl: keep(unitCylGeo()),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
-    grass: keep(grassGeo()), bloomV: (Array.isArray(BLOOMS.palette) ? BLOOMS.palette : []).map((c) => keep(bloomGeo(c))), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
+    grass: keep(grassGeo()), grassR: Object.fromEntries(Object.entries(GRASS_REGIONS.tint ?? {}).map(([k, t]) => [k, keep(grassGeo(t!.root, t!.tip))])) as Record<string, THREE.BufferGeometry>, bloomV: (Array.isArray(BLOOMS.palette) ? BLOOMS.palette : []).map((c) => keep(bloomGeo(c))), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
   };
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
   for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
@@ -361,6 +361,9 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
       const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, Inkwood drips and ferns, Downs pinwheels and page-stones, Shore reeds and driftwood, one instanced draw per shape
       make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft"), 1, opts.ground ? SINK : 0); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); make(G.pinwheel, L.pin, ps.filter((i) => i.k === "pinwheel")); make(G.pagestone, L.stone, ps.filter((i) => i.k === "pagestone"), 1, opts.ground ? SINK : 0); make(G.reed, L.reed, ps.filter((i) => i.k === "reed")); make(G.driftwood, L.wood, ps.filter((i) => i.k === "driftwood"), 1, opts.ground ? SINK : 0); make(G.bookstack, L.gbook, ps.filter((i) => i.k === "bookstack"), 1, opts.ground ? SINK : 0); make(G.glyphpillar, L.gbook, ps.filter((i) => i.k === "glyphpillar"), 1, opts.ground ? SINK : 0); make(G.lamppost, L.gbook, ps.filter((i) => i.k === "lamppost"), 1, opts.ground ? SINK : 0); fInst += ps.length;
       const gr = grassInChunk(ix, iz); make(G.grass, L.grass, gr, 1, opts.ground ? SINK : 0); fInst += gr.length; // F1: the grass layer, own budget, no collider (casts like every prop)
+      const gx = regionGrassInChunk(ix, iz); // F3: grass of the other regions, one draw per region present, each in its own colours (empty with its switch off)
+      for (const reg of new Set(gx.map((t) => regionAt(t.z, t.x)))) make(G.grassR[reg] ?? G.grass, L.grass, gx.filter((t) => regionAt(t.z, t.x) === reg), 1, opts.ground ? SINK : 0);
+      fInst += gx.length;
       const bl = bloomsInChunk(ix, iz); // F2: the blooms, own budget and own switch, no collider; all colours baked into one mesh per chunk, and they do not cast
       const bg = bloomsFlag({ blooms: BLOOMS }) ? bakeBlooms(bl, G.bloomV, gy, opts.ground ? SINK : 0) : null;
       if (bg) { const bm = new THREE.Mesh(bg, L.bloom); bm.castShadow = false; bm.userData.ownGeo = true; g.add(bm); extra.push(bm); fInst += bl.length; }
