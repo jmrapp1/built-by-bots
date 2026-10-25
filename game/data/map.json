@@ -33,6 +33,41 @@
       "x": 13,
       "z": -88,
       "yaw": -1.5708
+    },
+    {
+      "id": "post-shore",
+      "icon": "moon",
+      "x": 39,
+      "z": 16,
+      "yaw": -1.9601
+    },
+    {
+      "id": "post-glyph",
+      "icon": "book",
+      "x": 6,
+      "z": 42,
+      "yaw": -2.9997
+    },
+    {
+      "id": "post-spire",
+      "icon": "book",
+      "x": -48,
+      "z": 42,
+      "yaw": 2.2896
+    },
+    {
+      "id": "post-ink",
+      "icon": "leaf",
+      "x": -37,
+      "z": -52,
+      "yaw": 0.6184
+    },
+    {
+      "id": "post-downs",
+      "icon": "kite",
+      "x": 34,
+      "z": -56,
+      "yaw": -0.5457
     }
   ],
   "look": {

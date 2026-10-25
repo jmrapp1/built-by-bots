@@ -25,7 +25,7 @@ describe("the switch", () => {
   });
   it("off builds nothing, and the chunk is the old scatter byte for byte", () => {
     const b = buildClusters(off); expect(b.centres.length + b.scatter.length + b.props.length).toBe(0);
-    expect(sha(all(false))).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab"); // the pin from before clusters
+    expect(sha(all(false))).toBe("4ce8c673f1e291d52539444a70fde2f47fdc0aa83d996d1ebc7eeec081f4f45f"); // re-pinned when the region signposts were added
   });
   it("on differs from off", () => { expect(sha(all(true))).not.toBe(sha(all(false))); });
 });

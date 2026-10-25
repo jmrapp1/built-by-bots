@@ -110,7 +110,7 @@ describe("keep-clear", () => {
 
 describe("off equals today", () => {
   // sha256 of JSON of every chunk's contents on main c428143. E2 adds a module nothing imports, so this must not move.
-  const PIN = "eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab";
+  const PIN = "4ce8c673f1e291d52539444a70fde2f47fdc0aa83d996d1ebc7eeec081f4f45f";
   it("every chunk's contents are exactly today's", () => {
     const all: unknown[] = [];
     for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));

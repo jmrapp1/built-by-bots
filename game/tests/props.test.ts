@@ -171,7 +171,7 @@ describe("off equals today", () => {
   });
   it("the scatter itself is pinned to today's contents; the switch is on in the data, and ?features= still overrides in dev only", () => {
     const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));
-    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab");
+    expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("4ce8c673f1e291d52539444a70fde2f47fdc0aa83d996d1ebc7eeec081f4f45f");
     expect(featuresOn("", true)).toBe(true); expect(featuresOn("?features=0", false)).toBe(false); expect(featuresOn("?features=1", true)).toBe(true);
   });
 });

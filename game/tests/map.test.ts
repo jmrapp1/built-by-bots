@@ -62,12 +62,12 @@ describe("page placement and pin", () => {
 });
 
 describe("picture signposts", () => {
-  it("are four, each with a picture, and are beside the path inside the World", () => {
-    expect(SIGNPOSTS.map((s) => s.icon).sort()).toEqual(["book", "kite", "leaf", "moon"]);
+  it("are nine, each with a picture, and are inside the World (the first four beside the path)", () => {
+    expect(SIGNPOSTS.map((s) => s.icon).sort()).toEqual(["book", "book", "book", "kite", "kite", "leaf", "leaf", "moon", "moon"]);
     for (const s of SIGNPOSTS) {
       expect(Math.abs(s.x)).toBeLessThan(HALF); expect(Math.abs(s.z)).toBeLessThan(HALF);
       expect(distToPath(s.x, s.z)).toBeGreaterThan(WORLD.path.width / 2 + POST_R); // not on the ink
-      expect(distToPath(s.x, s.z)).toBeLessThan(WORLD.path.keepOut + 1); // but beside it
+      if (SIGNPOSTS.indexOf(s) < 4) expect(distToPath(s.x, s.z)).toBeLessThan(WORLD.path.keepOut + 1); // the first four stand beside it; the region posts stand out in the open
     }
   });
   it("each is solid in exactly one chunk, keeps trees away, and does not close the path", () => {
@@ -76,6 +76,13 @@ describe("picture signposts", () => {
       expect(all.filter(([a, b]) => chunkContents(a, b).posts.some((p) => p.x === s.x && p.z === s.z))).toHaveLength(1);
       expect(blocked(s.x, s.z)).toBe(true);
       for (const [a, b] of all) for (const c of chunkCircles(chunkContents(a, b))) if (!(c.x === s.x && c.z === s.z)) expect(Math.hypot(c.x - s.x, c.z - s.z)).toBeGreaterThan(c.r + POST_R);
+    }
+  });
+  it("each region post stands on the way to a landmark (within 70 m of one, and nearer to it than Home is) and faces back towards Home", () => {
+    for (const s of SIGNPOSTS.slice(4)) {
+      const d = Math.min(...WORLD.landmarks.map((l) => Math.hypot(l.x - s.x, l.z - s.z)));
+      expect(d).toBeLessThan(70); expect(d).toBeLessThan(Math.hypot(s.x, s.z));
+      expect(Math.sin(s.yaw) * -s.x + Math.cos(s.yaw) * -s.z).toBeGreaterThan(0); // the board faces +z of its group, which must look at Home
     }
   });
   it("show on the map once walked past", () => {
