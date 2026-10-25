@@ -11,7 +11,8 @@ import { groundY } from "@/lib/ground";
 import { INK, homeEase, regionInk } from "@/lib/groundInk";
 import { applyInk } from "@/components/groundInkShader";
 import { CREASES, PATTERNS, TIDES, creaseMix, patchMix, tideMix } from "@/lib/groundPatterns";
-import { BLOOMS, GRASS_REGIONS, bloomsInChunk, bloomsFlag, grassInChunk, regionGrassInChunk, type BloomItem } from "@/lib/foliage";
+import raw from "@/data/foliage.json";
+import { BLOOMS, GRASS_REGIONS, bloomsInChunk, bloomsFlag, grassInChunk, regionGrassInChunk, rustleBlooms, rustleGrass, rustleSettings, type BloomItem, type PushOut } from "@/lib/foliage";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
@@ -24,6 +25,8 @@ export type ShellStats = { chunks: number; instances: number; builds: number; dr
 export type WorldShell = {
   /** Stream chunks round the player. `all` builds everything wanted this call (first call), otherwise at most buildsPerFrame. */
   update(x: number, z: number, all?: boolean): void;
+  /** F4: the pushers for this frame (empty = still). No-op with rustle off. */
+  setPushers(p: PushOut[]): void;
   /** Collision circles close to a point (pure data, so correct even for chunks not drawn yet). */
   circlesNear(x: number, z: number, reach: number): Circle[];
   /** E4: hedgerow boxes close to a point (empty with the features off). */
@@ -78,10 +81,10 @@ export function bloomGeo(petal: string): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3)); g.computeVertexNormals(); return g;
 }
 /** F2: bake every bloom of a chunk into ONE geometry (one draw per chunk, whatever the colours): each clump copies the variant for its colour group, scaled, turned and set on the ground. Null when there are none. */
-export function bakeBlooms(items: BloomItem[], variants: THREE.BufferGeometry[], groundAt: (x: number, z: number) => number, sink = 0): THREE.BufferGeometry | null {
+export function bakeBlooms(items: BloomItem[], variants: THREE.BufferGeometry[], groundAt: (x: number, z: number) => number, sink = 0, rise = false): THREE.BufferGeometry | null {
   if (!items.length || !variants.length) return null;
   let n = 0; for (const it of items) n += variants[Math.min(it.v, variants.length - 1)].getAttribute("position").count;
-  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3); let o = 0;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), rs = rise ? new Float32Array(n) : null; let o = 0, ri = 0;
   for (const it of items) {
     const g = variants[Math.min(it.v, variants.length - 1)], P = g.getAttribute("position"), N = g.getAttribute("normal"), C = g.getAttribute("color"), c = Math.cos(it.r), s = Math.sin(it.r), y0 = groundAt(it.x, it.z) - sink;
     for (let i = 0; i < P.count; i++, o += 3) {
@@ -89,10 +92,27 @@ export function bakeBlooms(items: BloomItem[], variants: THREE.BufferGeometry[],
       pos[o] = it.x + x * c + z * s; pos[o + 1] = y0 + y; pos[o + 2] = it.z - x * s + z * c; // the same turn three.js makes for rotation.y = r
       const nx = N.getX(i), nz = N.getZ(i); nor[o] = nx * c + nz * s; nor[o + 1] = N.getY(i); nor[o + 2] = -nx * s + nz * c;
       col[o] = C.getX(i); col[o + 1] = C.getY(i); col[o + 2] = C.getZ(i);
+      if (rs) rs[ri++] = y; // F4: height above the ground, for the rustle bend (only when asked for)
     }
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.computeBoundingSphere(); return g;
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); if (rs) g.setAttribute("aRise", new THREE.BufferAttribute(rs, 1)); g.computeBoundingSphere(); return g;
 }
+
+/** F4: the rustle bend. Each vertex moves away from every pusher by its height above the ground times a strength that falls off with distance, so roots stay and tips move most. Same vertices, same draws.
+ *  `uniforms` is one shared object: the CPU rewrites it once a frame (setPushers). */
+export type RustleUniforms = { uRP: { value: THREE.Vector4[] }; uRN: { value: number }; uRR: { value: number }; uRK: { value: number } };
+export const MAX_PUSH = 8;
+export function rustleUniforms(cfg = rustleSettings()): RustleUniforms { return { uRP: { value: Array.from({ length: MAX_PUSH }, () => new THREE.Vector4()) }, uRN: { value: 0 }, uRR: { value: cfg.radius }, uRK: { value: Math.tan((cfg.maxBend * Math.PI) / 180) } }; }
+export function setPushers(u: RustleUniforms, p: PushOut[]): void { const n = Math.min(p.length, MAX_PUSH); for (let i = 0; i < n; i++) u.uRP.value[i].set(p[i].x, p[i].z, p[i].s, 0); u.uRN.value = n; }
+export function rustleShader(mat: THREE.Material, u: RustleUniforms, instanced: boolean): void {
+  mat.customProgramCacheKey = () => (instanced ? "rustle-i" : "rustle-b");
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", `#include <common>\nuniform vec4 uRP[${MAX_PUSH}]; uniform int uRN; uniform float uRR; uniform float uRK;${instanced ? "" : "\nattribute float aRise;"}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n{ mat4 rm = modelMatrix;${instanced ? " rm = rm * instanceMatrix;" : ""}\n  vec2 wp = (rm * vec4(transformed, 1.0)).xz; float rise = ${instanced ? "transformed.y * length(rm[1].xyz)" : "aRise"}; vec2 push = vec2(0.0);\n  for (int i = 0; i < ${MAX_PUSH}; i++) { if (i >= uRN) break; vec2 d = wp - uRP[i].xy; float l = length(d); push += (d / max(l, 0.001)) * uRP[i].z * (1.0 - smoothstep(0.0, uRR, l)); }\n  vec2 moved = push * rise * uRK; mat3 m3 = mat3(rm); vec3 wd = vec3(moved.x, 0.0, moved.y); transformed += (wd * m3) / dot(m3[0], m3[0]); }`);
+  };
+}
+
 /** E5: an ink drip hung in the air: a thin thread that swells into a teardrop (walk-through, drawn at head height and above). */
 const dripGeo = (): THREE.BufferGeometry => mergeGeometries([plain(lathe([[0, 3.9], [0.02, 3.9], [0.02, 3.1], [0.13, 2.95], [0.11, 2.55], [0.05, 2.3], [0, 2.15]], 6))])!;
 /** E5: a fern fan: seven thin blades leaning out from one root, longer at the back. */
@@ -157,7 +177,7 @@ const mats = (look: { crown: string; trunk: string; rock: string; bush: string }
   rock: new THREE.MeshToonMaterial({ color: look.rock }), bush: new THREE.MeshToonMaterial({ color: look.bush }),
 });
 
-export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean; features?: boolean; groundInk?: boolean } = {}): WorldShell {
+export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; ground?: boolean; features?: boolean; groundInk?: boolean; rustleData?: unknown } = {}): WorldShell {
   const group = new THREE.Group(); group.name = "world-shell"; scene.add(group);
   const gy = (x: number, z: number): number => (opts.ground ? groundY(x, z) : 0); // H2: props sit on the ground height; with the switch off this is 0, exactly as before
   const SINK = 0.08; // rocks sit a little sunk so no gap shows on a slope
@@ -183,6 +203,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
     grass: keep(grassGeo()), grassR: Object.fromEntries(Object.entries(GRASS_REGIONS.tint ?? {}).map(([k, t]) => [k, keep(grassGeo(t!.root, t!.tip))])) as Record<string, THREE.BufferGeometry>, bloomV: (Array.isArray(BLOOMS.palette) ? BLOOMS.palette : []).map((c) => keep(bloomGeo(c))), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
   };
+  const RS_ON = { grass: rustleGrass(opts.rustleData ?? raw), blooms: rustleBlooms(opts.rustleData ?? raw) }, RU = rustleUniforms(); // F4: with both off the materials below are not touched
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
   for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
   const L = {
@@ -196,6 +217,9 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     shelfDark: keep(new THREE.MeshToonMaterial({ color: "#5e4f3e" })), ledge: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
     spines: ["#c8605f", "#d9a15a", "#6f8fb0", "#6f9a6a", "#8b6fa8", "#e3d3a4", "#3f5f78", "#b5726b"].map((c) => keep(new THREE.MeshToonMaterial({ color: c }))),
   };
+
+  if (RS_ON.grass) rustleShader(L.grass, RU, true);
+  if (RS_ON.blooms) rustleShader(L.bloom, RU, false);
 
   // ---- ground: a soft blend from meadow to inkwood, plus a plain skirt beyond the edge ----
   const SEG = 128; // 2 m cells, so the blend below is smooth rather than stepped
@@ -365,7 +389,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
       for (const reg of new Set(gx.map((t) => regionAt(t.z, t.x)))) make(G.grassR[reg] ?? G.grass, L.grass, gx.filter((t) => regionAt(t.z, t.x) === reg), 1, opts.ground ? SINK : 0);
       fInst += gx.length;
       const bl = bloomsInChunk(ix, iz); // F2: the blooms, own budget and own switch, no collider; all colours baked into one mesh per chunk, and they do not cast
-      const bg = bloomsFlag({ blooms: BLOOMS }) ? bakeBlooms(bl, G.bloomV, gy, opts.ground ? SINK : 0) : null;
+      const bg = bloomsFlag({ blooms: BLOOMS }) ? bakeBlooms(bl, G.bloomV, gy, opts.ground ? SINK : 0, RS_ON.blooms) : null;
       if (bg) { const bm = new THREE.Mesh(bg, L.bloom); bm.castShadow = false; bm.userData.ownGeo = true; g.add(bm); extra.push(bm); fInst += bl.length; }
       for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
         const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.castShadow = true; o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
@@ -396,6 +420,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
 
   return {
     update,
+    setPushers: (p) => { if (RS_ON.grass || RS_ON.blooms) setPushers(RU, p); },
     circlesNear(x, z, reach) {
       const ix = chunkOf(x), iz = chunkOf(z), out: Circle[] = [];
       for (const c of nearbyCircles(ix, iz, circlesOf)) if (Math.abs(c.x - x) < reach + c.r && Math.abs(c.z - z) < reach + c.r) out.push(c);
