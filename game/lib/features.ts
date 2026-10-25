@@ -179,16 +179,16 @@ export const hedgeBoxes = (pieces: HedgePiece[]): Box[] => pieces.map(({ x, z, w
 export const hedgeTouches = (x: number, z: number, r: number, pieces: HedgePiece[] = buildHedges(), pad = 0.4): boolean =>
   pieces.some((p) => Math.abs(x - p.x) < p.w / 2 + r + pad && Math.abs(z - p.z) < p.d / 2 + r + pad);
 
-// ---- E5: region prop families (Meadow first: tufts and haystacks). Seeded patches, pure, drawn only with the features on. ----
-export type PropKind = "tuft" | "haystack";
+// ---- E5: region prop families (Meadow: tufts and haystacks; Inkwood Edge: ink drips and ferns). Seeded patches, pure, drawn only with the features on. ----
+export type PropKind = "tuft" | "haystack" | "drip" | "fern";
 export type PropPatch = { id: string; region: RegionId; kind: PropKind; at: Pt; rx: number; rz: number; count: number; s: [number, number]; seed: number };
 export type PropItem = Item & { k: PropKind; f: string };
 export type PropLimits = { perChunk: number; minGap: number };
 const rawF = raw.features as unknown as { props?: PropPatch[]; propLimits?: PropLimits };
 export const PROPS: PropPatch[] = rawF.props ?? [];
 export const PROP_LIMITS: PropLimits = rawF.propLimits ?? { perChunk: 60, minGap: 0.9 };
-/** Footprint radius per unit of scale. Haystacks are solid circles; tufts are walk-through but keep their own space. */
-export const PROP_R: Record<PropKind, number> = { tuft: 0.35, haystack: 1.0 };
+/** Footprint radius per unit of scale. Haystacks are solid circles; tufts, drips and ferns are walk-through but keep their own space. */
+export const PROP_R: Record<PropKind, number> = { tuft: 0.35, haystack: 1.0, drip: 0.3, fern: 0.55 };
 export const propRadius = (i: { k: PropKind; s: number }) => PROP_R[i.k] * i.s;
 export const propSolid = (i: { k: PropKind }) => i.k === "haystack";
 

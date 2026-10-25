@@ -46,6 +46,17 @@ function tuftGeo(): THREE.BufferGeometry {
   }
   return mergeGeometries(parts)!;
 }
+/** E5: an ink drip hung in the air: a thin thread that swells into a teardrop (walk-through, drawn at head height and above). */
+const dripGeo = (): THREE.BufferGeometry => mergeGeometries([plain(lathe([[0, 3.9], [0.02, 3.9], [0.02, 3.1], [0.13, 2.95], [0.11, 2.55], [0.05, 2.3], [0, 2.15]], 6))])!;
+/** E5: a fern fan: seven thin blades leaning out from one root, longer at the back. */
+function fernGeo(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2, len = 0.8 + 0.25 * Math.sin(k * 2.1);
+    parts.push(plain(lathe([[0, 0], [0.07, 0], [0.05, 0.45 * len], [0, 0.95 * len]], 3).rotateZ(-0.75).rotateY(a)));
+  }
+  return mergeGeometries(parts)!;
+}
 /** E5: a rolled-paper haystack: a round roll that rounds off into a soft cap. */
 const haystackGeo = (): THREE.BufferGeometry => mergeGeometries([plain(lathe([[0, 0], [0.9, 0], [0.97, 0.06], [0.88, 0.95], [0.6, 1.2], [0.25, 1.6], [0, 1.78]], 10))])!;
 const mats = (look: { crown: string; trunk: string; rock: string; bush: string }) => ({
@@ -77,7 +88,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     pole: keep(poleGeo(0.8, 1, 1, 8).translate(0, 0.5, 0)),
     cyl: keep(unitCylGeo()),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
-    tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
+    tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
   };
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
   for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
@@ -85,7 +96,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     paper: keep(new THREE.MeshToonMaterial({ color: "#f1dfae" })), ink: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })),
     red: keep(new THREE.MeshToonMaterial({ color: "#d9606b" })), leaf: keep(new THREE.MeshToonMaterial({ color: WORLD.look.inkwood.crown })),
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
-    tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })),
+    tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })), drip: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })), fern: keep(new THREE.MeshToonMaterial({ color: "#4f7a5e", side: THREE.DoubleSide })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
     shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
     water: keep(new THREE.MeshToonMaterial({ color: "#4d6a78" })), deck: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
@@ -251,8 +262,8 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
         make(G.rock, fm.rock, mine.filter((i) => i.k === "rock"), 1, opts.ground ? SINK : 0); make(G.bush, fm.bush, mine.filter((i) => i.k === "bush"));
       }
       fInst = featureInstanceCount(fs);
-      const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, one instanced draw per shape
-      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft")); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); fInst += ps.length;
+      const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, Inkwood drips and ferns, one instanced draw per shape
+      make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft")); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); fInst += ps.length;
       for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
         const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
       }

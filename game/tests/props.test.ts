@@ -1,4 +1,4 @@
-// E5: Meadow prop families (tufts and haystacks). Pure builder, seeded, capped per chunk, kept clear, reachable, and off equals today.
+// E5: region prop families (Meadow tufts and haystacks; Inkwood drips and ferns). Pure builder, seeded, capped per chunk, kept clear, reachable, and off equals today.
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import * as THREE from "three";
@@ -13,10 +13,10 @@ const items = buildProps();
 const shellOf = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-34, 0, true); return { scene, shell }; };
 
 describe("prop data", () => {
-  it("has unique ids, Meadow only in E5, both shapes, and counts that fit the cap", () => {
+  it("has unique ids, Meadow and Inkwood only so far, all four shapes, and counts that fit the cap", () => {
     expect(new Set(PROPS.map((p) => p.id)).size).toBe(PROPS.length);
-    for (const p of PROPS) { expect(p.region, p.id).toBe("meadow"); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
-    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack"]));
+    for (const p of PROPS) { expect(["meadow", "inkwood"], p.id).toContain(p.region); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
+    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack", "drip", "fern"]));
   });
   it("every patch builds something", () => { for (const p of PROPS) expect(buildPatch(p).length, p.id).toBeGreaterThan(0); });
 });
@@ -39,12 +39,12 @@ describe("cost and clearance", () => {
     const tight = buildProps([...PROPS], { ...PROP_LIMITS, perChunk: 3 });
     for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) expect(propItemsInChunk(a, b, tight).length).toBeLessThanOrEqual(3);
   });
-  it("every item is in Meadow, inside the World, and clear of Home, the path, the gate, signposts, landmarks, hedges, features and the scatter", () => {
+  it("every item is in its own region, inside the World, and clear of Home, the path, the gate, signposts, landmarks, hedges, features and the scatter", () => {
     const hp = buildHedges(), fc = featureCircles(buildAll());
     const scatter = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) { const c = chunkContents(a, b); scatter.push(...c.trees.map((t) => ({ ...t, r2: 0.55 * t.s })), ...c.rocks.map((t) => ({ ...t, r2: 0.7 * t.s })), ...c.bushes.map((t) => ({ ...t, r2: 0.8 * t.s }))); }
     for (const i of items) {
       const r = propRadius(i);
-      expect(regionAt(i.z, i.x), i.f).toBe("meadow");
+      expect(regionAt(i.z, i.x), i.f).toBe(PROPS.find((p) => p.id === i.f)!.region);
       expect(Math.abs(i.x) + r).toBeLessThan(HALF); expect(Math.abs(i.z) + r).toBeLessThan(HALF);
       expect(keepClear(i.x, i.z, r), `${i.f} ${i.x},${i.z}`).toBe(false);
       expect(hedgeTouches(i.x, i.z, r, hp, 0)).toBe(false);
@@ -58,9 +58,28 @@ describe("cost and clearance", () => {
   });
 });
 
+describe("Inkwood Edge", () => {
+  const ink = items.filter((i) => regionAt(i.z, i.x) === "inkwood");
+  it("has both drips and ferns, every one inside Inkwood, and none solid", () => {
+    expect(new Set(ink.map((i) => i.k))).toEqual(new Set(["drip", "fern"]));
+    expect(ink.length).toBe(items.filter((i) => i.k === "drip" || i.k === "fern").length);
+    expect(propCircles(ink).length).toBe(0);
+    for (const p of PROPS.filter((q) => q.region === "inkwood")) expect(buildPatch(p).length, p.id).toBeGreaterThanOrEqual(Math.floor(p.count / 2));
+  });
+  it("is deterministic and a changed seed changes it", () => {
+    const p = PROPS.find((q) => q.kind === "fern")!;
+    expect(JSON.stringify(buildPatch(p))).toBe(JSON.stringify(buildPatch(p)));
+    expect(JSON.stringify(buildPatch({ ...p, seed: p.seed + 1 }))).not.toBe(JSON.stringify(buildPatch(p)));
+  });
+  it("with the features on, a shell in Inkwood draws the new shapes; off draws none", () => {
+    const at = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-72, -100, true); return shell.stats().instances; };
+    expect(at(true)).toBeGreaterThan(at(false));
+  });
+});
+
 describe("walking", () => {
   const base = worldColliders(), withP = { circles: [...base.circles, ...featureCircles(buildAll()), ...propCircles(items)], boxes: [...base.boxes, ...hedgeBoxes(buildHedges())] };
-  it("with the haystacks in (tufts are walk-through), the walk from the spawn still reaches every landmark, the gate, the signposts and the corners, and seals no room-sized pocket", () => {
+  it("with the haystacks in (tufts, drips and ferns are walk-through), the walk from the spawn still reaches every landmark, the gate, the signposts and the corners, and seals no room-sized pocket", () => {
     expect(propCircles(items).length).toBe(items.filter((i) => i.k === "haystack").length);
     const r1 = reachability(withP, 0.5), rr = reachReport(r1, map.signposts);
     expect(Object.values(rr.landmarksReached).every(Boolean)).toBe(true);
