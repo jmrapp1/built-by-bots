@@ -342,8 +342,8 @@
      {
       "k": "tree",
       "n": [
-       5,
-       9
+       14,
+       20
       ],
       "zone": "core",
       "s": [
@@ -355,8 +355,8 @@
      {
       "k": "rock",
       "n": [
-       1,
-       3
+       2,
+       4
       ],
       "zone": "edge",
       "s": [
@@ -367,8 +367,8 @@
      {
       "k": "bush",
       "n": [
-       2,
-       4
+       5,
+       8
       ],
       "zone": "skirt",
       "s": [
@@ -385,8 +385,8 @@
      {
       "k": "tree",
       "n": [
-       1,
-       1
+       2,
+       2
       ],
       "zone": "center",
       "s": [
@@ -440,8 +440,8 @@
      {
       "k": "rock",
       "n": [
-       2,
-       4
+       3,
+       6
       ],
       "zone": "skirt",
       "s": [
@@ -450,7 +450,7 @@
       ]
      }
     ],
-    "gap": 0.15
+    "gap": 0.4
    },
    "thicket": {
     "rc": 4,
@@ -459,8 +459,8 @@
      {
       "k": "bush",
       "n": [
-       5,
-       8
+       10,
+       14
       ],
       "zone": "core",
       "s": [
@@ -471,8 +471,8 @@
      {
       "k": "tree",
       "n": [
-       1,
-       2
+       2,
+       3
       ],
       "zone": "skirt",
       "s": [
@@ -481,7 +481,7 @@
       ]
      }
     ],
-    "gap": 0.4
+    "gap": 0.8
    },
    "pool": {
     "rc": 3.5,
@@ -542,17 +542,17 @@
   "cells": {
    "meadow": {
     "cell": 22,
-    "chance": 0.55,
-    "gap": 12,
-    "size": 1.0,
+    "chance": 0.75,
+    "gap": 10,
+    "size": 1.38,
     "stray": 0.25,
     "treeScale": 1.0,
     "mix": {
-     "pool": 4,
+     "pool": 3,
      "lone": 3,
-     "grove": 2,
+     "grove": 4,
      "cairn": 1,
-     "thicket": 1,
+     "thicket": 3,
      "line": 1
     },
     "props": {
@@ -565,9 +565,9 @@
    },
    "inkwood": {
     "cell": 16,
-    "chance": 0.75,
-    "gap": 8,
-    "size": 1.2,
+    "chance": 0.95,
+    "gap": 6,
+    "size": 1.66,
     "stray": 0.15,
     "treeScale": 1.3,
     "mix": {
@@ -592,9 +592,9 @@
    },
    "paper_downs": {
     "cell": 26,
-    "chance": 0.45,
-    "gap": 16,
-    "size": 1.0,
+    "chance": 0.65,
+    "gap": 14,
+    "size": 1.38,
     "stray": 0.2,
     "treeScale": 1.0,
     "mix": {
@@ -602,7 +602,7 @@
      "line": 3,
      "pool": 2,
      "lone": 2,
-     "grove": 1
+     "grove": 2
     },
     "props": {
      "pool": [
@@ -613,15 +613,15 @@
    },
    "glyph_quarter": {
     "cell": 20,
-    "chance": 0.5,
-    "gap": 12,
-    "size": 0.9,
+    "chance": 0.7,
+    "gap": 10,
+    "size": 1.24,
     "stray": 0.2,
     "treeScale": 1.0,
     "mix": {
      "cairn": 4,
      "line": 3,
-     "thicket": 1,
+     "thicket": 2,
      "lone": 1
     },
     "props": {
@@ -633,14 +633,14 @@
    },
    "pressmark_shore": {
     "cell": 20,
-    "chance": 0.55,
-    "gap": 12,
-    "size": 1.0,
+    "chance": 0.75,
+    "gap": 10,
+    "size": 1.38,
     "stray": 0.25,
     "treeScale": 1.0,
     "mix": {
      "line": 4,
-     "thicket": 3,
+     "thicket": 5,
      "pool": 3,
      "cairn": 1
     },
