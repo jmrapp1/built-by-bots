@@ -51,13 +51,13 @@ describe("the ground colours", () => {
     expect(hashOf(groundColours({ features: false }).a)).toBe(PINNED_OFF);
     expect(hashOf(groundColours({}).a)).toBe(PINNED_OFF);
   });
-  it("on changes Meadow only: same count, Home square, other regions and the edge untouched", () => {
+  it("on changes Meadow patches and Downs creases only: same count, Home square, other regions and the edge untouched", () => {
     const off = groundColours({ features: false }), on = groundColours({ features: true });
     expect(on.a.length).toBe(off.a.length); expect(on.p.count).toBe(off.p.count);
     let changed = 0;
     for (let i = 0; i < on.p.count; i++) {
       const wx = on.p.getX(i), wz = -on.p.getY(i), diff = [0, 1, 2].some((k) => on.a[i * 3 + k] !== off.a[i * 3 + k]);
-      if (diff) { changed++; expect(patchMix(wx, wz).amount).toBeGreaterThan(0); expect(Math.max(Math.abs(wx), Math.abs(wz))).toBeGreaterThan(HOME_FLAT); }
+      if (diff) { changed++; expect(patchMix(wx, wz).amount + creaseMix(wx, wz).amount).toBeGreaterThan(0); expect(Math.max(Math.abs(wx), Math.abs(wz))).toBeGreaterThan(HOME_FLAT); }
       else if (regionWeights(wx, wz).meadow < 1e-9) expect(patchMix(wx, wz).amount).toBe(0);
     }
     expect(changed).toBeGreaterThan(2000);
@@ -69,3 +69,27 @@ describe("the ground colours", () => {
   });
 });
 const PINNED_OFF = "ef3d4c1f5d524078eed9d9fffd4d239c2fa61b5bedaf123a650dcbdd41b51a97";
+
+import { CREASES, creaseMix } from "@/lib/groundPatterns";
+describe("Paper Downs fold creases", () => {
+  it("data is sane and only Paper Downs is on", () => { expect(CREASES.regions.paper_downs).toBeGreaterThan(0); for (const r of ["meadow", "inkwood", "glyph_quarter", "pressmark_shore"] as const) expect(CREASES.regions[r]).toBe(0); expect(CREASES.strength).toBeLessThanOrEqual(0.4); expect(CREASES.jitter).toBeLessThan(0.5); expect(CREASES.shade).toMatch(/^#[0-9a-f]{6}$/i); expect(CREASES.light).toMatch(/^#[0-9a-f]{6}$/i); });
+  it("is pure, finite and bounded everywhere", () => {
+    for (let x = -HALF - 20; x <= HALF + 20; x += 5) for (let z = -HALF - 20; z <= HALF + 20; z += 5) { const m = creaseMix(x, z); expect(Number.isFinite(m.amount)).toBe(true); expect(m.amount).toBeGreaterThanOrEqual(0); expect(m.amount).toBeLessThanOrEqual(CREASES.strength + 1e-9); expect(creaseMix(x, z)).toEqual(m); }
+    expect(creaseMix(NaN, 0).amount).toBe(0);
+  });
+  it("is zero in Home and wherever Paper Downs has no weight; present, with both kinds, in the Downs", () => {
+    for (let x = -HOME_FLAT; x <= HOME_FLAT; x += 2) for (let z = -HOME_FLAT; z <= HOME_FLAT; z += 2) expect(creaseMix(x, z).amount).toBe(0);
+    let on = 0, ridge = 0, valley = 0;
+    for (let x = -HALF; x <= HALF; x += 1.5) for (let z = -HALF; z <= HALF; z += 1.5) { const m = creaseMix(x, z), w = regionWeights(x, z); if (w.paper_downs < 1e-9) expect(m.amount).toBe(0); if (m.amount > 0.05) { on++; if (m.ridge) ridge++; else valley++; } }
+    expect(on).toBeGreaterThan(300); expect(ridge).toBeGreaterThan(0); expect(valley).toBeGreaterThan(0);
+  });
+  it("changes only Paper Downs ground colour, Meadow output is untouched, nothing else moves", () => {
+    const off = groundColours({ features: false }), on = groundColours({ features: true }); let downs = 0;
+    for (let i = 0; i < on.p.count; i++) {
+      const wx = on.p.getX(i), wz = -on.p.getY(i), diff = [0, 1, 2].some((k) => on.a[i * 3 + k] !== off.a[i * 3 + k]);
+      if (creaseMix(wx, wz).amount > 0) { downs++; expect(regionWeights(wx, wz).paper_downs).toBeGreaterThan(0); }
+      if (diff && patchMix(wx, wz).amount === 0) expect(creaseMix(wx, wz).amount).toBeGreaterThan(0);
+    }
+    expect(downs).toBeGreaterThan(200);
+  });
+});

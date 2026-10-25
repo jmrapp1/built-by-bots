@@ -8,5 +8,19 @@
     "seed": 606,
     "tints": ["#b9d98a", "#8fc79a", "#d3e08f", "#a4cf7c", "#c9dc9f"],
     "regions": { "meadow": 1.0, "inkwood": 0, "paper_downs": 0, "glyph_quarter": 0, "pressmark_shore": 0 }
+  },
+  "creaseNote": "E6: Paper Downs fold creases, a second pattern kind (ground vertex colour only). Long soft lines like folds in paper: 'spacing' m between lines across direction 'angle' (degrees), each line moved by up to 'jitter' of a spacing, wavering by 'wobble' m. 'width' m is the soft half-width of a crease; 'strength' how much of the colour mixes in; every other line is a valley (shade) and the rest a ridge (light). 'regions' is the strength per region.",
+  "creases": {
+    "spacing": 22,
+    "jitter": 0.3,
+    "angle": 28,
+    "wobble": 3,
+    "wobbleLength": 40,
+    "width": 1.6,
+    "strength": 0.3,
+    "seed": 808,
+    "shade": "#9fb48a",
+    "light": "#f2efd8",
+    "regions": { "meadow": 0, "inkwood": 0, "paper_downs": 1.0, "glyph_quarter": 0, "pressmark_shore": 0 }
   }
 }
