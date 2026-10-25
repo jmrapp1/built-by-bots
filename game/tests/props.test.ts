@@ -5,7 +5,7 @@ import * as THREE from "three";
 import map from "@/data/map.json";
 import { GARDEN } from "@/lib/world";
 import { CHUNKS, HALF, WORLD, buildContents, chunkContents, regionAt } from "@/lib/worldMap";
-import { PROPS, PROP_LIMITS, buildPatch, buildProps, buildAll, buildHedges, featureCircles, hedgeBoxes, hedgeTouches, keepClear, propCircles, propItemsInChunk, propRadius, featuresOn } from "@/lib/features";
+import { PROPS, PROP_LIMITS, buildPatch, buildProps, buildAll, buildHedges, featureCircles, hedgeBoxes, hedgeTouches, keepClear, propCircles, propItemsInChunk, propRadius, QUARTER_GAP, featuresOn } from "@/lib/features";
 import { buildWorldShell } from "@/components/worldShell";
 import { reachability, reachReport, pockets, worldColliders } from "@/lib/sight";
 
@@ -13,10 +13,10 @@ const items = buildProps().filter((i) => PROPS.some((p) => p.id === i.f)); // th
 const shellOf = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-34, 0, true); return { scene, shell }; };
 
 describe("prop data", () => {
-  it("has unique ids, Meadow, Inkwood, Paper Downs and Pressmark Shore only so far, all eight shapes, and counts that fit the cap", () => {
+  it("has unique ids, Meadow, Inkwood, Paper Downs and Pressmark Shore and Glyph Quarter only so far, all eleven shapes, and counts that fit the cap", () => {
     expect(new Set(PROPS.map((p) => p.id)).size).toBe(PROPS.length);
-    for (const p of PROPS) { expect(["meadow", "inkwood", "paper_downs", "pressmark_shore"], p.id).toContain(p.region); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
-    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack", "drip", "fern", "pinwheel", "pagestone", "reed", "driftwood"]));
+    for (const p of PROPS) { expect(["meadow", "inkwood", "paper_downs", "pressmark_shore", "glyph_quarter"], p.id).toContain(p.region); expect(p.count).toBeLessThanOrEqual(PROP_LIMITS.perChunk); }
+    expect(new Set(PROPS.map((p) => p.kind))).toEqual(new Set(["tuft", "haystack", "drip", "fern", "pinwheel", "pagestone", "reed", "driftwood", "bookstack", "glyphpillar", "lamppost"]));
   });
   it("every patch builds something", () => { for (const p of PROPS) expect(buildPatch(p).length, p.id).toBeGreaterThan(0); });
 });
@@ -119,10 +119,35 @@ describe("Pressmark Shore", () => {
   });
 });
 
+describe("Glyph Quarter", () => {
+  const gq = items.filter((i) => regionAt(i.z, i.x) === "glyph_quarter" && ["bookstack", "glyphpillar", "lamppost"].includes(i.k));
+  it("has book stacks, glyph pillars and lamp posts, every one inside the Quarter and solid", () => {
+    expect(new Set(gq.map((i) => i.k))).toEqual(new Set(["bookstack", "glyphpillar", "lamppost"]));
+    expect(gq.length).toBe(items.filter((i) => ["bookstack", "glyphpillar", "lamppost"].includes(i.k)).length);
+    expect(propCircles(gq).length).toBe(gq.length);
+    for (const p of PROPS.filter((q) => q.region === "glyph_quarter")) expect(buildPatch(p).length, p.id).toBeGreaterThanOrEqual(Math.floor(p.count / 2));
+  });
+  it("leaves a walkable gap of at least 4 m between any two solid props, and none is pinned against another", () => {
+    const solids = gq.map((i) => ({ x: i.x, z: i.z, r: propRadius(i) }));
+    for (let a = 0; a < solids.length; a++) for (let b = a + 1; b < solids.length; b++) expect(Math.hypot(solids[a].x - solids[b].x, solids[a].z - solids[b].z) - solids[a].r - solids[b].r, `${a}-${b}`).toBeGreaterThanOrEqual(QUARTER_GAP);
+  });
+  it("is deterministic and a changed seed changes it", () => {
+    for (const kind of ["bookstack", "glyphpillar", "lamppost"]) {
+      const p = PROPS.find((q) => q.kind === kind)!;
+      expect(JSON.stringify(buildPatch(p))).toBe(JSON.stringify(buildPatch(p)));
+      expect(JSON.stringify(buildPatch({ ...p, seed: p.seed + 1 }))).not.toBe(JSON.stringify(buildPatch(p)));
+    }
+  });
+  it("with the features on, a shell in the Quarter draws the new shapes; off draws none", () => {
+    const at = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-30, 100, true); return shell.stats().instances; };
+    expect(at(true)).toBeGreaterThan(at(false));
+  });
+});
+
 describe("walking", () => {
   const base = worldColliders(), withP = { circles: [...base.circles, ...featureCircles(buildAll()), ...propCircles(items)], boxes: [...base.boxes, ...hedgeBoxes(buildHedges())] };
   it("with the haystacks in (tufts, drips, ferns, pinwheels and reeds are walk-through), the walk from the spawn still reaches every landmark, the gate, the signposts and the corners, and seals no room-sized pocket", () => {
-    expect(propCircles(items).length).toBe(items.filter((i) => i.k === "haystack" || i.k === "pagestone" || i.k === "driftwood").length);
+    expect(propCircles(items).length).toBe(items.filter((i) => i.k === "haystack" || i.k === "pagestone" || i.k === "driftwood" || i.k === "bookstack" || i.k === "glyphpillar" || i.k === "lamppost").length);
     const r1 = reachability(withP, 0.5), rr = reachReport(r1, map.signposts);
     expect(Object.values(rr.landmarksReached).every(Boolean)).toBe(true);
     expect(rr.gateReached).toBe(true); expect(rr.signpostsReached).toBe(rr.signposts); expect(rr.corners.every(Boolean)).toBe(true);
