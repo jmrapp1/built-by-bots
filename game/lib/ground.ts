@@ -2,6 +2,7 @@
 // height = (sum of cosine rises) x scale x mask, and the mask is a smoothstep of the distance to the nearest flat zone, so one function owns "flat here".
 import raw from "@/data/ground.json";
 import map from "@/data/map.json";
+import worldRaw from "@/data/world.json";
 import { GARDEN } from "@/lib/world";
 import { HALF, WORLD, distToPath } from "@/lib/worldMap";
 
@@ -25,7 +26,7 @@ export function groundOn(search: string, production: boolean, data: unknown = ra
 
 const soft = (t: number) => { const u = Math.min(1, Math.max(0, t)); return u * u * (3 - 2 * u); };
 // Flat zones (exactly 0 inside). Each returns the distance in metres from that zone (<= 0 inside it).
-export const HOME_FLAT = GARDEN.size / 2 + WORLD.gardenKeepOut; // Home, the gate and the garden door all lie inside this square
+export const HOME_FLAT = GARDEN.size / 2 + worldRaw.gardenKeepOut; /* from the data, not WORLD: worldMap -> clusters -> ground is a load-order cycle */ // Home, the gate and the garden door all lie inside this square
 const SIGN_FLAT = 3, GATE_FLAT = 14; // metres round the gate (its approach on both sides)
 /** Metres outside the nearest flat zone; 0 or less means flat. */
 export function flatDistance(x: number, z: number): number {
