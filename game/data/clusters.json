@@ -1,0 +1,657 @@
+{
+ "note": "C1: seeded clusters of trees, rocks, bushes and small props (lib/clusters.ts). Most scenery lives in clusters with bare ground between them; 'stray' is the share of the old uniform scatter that stays. 'enabled' true = clusters; false = the old scatter and lists exactly as before (one data edit and a deploy). 'anchors' are authored cluster centres (about two cairns round each landmark, plus the big groves and lines); 'cells' is a jittered grid per region: each cell holds a cluster with chance 'chance', of a kind weighted by 'mix', no closer than 'gap' m to another centre. Members of a cluster: n = [min,max] count (times the cluster size), zone = where (center, core, skirt, edge, line), s = scale range. A member takes its look from the real shapes only. 'props' says which small shapes a pool or line uses in that region. Metres. All values are first guesses to tune by eye: if still empty, raise chance by 0.1, then size, then lower gap by 2; if too busy, the reverse. The land rule (slope, dips, paths) is not in this slice: every site is accepted. 'gap' on a kind is the edge-to-edge space between its solid members (default: features minGap 1.6); the tight kinds (cairn, lone, thicket) use less than the player's width so they read as one solid lump rather than loose items.",
+ "clusters": {
+  "enabled": true,
+  "anchors": [
+   {
+    "id": "ring-page-tower-1",
+    "region": "pressmark_shore",
+    "kind": "cairn",
+    "at": [
+     71,
+     24
+    ],
+    "seed": 7131
+   },
+   {
+    "id": "ring-page-tower-2",
+    "region": "pressmark_shore",
+    "kind": "cairn",
+    "at": [
+     75,
+     47
+    ],
+    "seed": 7262
+   },
+   {
+    "id": "ring-bookmark-spire-1",
+    "region": "glyph_quarter",
+    "kind": "cairn",
+    "at": [
+     -74,
+     76
+    ],
+    "seed": 7393
+   },
+   {
+    "id": "ring-bookmark-spire-2",
+    "region": "glyph_quarter",
+    "kind": "cairn",
+    "at": [
+     -96,
+     70
+    ],
+    "seed": 7524
+   },
+   {
+    "id": "ring-great-ink-tree-1",
+    "region": "inkwood",
+    "kind": "cairn",
+    "at": [
+     -37,
+     -86
+    ],
+    "seed": 7655
+   },
+   {
+    "id": "ring-great-ink-tree-2",
+    "region": "inkwood",
+    "kind": "cairn",
+    "at": [
+     -29,
+     -108
+    ],
+    "seed": 7786
+   },
+   {
+    "id": "ring-lantern-post-1",
+    "region": "paper_downs",
+    "kind": "cairn",
+    "at": [
+     44,
+     -109
+    ],
+    "seed": 7917
+   },
+   {
+    "id": "ring-lantern-post-2",
+    "region": "paper_downs",
+    "kind": "cairn",
+    "at": [
+     67,
+     -113
+    ],
+    "seed": 8048
+   },
+   {
+    "id": "ring-paper-kite-hill-1",
+    "region": "paper_downs",
+    "kind": "cairn",
+    "at": [
+     41,
+     -99
+    ],
+    "seed": 8179
+   },
+   {
+    "id": "ring-paper-kite-hill-2",
+    "region": "paper_downs",
+    "kind": "cairn",
+    "at": [
+     62,
+     -75
+    ],
+    "seed": 8310
+   },
+   {
+    "id": "ring-bookshelf-wall-1",
+    "region": "glyph_quarter",
+    "kind": "cairn",
+    "at": [
+     34,
+     101
+    ],
+    "seed": 8441
+   },
+   {
+    "id": "ring-bookshelf-wall-2",
+    "region": "glyph_quarter",
+    "kind": "cairn",
+    "at": [
+     9,
+     114
+    ],
+    "seed": 8572
+   },
+   {
+    "id": "ring-lantern-bridge-1",
+    "region": "pressmark_shore",
+    "kind": "cairn",
+    "at": [
+     109,
+     -16
+    ],
+    "seed": 8703
+   },
+   {
+    "id": "ring-lantern-bridge-2",
+    "region": "pressmark_shore",
+    "kind": "cairn",
+    "at": [
+     96,
+     3
+    ],
+    "seed": 8834
+   },
+   {
+    "id": "grove-meadow-45-20",
+    "region": "meadow",
+    "kind": "grove",
+    "at": [
+     -45,
+     20
+    ],
+    "seed": 8965
+   },
+   {
+    "id": "grove-meadow-38-38",
+    "region": "meadow",
+    "kind": "grove",
+    "at": [
+     38,
+     -38
+    ],
+    "seed": 9096
+   },
+   {
+    "id": "lone-meadow-30-52",
+    "region": "meadow",
+    "kind": "lone",
+    "at": [
+     -30,
+     -52
+    ],
+    "seed": 9227
+   },
+   {
+    "id": "pool-meadow-28-24",
+    "region": "meadow",
+    "kind": "pool",
+    "at": [
+     28,
+     24
+    ],
+    "seed": 9358
+   },
+   {
+    "id": "pool-meadow-58-12",
+    "region": "meadow",
+    "kind": "pool",
+    "at": [
+     -58,
+     -12
+    ],
+    "seed": 9489
+   },
+   {
+    "id": "thicket-meadow-44-46",
+    "region": "meadow",
+    "kind": "thicket",
+    "at": [
+     44,
+     46
+    ],
+    "seed": 9620
+   },
+   {
+    "id": "line-meadow-0-48",
+    "region": "meadow",
+    "kind": "line",
+    "at": [
+     0,
+     -48
+    ],
+    "seed": 9751
+   },
+   {
+    "id": "grove-inkwood-52-82",
+    "region": "inkwood",
+    "kind": "grove",
+    "at": [
+     -52,
+     -82
+    ],
+    "seed": 9882
+   },
+   {
+    "id": "grove-inkwood-72-112",
+    "region": "inkwood",
+    "kind": "grove",
+    "at": [
+     -72,
+     -112
+    ],
+    "seed": 10013
+   },
+   {
+    "id": "grove-inkwood-18-112",
+    "region": "inkwood",
+    "kind": "grove",
+    "at": [
+     -18,
+     -112
+    ],
+    "seed": 10144
+   },
+   {
+    "id": "thicket-inkwood-46-100",
+    "region": "inkwood",
+    "kind": "thicket",
+    "at": [
+     -46,
+     -100
+    ],
+    "seed": 10275
+   },
+   {
+    "id": "cairn-paper_downs-30-76",
+    "region": "paper_downs",
+    "kind": "cairn",
+    "at": [
+     30,
+     -76
+    ],
+    "seed": 10406
+   },
+   {
+    "id": "line-paper_downs-82-72",
+    "region": "paper_downs",
+    "kind": "line",
+    "at": [
+     82,
+     -72
+    ],
+    "seed": 10537
+   },
+   {
+    "id": "lone-paper_downs-78-108",
+    "region": "paper_downs",
+    "kind": "lone",
+    "at": [
+     78,
+     -108
+    ],
+    "seed": 10668
+   },
+   {
+    "id": "pool-paper_downs-104-92",
+    "region": "paper_downs",
+    "kind": "pool",
+    "at": [
+     104,
+     -92
+    ],
+    "seed": 10799
+   },
+   {
+    "id": "cairn-glyph_quarter-42-92",
+    "region": "glyph_quarter",
+    "kind": "cairn",
+    "at": [
+     -42,
+     92
+    ],
+    "seed": 10930
+   },
+   {
+    "id": "line-glyph_quarter-52-84",
+    "region": "glyph_quarter",
+    "kind": "line",
+    "at": [
+     52,
+     84
+    ],
+    "seed": 11061
+   },
+   {
+    "id": "line-pressmark_shore-118-30",
+    "region": "pressmark_shore",
+    "kind": "line",
+    "at": [
+     118,
+     -30
+    ],
+    "seed": 11192
+   },
+   {
+    "id": "pool-pressmark_shore-100-30",
+    "region": "pressmark_shore",
+    "kind": "pool",
+    "at": [
+     100,
+     30
+    ],
+    "seed": 11323
+   }
+  ],
+  "kinds": {
+   "grove": {
+    "rc": 5,
+    "rs": 9,
+    "members": [
+     {
+      "k": "tree",
+      "n": [
+       14,
+       20
+      ],
+      "zone": "core",
+      "s": [
+       0.9,
+       1.3
+      ],
+      "first": 1.3
+     },
+     {
+      "k": "rock",
+      "n": [
+       2,
+       4
+      ],
+      "zone": "edge",
+      "s": [
+       0.7,
+       1.4
+      ]
+     },
+     {
+      "k": "bush",
+      "n": [
+       5,
+       8
+      ],
+      "zone": "skirt",
+      "s": [
+       0.7,
+       1.2
+      ]
+     }
+    ]
+   },
+   "lone": {
+    "rc": 2.2,
+    "rs": 3.8,
+    "members": [
+     {
+      "k": "tree",
+      "n": [
+       2,
+       2
+      ],
+      "zone": "center",
+      "s": [
+       1.3,
+       1.7
+      ]
+     },
+     {
+      "k": "bush",
+      "n": [
+       1,
+       1
+      ],
+      "zone": "skirt",
+      "s": [
+       0.8,
+       1.1
+      ]
+     },
+     {
+      "k": "rock",
+      "n": [
+       1,
+       1
+      ],
+      "zone": "skirt",
+      "s": [
+       0.7,
+       1.1
+      ]
+     }
+    ],
+    "gap": 0.5
+   },
+   "cairn": {
+    "rc": 2.4,
+    "rs": 3.8,
+    "members": [
+     {
+      "k": "rock",
+      "n": [
+       1,
+       1
+      ],
+      "zone": "center",
+      "s": [
+       1.4,
+       1.8
+      ]
+     },
+     {
+      "k": "rock",
+      "n": [
+       3,
+       6
+      ],
+      "zone": "skirt",
+      "s": [
+       0.7,
+       1.2
+      ]
+     }
+    ],
+    "gap": 0.4
+   },
+   "thicket": {
+    "rc": 4,
+    "rs": 6,
+    "members": [
+     {
+      "k": "bush",
+      "n": [
+       10,
+       14
+      ],
+      "zone": "core",
+      "s": [
+       0.8,
+       1.3
+      ]
+     },
+     {
+      "k": "tree",
+      "n": [
+       2,
+       3
+      ],
+      "zone": "skirt",
+      "s": [
+       0.8,
+       1.2
+      ]
+     }
+    ],
+    "gap": 0.8
+   },
+   "pool": {
+    "rc": 3.5,
+    "rs": 6,
+    "members": [
+     {
+      "k": "$pool",
+      "n": [
+       10,
+       18
+      ],
+      "zone": "core",
+      "s": [
+       0.8,
+       1.3
+      ]
+     },
+     {
+      "k": "$extra",
+      "n": [
+       0,
+       1
+      ],
+      "zone": "skirt",
+      "s": [
+       0.9,
+       1.2
+      ]
+     }
+    ]
+   },
+   "line": {
+    "rc": 1.5,
+    "rs": 1.5,
+    "line": {
+     "len": [
+      10,
+      18
+     ],
+     "width": 1.5
+    },
+    "members": [
+     {
+      "k": "$line",
+      "n": [
+       4,
+       7
+      ],
+      "zone": "line",
+      "s": [
+       0.8,
+       1.3
+      ]
+     }
+    ]
+   }
+  },
+  "cells": {
+   "meadow": {
+    "cell": 22,
+    "chance": 0.75,
+    "gap": 10,
+    "size": 1.38,
+    "stray": 0.25,
+    "treeScale": 1.0,
+    "mix": {
+     "pool": 3,
+     "lone": 3,
+     "grove": 4,
+     "cairn": 1,
+     "thicket": 3,
+     "line": 1
+    },
+    "props": {
+     "pool": [
+      "tuft"
+     ],
+     "extra": "haystack",
+     "line": "tuft"
+    }
+   },
+   "inkwood": {
+    "cell": 16,
+    "chance": 0.95,
+    "gap": 6,
+    "size": 1.66,
+    "stray": 0.15,
+    "treeScale": 1.3,
+    "mix": {
+     "grove": 6,
+     "thicket": 2,
+     "pool": 2,
+     "cairn": 1
+    },
+    "props": {
+     "pool": [
+      "fern",
+      "drip"
+     ],
+     "line": "fern"
+    },
+    "overrides": {
+     "grove": {
+      "rc": 7,
+      "rs": 11
+     }
+    }
+   },
+   "paper_downs": {
+    "cell": 26,
+    "chance": 0.65,
+    "gap": 14,
+    "size": 1.38,
+    "stray": 0.2,
+    "treeScale": 1.0,
+    "mix": {
+     "cairn": 3,
+     "line": 3,
+     "pool": 2,
+     "lone": 2,
+     "grove": 2
+    },
+    "props": {
+     "pool": [
+      "pinwheel"
+     ],
+     "line": "pinwheel"
+    }
+   },
+   "glyph_quarter": {
+    "cell": 20,
+    "chance": 0.7,
+    "gap": 10,
+    "size": 1.24,
+    "stray": 0.2,
+    "treeScale": 1.0,
+    "mix": {
+     "cairn": 4,
+     "line": 3,
+     "thicket": 2,
+     "lone": 1
+    },
+    "props": {
+     "pool": [
+      "pagestone"
+     ],
+     "line": "pagestone"
+    }
+   },
+   "pressmark_shore": {
+    "cell": 20,
+    "chance": 0.75,
+    "gap": 10,
+    "size": 1.38,
+    "stray": 0.25,
+    "treeScale": 1.0,
+    "mix": {
+     "line": 4,
+     "thicket": 5,
+     "pool": 3,
+     "cairn": 1
+    },
+    "props": {
+     "pool": [
+      "tuft",
+      "fern"
+     ],
+     "line": "fern"
+    }
+   }
+  }
+ }
+}
