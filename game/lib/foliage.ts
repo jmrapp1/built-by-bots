@@ -26,6 +26,36 @@ export const foliageFlag = (d: unknown): boolean => { try { return (d as { folia
 /** Footprint radius per unit of scale: only used to space bundles and keep them off solid things. */
 export const GRASS_R = 0.3;
 
+// F5: density patches. Patch centres come from a seeded hash of the cell coordinates, so a patch that crosses a chunk edge is the same from both sides.
+// Patches only weight whether a candidate bundle is kept; every random draw of the scatter still happens, so flag off is byte-identical.
+export type PatchData = { enabled: boolean; seed: number; cell: number; share: number; radius: [number, number]; softness: number; floor: number; grass: number; blooms: number; bloomSharp: number };
+export const PATCHES: PatchData = (raw as unknown as { patches: PatchData }).patches;
+/** Only a plain true is on, and the layer it shapes must be on too. */
+export const patchesFlag = (d: unknown, layer: "foliage" | "blooms" | "grassRegions" = "foliage"): boolean => { try { const o = d as Record<string, { enabled?: unknown } | undefined>; return o?.foliage?.enabled === true && o?.patches?.enabled === true && (layer === "foliage" || o?.[layer]?.enabled === true); } catch { return false; } };
+const mix = (...v: number[]): number => { let h = 0x9e3779b9; for (const n of v) { h = Math.imul(h ^ (n | 0), 0x85ebca6b); h ^= h >>> 15; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 13; } return (h >>> 0) / 4294967296; };
+const smooth = (t: number) => t * t * (3 - 2 * t);
+/** 0..1: how deep in a patch the point is (1 core, 0 outside every patch); the edge is noisy so patches are not circles. */
+export function patchWeight(x: number, z: number, d: PatchData): number {
+  const cell = d.cell, rMax = Math.min(d.radius[1], cell / 1.4), rMin = Math.min(d.radius[0], rMax), soft = Math.max(0.05, Math.min(1, d.softness));
+  const cx = Math.floor((x + HALF) / cell), cz = Math.floor((z + HALF) / cell);
+  let best = 0;
+  for (let a = cx - 1; a <= cx + 1; a++) for (let b = cz - 1; b <= cz + 1; b++) {
+    if (!(mix(d.seed, a, b, 1) < d.share)) continue;
+    const px = -HALF + (a + mix(d.seed, a, b, 2)) * cell, pz = -HALF + (b + mix(d.seed, a, b, 3)) * cell, R = rMin + (rMax - rMin) * mix(d.seed, a, b, 4);
+    const th = Math.atan2(z - pz, x - px), ph1 = mix(d.seed, a, b, 5) * 6.2832, ph2 = mix(d.seed, a, b, 6) * 6.2832;
+    const t = Math.hypot(x - px, z - pz) / (R * (1 + 0.18 * Math.sin(3 * th + ph1) + 0.1 * Math.sin(5 * th + ph2)));
+    if (t >= 1) continue;
+    best = Math.max(best, t <= 1 - soft ? 1 : 1 - smooth((t - (1 - soft)) / soft));
+  }
+  return best;
+}
+/** The chance a candidate at (x, z) is kept: the floor for bare paper, up to 1 in a core, times the layer's multiplier (capped at 1). */
+export function patchKeep(x: number, z: number, d: PatchData, layerMult: number, sharp: number): number {
+  const w = d.floor + (1 - d.floor) * patchWeight(x, z, d);
+  return Math.min(1, Math.pow(w, Math.max(1, sharp)) * Math.max(0, layerMult));
+}
+type Patch = { d: PatchData; mult: number; sharp: number };
+
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /** Thin a list to `cap` by seeded priority (the same items go whatever the order they are asked in), keeping list order. */
@@ -37,7 +67,7 @@ export function thin<T>(items: T[], cap: number, prio: (t: T) => number): T[] {
 }
 
 type Built = { all: GrassItem[]; perChunk: Map<string, GrassItem[]> };
-type Spec = { enabled: boolean; seed: number; perChunk: number; world: number; minGap: number; scale: [number, number]; density: Record<RegionId, number> };
+type Spec = { enabled: boolean; seed: number; perChunk: number; world: number; minGap: number; scale: [number, number]; density: Record<RegionId, number>; patch?: Patch };
 const keyOf = (ix: number, iz: number) => `${ix},${iz}`;
 
 /** The shared placement: a jittered grid in each region with density, kept off the path, landmarks, garden, hedges and solid things, then thinned per chunk and for the World.
@@ -58,6 +88,7 @@ function scatter<T extends Item & { k: string }>(d: Spec, k: T["k"], R: number, 
       const v = variants > 0 ? Math.min(variants - 1, Math.floor(rnd() * variants)) : undefined;
       if (Math.abs(x) > HALF - 1 || Math.abs(z) > HALF - 1) continue;
       if (regionAt(z, x) !== region) continue;
+      if (d.patch && !(mix(d.seed, Math.round(x * 100), Math.round(z * 100), 7) < patchKeep(x, z, d.patch.d, d.patch.mult, d.patch.sharp))) continue;
       if (keepClear(x, z, R)) continue;
       if (hedgeTouches(x, z, R, hp, 0.2)) continue;
       const ix = chunkOf(x), iz = chunkOf(z);
@@ -81,8 +112,9 @@ function scatter<T extends Item & { k: string }>(d: Spec, k: T["k"], R: number, 
 }
 
 /** Every bundle in the World. */
-export function buildGrass(d: FoliageData = FOLIAGE): Built {
-  return scatter<GrassItem>({ enabled: d.enabled, seed: d.seed, perChunk: d.grassPerChunk, world: d.grassWorld, minGap: d.minGap, scale: d.scale, density: d.density }, "grass", GRASS_R, 0);
+export function buildGrass(d: FoliageData = FOLIAGE, pt: PatchData = PATCHES): Built {
+  const patch = patchesFlag({ foliage: d, patches: pt }) ? { d: pt, mult: pt.grass, sharp: 1 } : undefined;
+  return scatter<GrassItem>({ enabled: d.enabled, seed: d.seed, perChunk: d.grassPerChunk, world: d.grassWorld, minGap: d.minGap, scale: d.scale, density: d.density, patch }, "grass", GRASS_R, 0);
 }
 let cache: Built | null = null;
 export const shippedGrass = (): Built => (cache ??= buildGrass());
@@ -91,20 +123,22 @@ export const grassInChunk = (ix: number, iz: number, b: Built = shippedGrass()):
 
 // F2: blooms, small flower clumps. Same rules as the grass, own seed, own caps, own cache. Walk-through, no collider, nothing in chunkContents.
 export type BloomBuilt = { all: BloomItem[]; perChunk: Map<string, BloomItem[]> };
-export function buildBlooms(d: BloomData = BLOOMS): BloomBuilt {
+export function buildBlooms(d: BloomData = BLOOMS, pt: PatchData = PATCHES, fol: FoliageData = FOLIAGE): BloomBuilt {
   const n = Array.isArray(d.palette) ? d.palette.length : 0;
   if (n < 1) return { all: [], perChunk: new Map() };
-  return scatter<BloomItem>({ enabled: d.enabled, seed: d.seed, perChunk: d.bloomsPerChunk, world: d.bloomsWorld, minGap: d.minGap, scale: d.scale, density: d.density }, "bloom", BLOOM_R, n);
+  const patch = patchesFlag({ foliage: fol, blooms: d, patches: pt }, "blooms") ? { d: pt, mult: pt.blooms, sharp: pt.bloomSharp } : undefined;
+  return scatter<BloomItem>({ enabled: d.enabled, seed: d.seed, perChunk: d.bloomsPerChunk, world: d.bloomsWorld, minGap: d.minGap, scale: d.scale, density: d.density, patch }, "bloom", BLOOM_R, n);
 }
 let bloomCache: BloomBuilt | null = null;
 export const shippedBlooms = (): BloomBuilt => (bloomCache ??= buildBlooms());
 export const bloomsInChunk = (ix: number, iz: number, b: BloomBuilt = shippedBlooms()): BloomItem[] => (ix < 0 || iz < 0 || ix >= CHUNKS || iz >= CHUNKS ? [] : b.perChunk.get(keyOf(ix, iz)) ?? []);
 
 /** F3: the grass of the other regions. Its caps are what the Meadow grass leaves of the grass caps, so the grass as a whole never passes grassWorld, nor grassPerChunk in any chunk. */
-export function buildRegionGrass(d: FoliageData = FOLIAGE, r: RegionGrassData = GRASS_REGIONS, base: Built = shippedGrass()): Built {
+export function buildRegionGrass(d: FoliageData = FOLIAGE, r: RegionGrassData = GRASS_REGIONS, base: Built = shippedGrass(), pt: PatchData = PATCHES): Built {
   if (!grassRegionsFlag({ foliage: d, grassRegions: r })) return { all: [], perChunk: new Map() };
+  const patch = patchesFlag({ foliage: d, grassRegions: r, patches: pt }, "grassRegions") ? { d: pt, mult: pt.grass, sharp: 1 } : undefined;
   let maxBase = 0; for (const l of base.perChunk.values()) maxBase = Math.max(maxBase, l.length);
-  return scatter<GrassItem>({ enabled: true, seed: r.seed, perChunk: d.grassPerChunk - maxBase, world: d.grassWorld - base.all.length, minGap: d.minGap, scale: d.scale, density: r.density }, "grass", GRASS_R, 0);
+  return scatter<GrassItem>({ enabled: true, seed: r.seed, perChunk: d.grassPerChunk - maxBase, world: d.grassWorld - base.all.length, minGap: d.minGap, scale: d.scale, density: r.density, patch }, "grass", GRASS_R, 0);
 }
 let regionCache: Built | null = null;
 export const shippedRegionGrass = (): Built => (regionCache ??= buildRegionGrass());
