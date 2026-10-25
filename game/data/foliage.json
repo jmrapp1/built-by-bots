@@ -1,12 +1,45 @@
 {
- "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye.",
+ "note": "F1: a plentiful grass layer (lib/foliage.ts). 'enabled' true = grass; anything else = no grass and everything exactly as before (one data edit and a deploy). Grass is walk-through, has no collider and has its own budget, apart from the 260/140 caps: at most 'grassPerChunk' in a chunk and 'grassWorld' in the World (set grassWorld to 0 to remove only the grass). 'density' is bundles per 100 square metres per region, before the caps (this slice: Meadow only); 'minGap' keeps two bundles apart in metres. First guesses to tune by eye. F2: 'blooms' is a separate switch for small flower clumps (Meadow and Paper Downs), with its own seed and caps (bloomsPerChunk, bloomsWorld; 0 removes only the blooms); the same rules as the grass. 'palette' is the petal colours, baked into the clumps (no per-instance colour).",
  "foliage": {
   "enabled": true,
   "seed": 9137,
   "grassPerChunk": 420,
   "grassWorld": 5000,
   "minGap": 0.6,
-  "scale": [0.8, 1.35],
-  "density": { "meadow": 6, "inkwood": 0, "paper_downs": 0, "glyph_quarter": 0, "pressmark_shore": 0 }
+  "scale": [
+   0.8,
+   1.35
+  ],
+  "density": {
+   "meadow": 6,
+   "inkwood": 0,
+   "paper_downs": 0,
+   "glyph_quarter": 0,
+   "pressmark_shore": 0
+  }
+ },
+ "blooms": {
+  "enabled": true,
+  "seed": 4421,
+  "bloomsPerChunk": 90,
+  "bloomsWorld": 900,
+  "minGap": 1.4,
+  "scale": [
+   0.8,
+   1.3
+  ],
+  "density": {
+   "meadow": 1.2,
+   "inkwood": 0,
+   "paper_downs": 1.0,
+   "glyph_quarter": 0,
+   "pressmark_shore": 0
+  },
+  "palette": [
+   "#f3e6c4",
+   "#d9606b",
+   "#d9a441",
+   "#9bb8d9"
+  ]
  }
 }

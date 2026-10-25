@@ -11,7 +11,7 @@ import { groundY } from "@/lib/ground";
 import { INK, homeEase, regionInk } from "@/lib/groundInk";
 import { applyInk } from "@/components/groundInkShader";
 import { CREASES, PATTERNS, TIDES, creaseMix, patchMix, tideMix } from "@/lib/groundPatterns";
-import { grassInChunk } from "@/lib/foliage";
+import { BLOOMS, bloomsInChunk, bloomsFlag, grassInChunk, type BloomItem } from "@/lib/foliage";
 import { FEATURES, HEDGES, buildHedges, featureCircles, featureInstanceCount, featureItemsInChunk, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, propCircles, propItemsInChunk } from "@/lib/features";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
@@ -60,6 +60,38 @@ export function grassGeo(): THREE.BufferGeometry {
     v(mx - dx * 0.5, h * 0.6, mz - dz * 0.5, 0.6); v(mx + dx * 0.5, h * 0.6, mz + dz * 0.5, 0.6); v(tx, h, tz, 1);
   }
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3)); g.computeVertexNormals(); return g;
+}
+/** F2: a bloom clump: three thin stems (green, dark at the root) each topped by a small tilted six-vertex petal disc in `petal`, one colour per vertex. About 18 triangles, starts on the ground, ankle to knee high. */
+export function bloomGeo(petal: string): THREE.BufferGeometry {
+  const pos: number[] = [], col: number[] = [], root = new THREE.Color("#4f7a3f"), tip = new THREE.Color("#7fa04f"), pc = new THREE.Color(petal), heart = pc.clone().lerp(new THREE.Color("#d9a441"), 0.55);
+  const v = (x: number, y: number, z: number, c: THREE.Color) => { pos.push(x, y, z); col.push(c.r, c.g, c.b); };
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.5, h = 0.42 + 0.1 * Math.sin(k * 2.9), lean = 0.06 + 0.03 * Math.cos(k * 1.3), bx = Math.cos(a) * 0.08, bz = Math.sin(a) * 0.08, tx = bx + Math.cos(a) * lean, tz = bz + Math.sin(a) * lean;
+    const dx = -Math.sin(a) * 0.014, dz = Math.cos(a) * 0.014;
+    v(bx - dx * 1.6, 0, bz - dz * 1.6, root); v(bx + dx * 1.6, 0, bz + dz * 1.6, root); v(tx + dx, h, tz + dz, tip);
+    v(bx - dx * 1.6, 0, bz - dz * 1.6, root); v(tx + dx, h, tz + dz, tip); v(tx - dx, h, tz - dz, tip);
+    const ring: [number, number, number][] = []; // the disc: six points round the head, tipped a little outward
+    for (let j = 0; j < 6; j++) { const t = (j / 6) * Math.PI * 2, rr = 0.1; ring.push([tx + Math.cos(t) * rr, h + 0.03 + Math.cos(t - a) * 0.025, tz + Math.sin(t) * rr]); }
+    for (let j = 1; j < 5; j++) { v(tx, h + 0.03, tz, heart); v(...ring[j], pc); v(...ring[j + 1], pc); }
+    // (the fan above covers four of the six points' triangles; the disc is deliberately a little open, like a paper flower)
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3)); g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3)); g.computeVertexNormals(); return g;
+}
+/** F2: bake every bloom of a chunk into ONE geometry (one draw per chunk, whatever the colours): each clump copies the variant for its colour group, scaled, turned and set on the ground. Null when there are none. */
+export function bakeBlooms(items: BloomItem[], variants: THREE.BufferGeometry[], groundAt: (x: number, z: number) => number, sink = 0): THREE.BufferGeometry | null {
+  if (!items.length || !variants.length) return null;
+  let n = 0; for (const it of items) n += variants[Math.min(it.v, variants.length - 1)].getAttribute("position").count;
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3); let o = 0;
+  for (const it of items) {
+    const g = variants[Math.min(it.v, variants.length - 1)], P = g.getAttribute("position"), N = g.getAttribute("normal"), C = g.getAttribute("color"), c = Math.cos(it.r), s = Math.sin(it.r), y0 = groundAt(it.x, it.z) - sink;
+    for (let i = 0; i < P.count; i++, o += 3) {
+      const x = P.getX(i) * it.s, y = P.getY(i) * it.s, z = P.getZ(i) * it.s;
+      pos[o] = it.x + x * c + z * s; pos[o + 1] = y0 + y; pos[o + 2] = it.z - x * s + z * c; // the same turn three.js makes for rotation.y = r
+      const nx = N.getX(i), nz = N.getZ(i); nor[o] = nx * c + nz * s; nor[o + 1] = N.getY(i); nor[o + 2] = -nx * s + nz * c;
+      col[o] = C.getX(i); col[o + 1] = C.getY(i); col[o + 2] = C.getZ(i);
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.computeBoundingSphere(); return g;
 }
 /** E5: an ink drip hung in the air: a thin thread that swells into a teardrop (walk-through, drawn at head height and above). */
 const dripGeo = (): THREE.BufferGeometry => mergeGeometries([plain(lathe([[0, 3.9], [0.02, 3.9], [0.02, 3.1], [0.13, 2.95], [0.11, 2.55], [0.05, 2.3], [0, 2.15]], 6))])!;
@@ -149,7 +181,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     pole: keep(poleGeo(0.8, 1, 1, 8).translate(0, 0.5, 0)),
     cyl: keep(unitCylGeo()),
     lamp: keep(new THREE.IcosahedronGeometry(1, 1)),
-    grass: keep(grassGeo()), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
+    grass: keep(grassGeo()), bloomV: (Array.isArray(BLOOMS.palette) ? BLOOMS.palette : []).map((c) => keep(bloomGeo(c))), tuft: keep(tuftGeo()), haystack: keep(haystackGeo()), drip: keep(dripGeo()), fern: keep(fernGeo()), pinwheel: keep(pinwheelGeo()), pagestone: keep(pageStoneGeo()), reed: keep(reedGeo()), driftwood: keep(driftwoodGeo()), bookstack: keep(bookStackGeo()), glyphpillar: keep(glyphPillarGeo()), lamppost: keep(lampPostGeo()), // E5: Meadow prop shapes (made once; only used with the features on)
   };
   const M: Record<RegionId, ReturnType<typeof mats>> = { meadow: mats(WORLD.look.meadow), inkwood: mats(WORLD.look.inkwood), paper_downs: mats(WORLD.look.paper_downs), glyph_quarter: mats(WORLD.look.glyph_quarter), pressmark_shore: mats(WORLD.look.pressmark_shore) };
   for (const r of ["meadow", "inkwood", "paper_downs", "glyph_quarter", "pressmark_shore"] as const) Object.values(M[r]).forEach((m) => keep(m));
@@ -157,7 +189,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
     paper: keep(new THREE.MeshToonMaterial({ color: "#f1dfae" })), ink: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })),
     red: keep(new THREE.MeshToonMaterial({ color: "#d9606b" })), leaf: keep(new THREE.MeshToonMaterial({ color: WORLD.look.inkwood.crown })),
     glow: keep(new THREE.MeshBasicMaterial({ color: "#ffd98a" })),
-    grass: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })), drip: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })), fern: keep(new THREE.MeshToonMaterial({ color: "#4f7a5e", side: THREE.DoubleSide })), pin: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), stone: keep(new THREE.MeshToonMaterial({ color: "#d8d0b8" })), reed: keep(new THREE.MeshToonMaterial({ vertexColors: true })), wood: keep(new THREE.MeshToonMaterial({ color: "#b9a88a" })), gbook: keep(new THREE.MeshToonMaterial({ vertexColors: true })),
+    grass: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), bloom: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), tuft: keep(new THREE.MeshToonMaterial({ vertexColors: true })), hay: keep(new THREE.MeshToonMaterial({ color: "#e6cf8f" })), drip: keep(new THREE.MeshToonMaterial({ color: "#2a2438" })), fern: keep(new THREE.MeshToonMaterial({ color: "#4f7a5e", side: THREE.DoubleSide })), pin: keep(new THREE.MeshToonMaterial({ vertexColors: true, side: THREE.DoubleSide })), stone: keep(new THREE.MeshToonMaterial({ color: "#d8d0b8" })), reed: keep(new THREE.MeshToonMaterial({ vertexColors: true })), wood: keep(new THREE.MeshToonMaterial({ color: "#b9a88a" })), gbook: keep(new THREE.MeshToonMaterial({ vertexColors: true })),
     hill: keep(new THREE.MeshToonMaterial({ color: "#e9e2c6" })), kite: keep(new THREE.MeshToonMaterial({ color: "#d9606b", side: THREE.DoubleSide })),
     shelf: keep(new THREE.MeshToonMaterial({ color: "#8a7a62" })), book: keep(new THREE.MeshToonMaterial({ color: "#7d8aa0" })),
     water: keep(new THREE.MeshToonMaterial({ color: "#4d6a78" })), deck: keep(new THREE.MeshToonMaterial({ color: "#a89476" })),
@@ -329,6 +361,9 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
       const ps = propItemsInChunk(ix, iz); // E5: Meadow tufts and haystacks, Inkwood drips and ferns, Downs pinwheels and page-stones, Shore reeds and driftwood, one instanced draw per shape
       make(G.tuft, L.tuft, ps.filter((i) => i.k === "tuft"), 1, opts.ground ? SINK : 0); make(G.haystack, L.hay, ps.filter((i) => i.k === "haystack"), 1, opts.ground ? SINK : 0); make(G.drip, L.drip, ps.filter((i) => i.k === "drip")); make(G.fern, L.fern, ps.filter((i) => i.k === "fern")); make(G.pinwheel, L.pin, ps.filter((i) => i.k === "pinwheel")); make(G.pagestone, L.stone, ps.filter((i) => i.k === "pagestone"), 1, opts.ground ? SINK : 0); make(G.reed, L.reed, ps.filter((i) => i.k === "reed")); make(G.driftwood, L.wood, ps.filter((i) => i.k === "driftwood"), 1, opts.ground ? SINK : 0); make(G.bookstack, L.gbook, ps.filter((i) => i.k === "bookstack"), 1, opts.ground ? SINK : 0); make(G.glyphpillar, L.gbook, ps.filter((i) => i.k === "glyphpillar"), 1, opts.ground ? SINK : 0); make(G.lamppost, L.gbook, ps.filter((i) => i.k === "lamppost"), 1, opts.ground ? SINK : 0); fInst += ps.length;
       const gr = grassInChunk(ix, iz); make(G.grass, L.grass, gr, 1, opts.ground ? SINK : 0); fInst += gr.length; // F1: the grass layer, own budget, no collider (casts like every prop)
+      const bl = bloomsInChunk(ix, iz); // F2: the blooms, own budget and own switch, no collider; all colours baked into one mesh per chunk, and they do not cast
+      const bg = bloomsFlag({ blooms: BLOOMS }) ? bakeBlooms(bl, G.bloomV, gy, opts.ground ? SINK : 0) : null;
+      if (bg) { const bm = new THREE.Mesh(bg, L.bloom); bm.castShadow = false; bm.userData.ownGeo = true; g.add(bm); extra.push(bm); fInst += bl.length; }
       for (const p of hedgePiecesInChunk(ix, iz)) { // E4: a hedgerow piece is one soft box in its region's leaf colour, sunk a little so a slope shows no gap
         const o = new THREE.Mesh(G.box, M[HEDGE_REGION.get(p.f) ?? c.region].crown); o.castShadow = true; o.scale.set(p.w, p.h, p.d); o.position.set(p.x, gy(p.x, p.z) - (opts.ground ? 0.5 : 0), p.z); g.add(o); extra.push(o); fInst++;
       }
@@ -340,6 +375,7 @@ export function buildWorldShell(scene: THREE.Scene, opts: { hills?: boolean; gro
   const drop = (key: string) => {
     const c = chunks.get(key); if (!c) return;
     group.remove(c.g);
+    for (const o of c.extra) if (o.userData.ownGeo) (o as THREE.Mesh).geometry.dispose(); // a chunk's baked blooms own their geometry
     for (const im of c.ims) im.dispose(); // frees the instance buffers; shared geometry and materials stay until the shell goes
     chunks.delete(key); st.chunks--; st.instances -= c.inst; st.drops++;
   };
