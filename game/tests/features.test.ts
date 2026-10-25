@@ -15,9 +15,9 @@ const items = buildAll();
 const gate = GARDEN.places.find((p) => p.kind === "gate")!;
 
 describe("the data", () => {
-  it("ships off, and only a plain true is on", () => {
-    expect(raw.features.enabled).toBe(false);
-    expect(featuresFlag(raw)).toBe(false);
+  it("ships on, and only a plain true is on", () => {
+    expect(raw.features.enabled).toBe(true);
+    expect(featuresFlag(raw)).toBe(true);
     for (const v of ["true", 1, "1", null, undefined, {}, []]) expect(featuresFlag({ features: { enabled: v } })).toBe(false);
     expect(featuresFlag({ features: { enabled: true } })).toBe(true);
     expect(featuresFlag(null)).toBe(false);
@@ -122,7 +122,7 @@ describe("off equals today", () => {
   it("region fog stays off (the ground is on since the hills went live)", async () => {
     const g = await import("@/data/ground.json"), r = await import("@/data/regionFog.json");
     expect(g.default.ground.enabled).toBe(true);
-    expect(r.default.regionFog.enabled).toBe(false);
+    expect(r.default.regionFog.enabled).toBe(true);
   });
 });
 
