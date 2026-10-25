@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import map from "@/data/map.json";
 import { GARDEN, pushOut } from "@/lib/world";
-import { CHUNKS, HALF, WORLD, chunkContents, regionAt } from "@/lib/worldMap";
+import { CHUNKS, HALF, WORLD, buildContents, chunkContents, regionAt } from "@/lib/worldMap";
 import { FEATURES, HEDGES, buildHedge, buildHedges, featureCircles, buildAll, hedgeBoxes, hedgePiecesInChunk, hedgeTouches, keepClear, type Hedge } from "@/lib/features";
 import { buildWorldShell } from "@/components/worldShell";
 import { createSightField, castRay, worldOccluders, reachability, reachReport, pockets, worldColliders } from "@/lib/sight";
@@ -108,7 +108,7 @@ describe("the scatter under the hedges", () => {
   });
   it("on: more instances than off (the hedge meshes), and the scatter itself still pinned to today's contents", () => {
     expect(shellOf(true).shell.stats().instances).toBeGreaterThan(shellOf(false).shell.stats().instances);
-    const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(chunkContents(a, b));
+    const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));
     expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab");
   });
   it("wiring: World passes the hedge boxes into the walking and follow colliders; the pure World does not import features", () => {

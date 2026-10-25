@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import map from "@/data/map.json";
 import raw from "@/data/features.json";
 import { GARDEN } from "@/lib/world";
-import { CHUNKS, HALF, WORLD, chunkContents, distToPath, regionAt } from "@/lib/worldMap";
+import { CHUNKS, HALF, WORLD, buildContents, chunkContents, distToPath, regionAt } from "@/lib/worldMap";
 import { FEATURES, buildAll, buildFeature, featureCircles, featureInstanceCount, featureItemsInChunk, featuresFlag, itemRadius, keepClear, type Feature } from "@/lib/features";
 import { pockets, reachReport, reachability, reachedNear, worldColliders } from "@/lib/sight";
 
@@ -113,7 +113,7 @@ describe("off equals today", () => {
   const PIN = "eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab";
   it("every chunk's contents are exactly today's", () => {
     const all: unknown[] = [];
-    for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(chunkContents(a, b));
+    for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));
     expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe(PIN);
   });
   it("the pure World (chunk contents, sight tooling) does not import the features; only the shell draws them, behind the switch", () => {

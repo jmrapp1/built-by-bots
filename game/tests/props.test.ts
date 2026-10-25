@@ -4,12 +4,12 @@ import { createHash } from "node:crypto";
 import * as THREE from "three";
 import map from "@/data/map.json";
 import { GARDEN } from "@/lib/world";
-import { CHUNKS, HALF, chunkContents, regionAt } from "@/lib/worldMap";
+import { CHUNKS, HALF, WORLD, buildContents, chunkContents, regionAt } from "@/lib/worldMap";
 import { PROPS, PROP_LIMITS, buildPatch, buildProps, buildAll, buildHedges, featureCircles, hedgeBoxes, hedgeTouches, keepClear, propCircles, propItemsInChunk, propRadius, featuresOn } from "@/lib/features";
 import { buildWorldShell } from "@/components/worldShell";
 import { reachability, reachReport, pockets, worldColliders } from "@/lib/sight";
 
-const items = buildProps();
+const items = buildProps().filter((i) => PROPS.some((p) => p.id === i.f)); // the authored patches; the cluster props (C1) are tested in clusters.test.ts
 const shellOf = (features: boolean) => { const scene = new THREE.Scene(), shell = buildWorldShell(scene, { features }); shell.update(-34, 0, true); return { scene, shell }; };
 
 describe("prop data", () => {
@@ -29,7 +29,7 @@ describe("determinism", () => {
   });
   it("chunks partition the items with no loss and building a chunk twice matches", () => {
     let n = 0; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) { const c = propItemsInChunk(a, b); n += c.length; expect(JSON.stringify(propItemsInChunk(a, b))).toBe(JSON.stringify(c)); }
-    expect(n).toBe(items.length); expect(propItemsInChunk(-1, 0)).toEqual([]);
+    expect(n).toBe(buildProps().length); expect(propItemsInChunk(-1, 0)).toEqual([]);
   });
 });
 
@@ -124,7 +124,7 @@ describe("off equals today", () => {
     expect(names(off)).toBe(0); expect(names(on)).toBeGreaterThan(0);
   });
   it("the scatter itself is pinned to today's contents; the switch is on in the data, and ?features= still overrides in dev only", () => {
-    const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(chunkContents(a, b));
+    const all: unknown[] = []; for (let a = 0; a < CHUNKS; a++) for (let b = 0; b < CHUNKS; b++) all.push(buildContents(a, b, WORLD.seed, false));
     expect(createHash("sha256").update(JSON.stringify(all)).digest("hex")).toBe("eb1fc86171afdf852866ce98ca298a81e0f04705ee938679b34a7ab1d2ba14ab");
     expect(featuresOn("", true)).toBe(true); expect(featuresOn("?features=0", false)).toBe(false); expect(featuresOn("?features=1", true)).toBe(true);
   });

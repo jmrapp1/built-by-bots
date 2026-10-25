@@ -4,6 +4,7 @@ import world from "@/data/world.json";
 import map from "@/data/map.json";
 import { GARDEN, HOME, type Circle, type Colliders, type Vec } from "./world";
 import { mulberry32 } from "./margins";
+import { CLUSTERS, clusterScatterIn, insideClusterReach, shippedClusters } from "./clusters";
 
 export const WORLD = world;
 export type RegionId = "meadow" | "inkwood" | "paper_downs" | "glyph_quarter" | "pressmark_shore";
@@ -58,32 +59,44 @@ export function chunkBounds(ix: number, iz: number) {
   const x0 = -HALF + ix * WORLD.chunk, z0 = -HALF + iz * WORLD.chunk;
   return { x0, z0, x1: Math.min(HALF, x0 + WORLD.chunk), z1: Math.min(HALF, z0 + WORLD.chunk) };
 }
+/** C1: the old uniform scatter scaled to its stray share in this region (x1 when clusters are off, so the numbers are exactly today's). */
+const densOf = (region: RegionId, clusters: boolean) => { const d = WORLD.density[region], k = clusters ? CLUSTERS.cells[region]?.stray ?? 1 : 1; return { tree: d.tree * k, rock: d.rock * k, bush: d.bush * k }; };
 const EMPTY = (region: RegionId): Contents => ({ region, trees: [], rocks: [], bushes: [], landmarks: [], posts: [] });
 
+const contentsCache = new Map<string, Contents>(); // C1: chunk contents are called again and again (collision, spacing checks); built once per chunk
 export function chunkContents(ix: number, iz: number, seed: number = WORLD.seed): Contents {
+  if (seed !== WORLD.seed) return buildContents(ix, iz, seed, CLUSTERS.enabled === true);
+  const k = chunkKey(ix, iz); let c = contentsCache.get(k);
+  if (!c) { c = buildContents(ix, iz, seed, CLUSTERS.enabled === true); contentsCache.set(k, c); }
+  return c;
+}
+/** The chunk with clusters on or off. Off is the old scatter byte for byte (the stray share is then 1). */
+export function buildContents(ix: number, iz: number, seed: number, clusters: boolean): Contents {
   if (!inRange(ix, iz)) return EMPTY("meadow");
   const { x0, z0, x1, z1 } = chunkBounds(ix, iz);
   const region = regionAt((z0 + z1) / 2, (x0 + x1) / 2);
   const out = EMPTY(region);
   const rnd = mulberry32(hash(ix, iz, seed));
-  const w = x1 - x0, d = z1 - z0, area = w * d, dens = WORLD.density[region];
+  const w = x1 - x0, d = z1 - z0, area = w * d, dens = densOf(region, clusters);
   const count = (p: number) => { const e = area * p; return Math.floor(e) + (rnd() < e - Math.floor(e) ? 1 : 0); };
   // P2: scenery density eases across the Glyph Quarter edge (z glyphZ) instead of stepping at the chunk edge. Chunks beside that edge draw at the busier density and thin each item by the eased local density.
   const GB = 16, north0 = z1 === WORLD.glyphZ, near = north0 || z0 === WORLD.glyphZ;
-  const farD = near ? WORLD.density[regionAt(north0 ? WORLD.glyphZ : WORLD.glyphZ - 1, (x0 + x1) / 2)] : dens; // the density on the other side of the edge
+  const farD = near ? densOf(regionAt(north0 ? WORLD.glyphZ : WORLD.glyphZ - 1, (x0 + x1) / 2), clusters) : dens; // the density on the other side of the edge
   const north = north0 ? dens : farD, south = north0 ? farD : dens;
   const keepAt = (z: number, k: "tree" | "rock" | "bush") => { const t = Math.min(1, Math.max(0, (z - WORLD.glyphZ + GB) / (GB * 2))), u = t * t * (3 - 2 * t), here = north[k] + (south[k] - north[k]) * u; return here / Math.max(north[k], south[k]); };
+  const rK = { tree: 0.55, rock: 0.7, bush: 0.8 }, cl = clusters ? shippedClusters() : null;
   const put = (list: Item[], n: number, sMin: number, sMax: number, k: "tree" | "rock" | "bush") => {
     for (let i = 0; i < n; i++) {
       const x = x0 + rnd() * w, z = z0 + rnd() * d, s = sMin + rnd() * (sMax - sMin), r = rnd() * Math.PI * 2;
       if (near && rnd() > keepAt(z, k)) continue;
-      if (!blocked(x, z)) list.push({ x, z, s, r });
+      if (!blocked(x, z) && !(cl && insideClusterReach(x, z, rK[k] * s, cl))) list.push({ x, z, s, r }); // strays give way to clusters
     }
   };
   const top = (k: "tree" | "rock" | "bush") => (near ? Math.max(north[k], south[k]) : dens[k]);
   put(out.trees, count(top("tree")), region === "inkwood" ? 1.0 : 0.8, region === "inkwood" ? 1.9 : 1.4, "tree");
   put(out.rocks, count(top("rock")), 0.6, 1.6, "rock");
   put(out.bushes, count(top("bush")), 0.7, 1.3, "bush");
+  if (cl) for (const m of clusterScatterIn(ix, iz, cl.scatter)) (m.k === "tree" ? out.trees : m.k === "rock" ? out.rocks : out.bushes).push({ x: m.x, z: m.z, s: m.s, r: m.r });
   out.landmarks = LANDMARKS.filter((l) => l.x >= x0 && l.x < x1 + (ix === CHUNKS - 1 ? 1 : 0) && l.z >= z0 && l.z < z1 + (iz === CHUNKS - 1 ? 1 : 0));
   out.posts = map.signposts.filter((p) => p.x >= x0 && p.x < x1 && p.z >= z0 && p.z < z1).map((p) => ({ x: p.x, z: p.z, r: POST_R }));
   return out;

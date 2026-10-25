@@ -9,6 +9,7 @@ import { mulberry32 } from "./margins";
 import { CHUNKS, HALF, WORLD, TREE_R, ROCK_R, BUSH_R, chunkBounds, chunkCircles, chunkContents, chunkOf, distToPath } from "./worldMap";
 import { regionAt } from "./worldMap";
 import type { Item, RegionId } from "./worldMap";
+import { clusterProps, shippedClusters } from "./clusters";
 
 export const FEATURES = raw.features;
 export type FeatureItem = Item & { k: "tree" | "rock" | "bush"; f: string };
@@ -36,8 +37,8 @@ export function featuresOn(search: string, production: boolean, data: unknown = 
   return featuresFlag(data);
 }
 
-const RADIUS = { tree: TREE_R, rock: ROCK_R, bush: BUSH_R } as const;
-export const itemRadius = (i: { k: "tree" | "rock" | "bush"; s: number }) => RADIUS[i.k] * i.s;
+// (a function, not a table: clusters.ts and worldMap.ts import each other, so nothing here may read worldMap values while the modules load)
+export const itemRadius = (i: { k: "tree" | "rock" | "bush"; s: number }) => (i.k === "tree" ? TREE_R : i.k === "rock" ? ROCK_R : BUSH_R) * i.s;
 
 const GATE = GARDEN.places.find((p) => p.kind === "gate");
 /** The one shared keep-clear check. True when (x, z) is inside Home (and its margin), on the path, at the gate, on a signpost or at a landmark's foot, widened by `pad` metres. */
@@ -219,7 +220,10 @@ let propCache: PropItem[] | null = null;
 export function buildProps(list: PropPatch[] = PROPS, limits: PropLimits = PROP_LIMITS): PropItem[] {
   if (list === PROPS && limits === PROP_LIMITS && propCache) return propCache;
   const used = new Map<string, number>(), out: PropItem[] = [];
-  for (const it of list.flatMap((p) => buildPatch(p, limits))) {
+  const base = list.flatMap((p) => buildPatch(p, limits));
+  // C1: cluster props (pools of tufts, ferns, drips, pinwheels, stones) come after the authored patches, which win where they overlap; off = the patches alone, exactly as before
+  const extra = list === PROPS && shippedClusters().centres.length ? clusterProps().filter((c) => !base.some((b) => Math.hypot(b.x - c.x, b.z - c.z) < propRadius(b) + propRadius(c) + (propSolid(b) || propSolid(c) ? 0.3 : 0))) : [];
+  for (const it of [...base, ...extra]) {
     const key = `${chunkOf(it.x)},${chunkOf(it.z)}`, n = used.get(key) ?? 0;
     if (n >= limits.perChunk) continue;
     used.set(key, n + 1); out.push(it);
