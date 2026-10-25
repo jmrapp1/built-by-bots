@@ -1,0 +1,270 @@
+{
+  "note": "Night sights in Paper Downs, Inkwood and Glyph Quarter (copied from the Pressmark Shore sights). Same kinds and hours. Sights, not prizes: nothing is given, saved or sent. Edit points and captions here. Each point must lie inside its own region, clear of scenery, signposts and hedges.",
+  "paper_downs": {
+    "window": {
+      "inFrom": 18.5,
+      "inTo": 20.5,
+      "outFrom": 5.5,
+      "outTo": 7.5
+    },
+    "perNight": {
+      "min": 5,
+      "max": 7
+    },
+    "clear": {
+      "scenery": 1.6,
+      "pages": 1.5,
+      "npc": 0,
+      "gatePath": 0
+    },
+    "notice": {
+      "near": 3,
+      "far": 4.5
+    },
+    "captions": {
+      "moth": "A moth rests on a paper kite's tail.",
+      "ink": "Ink glows in a fold of the hill.",
+      "glint": "A ring of light on the pale grass."
+    },
+    "points": [
+      {
+        "x": 66,
+        "z": -102,
+        "kind": "moth"
+      },
+      {
+        "x": 12,
+        "z": -74,
+        "kind": "ink"
+      },
+      {
+        "x": 118,
+        "z": -74,
+        "kind": "glint"
+      },
+      {
+        "x": 22,
+        "z": -118,
+        "kind": "moth"
+      },
+      {
+        "x": 108,
+        "z": -118,
+        "kind": "ink"
+      },
+      {
+        "x": 86,
+        "z": -78,
+        "kind": "glint"
+      },
+      {
+        "x": 48,
+        "z": -118,
+        "kind": "moth"
+      },
+      {
+        "x": 84,
+        "z": -118,
+        "kind": "ink"
+      },
+      {
+        "x": 118,
+        "z": -98,
+        "kind": "glint"
+      },
+      {
+        "x": 18,
+        "z": -96,
+        "kind": "moth"
+      },
+      {
+        "x": 98,
+        "z": -92,
+        "kind": "ink"
+      },
+      {
+        "x": 70,
+        "z": -84,
+        "kind": "glint"
+      }
+    ]
+  },
+  "inkwood": {
+    "window": {
+      "inFrom": 18.5,
+      "inTo": 20.5,
+      "outFrom": 5.5,
+      "outTo": 7.5
+    },
+    "perNight": {
+      "min": 5,
+      "max": 7
+    },
+    "clear": {
+      "scenery": 1.6,
+      "pages": 1.5,
+      "npc": 0,
+      "gatePath": 0
+    },
+    "notice": {
+      "near": 3,
+      "far": 4.5
+    },
+    "captions": {
+      "moth": "A moth rests on a dark leaf.",
+      "ink": "The ink glows between the roots.",
+      "glint": "A ring of light under the trees."
+    },
+    "points": [
+      {
+        "x": -50,
+        "z": -104,
+        "kind": "moth"
+      },
+      {
+        "x": -118,
+        "z": -74,
+        "kind": "ink"
+      },
+      {
+        "x": -10,
+        "z": -74,
+        "kind": "glint"
+      },
+      {
+        "x": -98,
+        "z": -118,
+        "kind": "moth"
+      },
+      {
+        "x": -10,
+        "z": -118,
+        "kind": "ink"
+      },
+      {
+        "x": -72,
+        "z": -74,
+        "kind": "glint"
+      },
+      {
+        "x": -38,
+        "z": -78,
+        "kind": "moth"
+      },
+      {
+        "x": -118,
+        "z": -100,
+        "kind": "ink"
+      },
+      {
+        "x": -94,
+        "z": -86,
+        "kind": "glint"
+      },
+      {
+        "x": -20,
+        "z": -96,
+        "kind": "moth"
+      },
+      {
+        "x": -84,
+        "z": -104,
+        "kind": "ink"
+      },
+      {
+        "x": -118,
+        "z": -118,
+        "kind": "glint"
+      }
+    ]
+  },
+  "glyph_quarter": {
+    "window": {
+      "inFrom": 18.5,
+      "inTo": 20.5,
+      "outFrom": 5.5,
+      "outTo": 7.5
+    },
+    "perNight": {
+      "min": 5,
+      "max": 7
+    },
+    "clear": {
+      "scenery": 1.6,
+      "pages": 1.5,
+      "npc": 0,
+      "gatePath": 0
+    },
+    "notice": {
+      "near": 3,
+      "far": 4.5
+    },
+    "captions": {
+      "moth": "A moth rests on a loose page.",
+      "ink": "Lantern ink glows on the stones.",
+      "glint": "A ring of light on the pavement."
+    },
+    "points": [
+      {
+        "x": -16,
+        "z": 104,
+        "kind": "moth"
+      },
+      {
+        "x": 118,
+        "z": 86,
+        "kind": "ink"
+      },
+      {
+        "x": -118,
+        "z": 74,
+        "kind": "glint"
+      },
+      {
+        "x": 54,
+        "z": 118,
+        "kind": "moth"
+      },
+      {
+        "x": -76,
+        "z": 118,
+        "kind": "ink"
+      },
+      {
+        "x": -54,
+        "z": 74,
+        "kind": "glint"
+      },
+      {
+        "x": 34,
+        "z": 74,
+        "kind": "moth"
+      },
+      {
+        "x": 76,
+        "z": 80,
+        "kind": "ink"
+      },
+      {
+        "x": 94,
+        "z": 116,
+        "kind": "glint"
+      },
+      {
+        "x": -114,
+        "z": 112,
+        "kind": "moth"
+      },
+      {
+        "x": 0,
+        "z": 74,
+        "kind": "ink"
+      },
+      {
+        "x": -86,
+        "z": 82,
+        "kind": "glint"
+      }
+    ]
+  }
+}
