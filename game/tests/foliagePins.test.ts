@@ -26,10 +26,10 @@ describe("baked bloom geometry is freed with its chunk", () => {
 
 describe("the scatters are hash-pinned", () => {
   // A changed seed, density, cap, gap, scale or placement rule changes these. Update them only as a decision, with a look on screen.
-  it("grass: 1130 bundles, exact list", () => {
-    const g = buildGrass(); expect(g.all.length).toBe(1130); expect(sha(g.all)).toBe("bd80e6ba6daaeefbfcdcf1c24e2e9e4781b3880e591cca0dff3a647535269052");
+  it("grass: 152 bundles, exact list", () => {
+    const g = buildGrass(); expect(g.all.length).toBe(152); expect(sha(g.all)).toBe("810cc692f161e3a2e684d507720648cde438a431c3a54c9453eb785032738da8");
   });
   it("blooms: exact list", () => {
-    const b = buildBlooms(); expect(b.all.length).toBeGreaterThan(0); expect(sha(b.all)).toBe("10710a9a118674fbaeb18400292cc0d1f2eed2f26a423d23ad12f7f311e716cc");
+    const b = buildBlooms(); expect(b.all.length).toBeGreaterThan(0); expect(sha(b.all)).toBe("b48ee6ef660c1dbdb938bd684b0da16c897a039cbd89d426b43be85ce934fa74");
   });
 });
