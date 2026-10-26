@@ -24,7 +24,7 @@ describe("the sub-flag", () => {
   });
   it("off gives nothing, so the World is the slice 1 and 2 result", () => {
     expect(buildRegionGrass(FOLIAGE, offR).all.length).toBe(0);
-    expect(buildRegionGrass(FOLIAGE, R).all.length).toBeGreaterThan(300);
+    expect(buildRegionGrass(FOLIAGE, R).all.length).toBeGreaterThan(50);
   });
   it("the Meadow grass is untouched by it, on or off", () => {
     const a = sha(buildGrass().all); buildRegionGrass(FOLIAGE, R); buildRegionGrass(FOLIAGE, offR);
@@ -111,7 +111,7 @@ describe("the tint", () => {
 });
 
 describe("the list is hash-pinned and the code is quiet", () => {
-  it("pins the region grass list", () => { expect(shippedRegionGrass().all.length).toBeGreaterThan(0); expect(sha(shippedRegionGrass().all)).toBe("05ce8e7d281faac193c95860b7204b2daa0f79368b128ff17134a8a887315e98"); });
+  it("pins the region grass list", () => { expect(shippedRegionGrass().all.length).toBeGreaterThan(0); expect(sha(shippedRegionGrass().all)).toBe("2de3e0930bc2efa5cd2e04efbadc5466609ad78ca3618fe5d350773055811644"); });
   it("no randomness, clock, network or storage in lib/foliage.ts", () => {
     const s = readFileSync("lib/foliage.ts", "utf8").replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(s).not.toMatch(/Math\.random|Date\.now|new Date|fetch\(|localStorage|sessionStorage|XMLHttpRequest|https?:\/\//);

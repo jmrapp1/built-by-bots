@@ -23,12 +23,12 @@ export function describeScene(opts: Parameters<typeof buildWorldShell>[1] = {}) 
 describe("rustle off: the scene is what main drew", () => {
   it("pinned scene hash", () => {
     const d = describeScene(); expect(d.meshes).toBeGreaterThan(50);
-    expect(d.hash).toBe("bca786ace2e877256fb41d5e090c45e420ad10e584580220c3c719a2aec0487c"); // measured on main 64e5297 before any change
+    expect(d.hash).toBe("1ea0c6da55caaacfaa322ea62fbb92a2c58354dfe23792a2c5864bcfda6f3f6d"); // patches on (foliage slice 5 switched on)
     d.shell.dispose();
   });
   it("and the same with rustle on or off: no new mesh, draw or vertex", () => {
     const a = describeScene({ rustleData: { ...raw, rustle: { ...raw.rustle, enabled: false } } }), b = describeScene({ rustleData: raw });
-    expect(a.hash).toBe(b.hash); expect(a.hash).toBe("bca786ace2e877256fb41d5e090c45e420ad10e584580220c3c719a2aec0487c");
+    expect(a.hash).toBe(b.hash); expect(a.hash).toBe("1ea0c6da55caaacfaa322ea62fbb92a2c58354dfe23792a2c5864bcfda6f3f6d");
     a.shell.dispose(); b.shell.dispose();
   });
 });

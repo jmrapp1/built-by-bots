@@ -36,7 +36,7 @@ describe("the scatter", () => {
     expect(sha(rev)).toBe(sha(fwd));
   });
   it("has some grass, only in regions with density, and stays inside the World", () => {
-    expect(g.all.length).toBeGreaterThan(500);
+    expect(g.all.length).toBeGreaterThan(100);
     for (const t of g.all) { expect(FOLIAGE.density[regionAt(t.z, t.x)]).toBeGreaterThan(0); expect(Math.abs(t.x)).toBeLessThan(WORLD.size / 2); expect(Math.abs(t.z)).toBeLessThan(WORLD.size / 2); expect(t.s).toBeGreaterThan(0); }
   });
   it("holds the World ceiling and the per-chunk cap", () => {

@@ -22,7 +22,7 @@ describe("the blooms switch", () => {
     expect(buildBlooms(off).all.length).toBe(0);
     expect(buildBlooms({ ...BLOOMS, bloomsWorld: 0 }).all.length).toBe(0);
     expect(buildBlooms({ ...BLOOMS, palette: [] }).all.length).toBe(0);
-    expect(buildGrass().all.length).toBeGreaterThan(500);
+    expect(buildGrass().all.length).toBeGreaterThan(100);
   });
   it("is independent of the grass switch, both ways", () => {
     expect(buildBlooms().all.length).toBeGreaterThan(0);
@@ -47,7 +47,7 @@ describe("the bloom scatter", () => {
     expect(sha(rev)).toBe(sha(fwd));
   });
   it("has some blooms, only in regions with density, inside the World, each with a palette colour", () => {
-    expect(b.all.length).toBeGreaterThan(100);
+    expect(b.all.length).toBeGreaterThan(10);
     for (const t of b.all) {
       expect(BLOOMS.density[regionAt(t.z, t.x)]).toBeGreaterThan(0);
       expect(Math.abs(t.x)).toBeLessThan(WORLD.size / 2); expect(Math.abs(t.z)).toBeLessThan(WORLD.size / 2);

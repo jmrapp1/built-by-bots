@@ -81,7 +81,7 @@
   "blooms": true
  },
  "patches": {
-  "enabled": false,
+  "enabled": true,
   "seed": 3319,
   "cell": 28,
   "share": 0.55,

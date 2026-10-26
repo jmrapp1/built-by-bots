@@ -11,8 +11,8 @@ const on: PatchData = { ...PATCHES, enabled: true };
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 describe("flag", () => {
-  it("ships off, and only a plain true is on", () => {
-    expect((raw as { patches: { enabled: unknown } }).patches.enabled).toBe(false);
+  it("ships on, and only a plain true is on", () => {
+    expect((raw as { patches: { enabled: unknown } }).patches.enabled).toBe(true);
     const f = { foliage: { enabled: true }, blooms: { enabled: true }, grassRegions: { enabled: true } };
     expect(patchesFlag({ ...f, patches: { enabled: true } })).toBe(true);
     for (const v of ["true", 1, "yes", null, undefined, {}]) expect(patchesFlag({ ...f, patches: { enabled: v } })).toBe(false);
@@ -22,10 +22,10 @@ describe("flag", () => {
     expect(patchesFlag(null)).toBe(false);
   });
   it("off: the three layers are identical to a build with no patch data at all", () => {
-    const off = { ...PATCHES, enabled: false };
-    expect(same(buildGrass(FOLIAGE, off).all, buildGrass().all)).toBe(true);
-    expect(same(buildBlooms(BLOOMS, off).all, buildBlooms().all)).toBe(true);
-    expect(same(buildRegionGrass(FOLIAGE, GRASS_REGIONS, buildGrass(), off).all, buildRegionGrass().all)).toBe(true);
+    const off = { ...PATCHES, enabled: false }, none = { ...PATCHES, enabled: undefined } as unknown as typeof PATCHES;
+    expect(same(buildGrass(FOLIAGE, off).all, buildGrass(FOLIAGE, none).all)).toBe(true);
+    expect(same(buildBlooms(BLOOMS, off).all, buildBlooms(BLOOMS, none).all)).toBe(true);
+    expect(same(buildRegionGrass(FOLIAGE, GRASS_REGIONS, buildGrass(FOLIAGE, off), off).all, buildRegionGrass(FOLIAGE, GRASS_REGIONS, buildGrass(FOLIAGE, none), none).all)).toBe(true);
   });
   it("on needs the layer: blooms off means no blooms and grass is untouched by it", () => {
     expect(buildBlooms({ ...BLOOMS, enabled: false }, on).all.length).toBe(0);
@@ -35,7 +35,7 @@ describe("flag", () => {
 describe("on", () => {
   const g = buildGrass(FOLIAGE, on), b = buildBlooms(BLOOMS, on), r = buildRegionGrass(FOLIAGE, GRASS_REGIONS, g, on);
   it("changes where plants stand, and never adds any", () => {
-    const g0 = buildGrass();
+    const g0 = buildGrass(FOLIAGE, { ...PATCHES, enabled: false });
     expect(same(g.all, g0.all)).toBe(false);
     expect(g.all.length).toBeLessThan(g0.all.length);
     expect(g.all.length).toBeGreaterThan(0);
